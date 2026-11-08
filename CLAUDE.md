@@ -15,6 +15,8 @@
 - `docs/NEXT-STEPS.md` (`C`·`S`): 작업 순서, 서버 작업, 검증 결과.
 - `docs/private/CONTEST-BRIEF.md`: 공모 원문. gitignore 대상이라 원본 체크아웃에만 있다. PRD 해석이 의심스러울 때 읽는다.
 
+UI 작업 전 `apps/web/CLAUDE.md`를 읽는다.
+
 PRD의 결정과 다르게 구현해야 하면 PR 본문에 "PRD §x와 어긋남"과 이유를 쓰고 보고에 올린다.
 
 ## 컷 규칙 (#9 판정 전까지)
