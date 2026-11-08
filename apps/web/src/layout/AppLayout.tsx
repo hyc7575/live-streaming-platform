@@ -52,6 +52,9 @@ export function AppLayout() {
           <NavLink to="/" end className={styles.navLink}>
             방송 목록
           </NavLink>
+          <NavLink to="/studio" className={styles.navLink}>
+            내 방송
+          </NavLink>
         </nav>
         <AccountMenu />
       </header>
