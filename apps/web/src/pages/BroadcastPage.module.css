@@ -1,0 +1,38 @@
+.page {
+  max-width: var(--player-max-width);
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-md);
+}
+
+.notice {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.info {
+  padding: var(--space-4) 0;
+}
+
+.title {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-xl);
+}
+
+.streamer {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+}
+
+.description {
+  margin: var(--space-4) 0 0;
+  white-space: pre-wrap;
+}

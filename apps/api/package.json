@@ -11,7 +11,8 @@
     "test": "vitest run",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
-    "db:migrate:dev": "prisma migrate dev"
+    "db:migrate:dev": "prisma migrate dev",
+    "db:seed": "nest build && node --env-file-if-exists=../../.env dist/seed.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.4.0",

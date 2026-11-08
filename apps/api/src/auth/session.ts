@@ -1,5 +1,5 @@
 import connectPgSimple from 'connect-pg-simple';
-import type { RequestHandler } from 'express';
+import type { Request, RequestHandler } from 'express';
 import session from 'express-session';
 import type pg from 'pg';
 import { PG_POOL } from '../database/database.module.js';
@@ -44,4 +44,24 @@ export function sessionMiddleware(
       maxAge: SESSION_MAX_AGE_MS,
     },
   });
+}
+
+function promisify(run: (done: (err?: Error) => void) => void): Promise<void> {
+  return new Promise((resolve, reject) =>
+    run((err) => (err ? reject(err) : resolve())),
+  );
+}
+
+// A fresh session id on login stops session fixation.
+export async function startSession(
+  req: Request,
+  userId: string,
+): Promise<void> {
+  await promisify((done) => req.session.regenerate(done));
+  req.session.userId = userId;
+  await promisify((done) => req.session.save(done));
+}
+
+export function destroySession(req: Request): Promise<void> {
+  return promisify((done) => req.session.destroy(done));
 }
