@@ -284,6 +284,69 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/auth/test-login \
 - 요청 제한은 일반 로그인과 같다(IP당 1분에 10번).
 - 자동 테스트는 `apps/api/test/test-accounts.e2e.spec.ts`(실제 PostgreSQL)와 `apps/web/src/pages/LoginPage.test.tsx`다. 시드 두 번 실행 후 사용자 2명, A·B 로그인 후 `me`, 꺼짐 404, 잘못된 `account` 400, 응답과 로그에 비밀번호가 없는지, 버튼 표시·숨김을 확인한다. 비밀번호는 테스트가 실행마다 무작위로 만든다.
 
+### 2. 방송 수정·삭제와 인가 매트릭스
+
+인수 시나리오 2-1: A가 자기 방송(READY 또는 ENDED)의 제목을 수정 → 목록·상세에 반영 → 삭제 → 목록에서 사라짐.
+인수 시나리오 4: 사용자 B가 A의 방송 수정·삭제 시도 → 403. UI에서는 버튼이 보이지 않고, API를 직접 불러도 거절된다. 종료 시도는 종료 기능(#11)이 생길 때 추가한다.
+
+수정·삭제는 `로그인 확인 → 소유자 확인` 순서로 거른다(`LoggedInGuard` → `BroadcastOwnerGuard`). 비로그인은 방송을 찾기 전에 401, 로그인한 사용자가 없는 방송을 부르면 404, 남의 방송은 403이다. 소유자 확인이 본문 검증보다 먼저라서, 타인은 본문이 틀려도 400이 아니라 403을 받는다.
+
+인가 매트릭스 (PRD §7.5 중 지금 있는 행). 자동 테스트는 `apps/api/test/authorization-matrix.e2e.spec.ts`(실제 PostgreSQL)이고, 이 표를 같은 모양의 테이블(`MATRIX`)로 들고 있다.
+
+| 행위 | API | 비로그인 | 로그인(타인) | 소유자 |
+|---|---|---|---|---|
+| 방송 목록 조회 | `GET /api/broadcasts` | 200 | 200 | 200 |
+| 방송 상세 조회 | `GET /api/broadcasts/:id` | 200 | 200 | 200 |
+| 방송 생성 | `POST /api/broadcasts` | 401 | 201 | — |
+| 방송 수정 | `PATCH /api/broadcasts/:id` | 401 | 403 | 200 |
+| 방송 삭제 | `DELETE /api/broadcasts/:id` | 401 | 403 | 204 (LIVE면 409) |
+| 내 방송 조회 | `GET /api/me/broadcasts` | 401 | 200 (자기 것만) | 200 |
+
+- 표의 칸마다 대상 방송이 `READY`·`LIVE`·`ENDED`일 때를 모두 돌린다(17칸 × 3 = 51건).
+- 거절된 칸(401·403·409)은 요청 뒤 `Broadcast` 테이블 전체가 요청 전과 같은지 확인한다.
+- 허용된 칸은 효과를 API로 다시 읽어 확인한다. 수정 뒤 상세·내 방송·공개 목록에 새 제목이 보이고(`READY`는 원래 공개 목록에 없다), 본문에 함께 보낸 `status`는 무시된다. 삭제 뒤 상세는 404이고 내 방송과 공개 목록에서 사라진다.
+- 순서 확인: 없는 방송과 형식이 틀린 id에 비로그인 401, 로그인 404. 틀린 본문에 비로그인 401, 타인 403, 소유자 400. 로그아웃한 소유자는 401.
+- 아직 없는 행(송출 토큰, 종료, Webhook 판정, 스트림 키, 댓글, 후원)은 `it.todo`로 남겨 테스트 출력에 todo로 보인다.
+
+수정 규칙(`apps/api/test/broadcasts.e2e.spec.ts`): 보낸 필드만 바꾸고 생성과 같은 검증(제목 1~100자, 설명 2000자 이하, 앞뒤 공백 제거)을 한다. 빈 본문과 모르는 필드만 있는 본문은 400이다. `LIVE` 방송도 제목·설명은 고칠 수 있다.
+
+LIVE 방송 삭제: PRD §7.4는 "서버가 먼저 종료 처리한 뒤 삭제"다. 종료 처리(미디어 서버의 송출 연결 끊기)는 #11에서 생기므로, 그 전까지 `LIVE` 삭제는 409 `방송을 종료한 뒤 삭제하세요.`로 거절한다.
+
+화면에서 확인 (위 절의 테스트 계정 "스트리머 A"·"사용자 B"를 쓴다. B는 다른 브라우저나 시크릿 창에서 로그인한다. 직접 가입한 두 계정으로 해도 같다):
+
+1. "스트리머 A"로 로그인해 방송을 만든다. "내 방송"에서 카드를 눌러 상세로 간다. 설명 아래에 "수정"과 "삭제"가 보인다.
+2. "수정"을 누른다. 제목과 설명이 채워진 "방송 수정" 화면이 열린다. 제목을 바꾸고 "저장"을 누른다. 상세로 돌아오고 새 제목이 보인다. "내 방송" 카드도 새 제목이다.
+3. 위 절의 `psql` 명령으로 이 방송을 `ENDED`로 바꾼다(`status='ENDED', "startedAt"=now(), "endedAt"=now()`). "방송 목록"에 새 제목으로 보인다.
+4. "사용자 B" 창에서 같은 상세 주소를 연다. "수정"과 "삭제"가 보이지 않는다. 로그아웃 상태에서도 보이지 않는다. B가 `/studio/broadcasts/<id>/edit`을 직접 열면 "권한이 없습니다"가 보인다.
+5. A 창에서 "삭제" → "삭제하기"를 누른다. "내 방송"으로 가고 카드가 없다. "방송 목록"에서도 사라졌다.
+6. `LIVE`로 바꾼 방송의 상세에서는 "삭제" 대신 "송출 중인 방송은 종료한 뒤 삭제할 수 있습니다."가 보인다.
+
+API로 확인 (테스트 계정 A·B로 쿠키를 새로 받는다. 앞 절에서 로그아웃한 `jar.txt`는 세션이 지워져 쓸 수 없다):
+
+```sh
+API=http://localhost:3000/api
+curl -s -c a-jar.txt -X POST $API/auth/test-login -H 'Content-Type: application/json' \
+  -d '{"account":"A"}' -o /dev/null
+curl -s -c b-jar.txt -X POST $API/auth/test-login -H 'Content-Type: application/json' \
+  -d '{"account":"B"}' -o /dev/null
+ID=$(curl -s -b a-jar.txt -X POST $API/broadcasts -H 'Content-Type: application/json' \
+  -d '{"title":"A의 방송"}' | sed -E 's/^\{"id":"([^"]+)".*/\1/')
+
+# 비로그인 401, B 403. 그 뒤에도 제목은 그대로다
+curl -s -o /dev/null -w '%{http_code}\n' -X PATCH $API/broadcasts/$ID \
+  -H 'Content-Type: application/json' -d '{"title":"뺏은 제목"}'                      # 401
+curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X PATCH $API/broadcasts/$ID \
+  -H 'Content-Type: application/json' -d '{"title":"뺏은 제목"}'                      # 403
+curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X DELETE $API/broadcasts/$ID  # 403
+curl -s $API/broadcasts/$ID                                                         # 제목 "A의 방송"
+
+# A는 수정·삭제할 수 있다
+curl -s -b a-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/json' \
+  -d '{"title":"고친 제목"}'                                                          # 200, 새 제목
+curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X DELETE $API/broadcasts/$ID    # 204
+curl -s -o /dev/null -w '%{http_code}\n' $API/broadcasts/$ID                        # 404
+```
+
 ### 모바일 카메라 캡처 (#22)
 
 모바일 스트리머의 카메라와 마이크를 MediaStream 하나로 잡고, 전·후면을 바꾸고, 화면이 꺼지지 않게 한다. 아직 송출하지 않는다. 미리보기 화면은 `/studio/mobile`이고 로그인하지 않아도 열린다.

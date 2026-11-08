@@ -1,9 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseEnumPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -12,20 +15,29 @@ import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
 import { ZodBodyPipe } from '../zod-body.pipe.js';
+import { BroadcastOwnerGuard } from './broadcast-owner.guard.js';
 import {
   BroadcastsService,
   type BroadcastView,
   type CreateBroadcastInput,
   type PublicStatus,
+  type UpdateBroadcastInput,
 } from './broadcasts.service.js';
 
 export const TITLE_MAX_LENGTH = 100;
 export const DESCRIPTION_MAX_LENGTH = 2000;
 
-const createSchema = z.object({
-  title: z.string().trim().min(1).max(TITLE_MAX_LENGTH),
-  description: z.string().trim().max(DESCRIPTION_MAX_LENGTH).default(''),
-});
+const title = z.string().trim().min(1).max(TITLE_MAX_LENGTH);
+const description = z.string().trim().max(DESCRIPTION_MAX_LENGTH);
+
+const createSchema = z.object({ title, description: description.default('') });
+
+// Unknown keys such as `status` are stripped: only the server moves status.
+const updateSchema = z
+  .object({ title: title.optional(), description: description.optional() })
+  .refine((b) => b.title !== undefined || b.description !== undefined, {
+    message: 'Nothing to update',
+  });
 
 const publicStatus = { LIVE: 'LIVE', ENDED: 'ENDED' } as const;
 
@@ -59,5 +71,21 @@ export class BroadcastsController {
   @UseGuards(LoggedInGuard)
   listMine(@CurrentUser() user: AuthUser): Promise<BroadcastView[]> {
     return this.broadcasts.listByStreamer(user.id);
+  }
+
+  @Patch('broadcasts/:id')
+  @UseGuards(LoggedInGuard, BroadcastOwnerGuard)
+  update(
+    @Param('id') id: string,
+    @Body(new ZodBodyPipe(updateSchema)) body: UpdateBroadcastInput,
+  ): Promise<BroadcastView> {
+    return this.broadcasts.update(id, body);
+  }
+
+  @Delete('broadcasts/:id')
+  @HttpCode(204)
+  @UseGuards(LoggedInGuard, BroadcastOwnerGuard)
+  remove(@Param('id') id: string): Promise<void> {
+    return this.broadcasts.remove(id);
   }
 }

@@ -1,12 +1,23 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { PrismaService } from '../database/database.module.js';
-import type { BroadcastStatus, Prisma } from '../generated/prisma/client.js';
+import { Prisma, type BroadcastStatus } from '../generated/prisma/client.js';
 
 export interface CreateBroadcastInput {
   title: string;
   description: string;
 }
+
+export interface UpdateBroadcastInput {
+  title?: string | undefined;
+  description?: string | undefined;
+}
+
+export const DELETE_LIVE_MESSAGE = '방송을 종료한 뒤 삭제하세요.';
 
 export type PublicStatus = Extract<BroadcastStatus, 'LIVE' | 'ENDED'>;
 
@@ -83,4 +94,57 @@ export class BroadcastsService {
     if (!broadcast) throw new NotFoundException('Broadcast not found');
     return broadcast;
   }
+
+  async streamerIdOf(id: string): Promise<string> {
+    const broadcast = uuid.safeParse(id).success
+      ? await this.prisma.broadcast.findUnique({
+          where: { id },
+          select: { streamerId: true },
+        })
+      : null;
+    if (!broadcast) throw new NotFoundException('Broadcast not found');
+    return broadcast.streamerId;
+  }
+
+  // Title and description are not part of the status lifecycle, so every
+  // status, LIVE included, accepts an edit.
+  async update(
+    id: string,
+    input: UpdateBroadcastInput,
+  ): Promise<BroadcastView> {
+    try {
+      return await this.prisma.broadcast.update({
+        where: { id },
+        data: input,
+        select: broadcastSelect,
+      });
+    } catch (error) {
+      if (isRecordNotFound(error)) {
+        throw new NotFoundException('Broadcast not found');
+      }
+      throw error;
+    }
+  }
+
+  // PRD 7.4 wants a LIVE delete to end the broadcast first. Ending it means
+  // cutting the publish connection on the media server, which lands with the
+  // end-broadcast issue (#11), so until then a LIVE delete is refused. The
+  // status filter sits in the DELETE itself, so a broadcast that goes LIVE
+  // between the ownership check and here is still refused.
+  async remove(id: string): Promise<void> {
+    const { count } = await this.prisma.broadcast.deleteMany({
+      where: { id, status: { not: 'LIVE' } },
+    });
+    if (count === 1) return;
+    const exists = await this.prisma.broadcast.count({ where: { id } });
+    if (exists === 0) throw new NotFoundException('Broadcast not found');
+    throw new ConflictException(DELETE_LIVE_MESSAGE);
+  }
+}
+
+function isRecordNotFound(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2025'
+  );
 }

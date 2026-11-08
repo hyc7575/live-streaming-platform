@@ -1,7 +1,9 @@
 import { useParams } from 'react-router';
 import { ApiError } from '../api';
+import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import type { BroadcastStatus } from '../components/StatusBadge';
+import { OwnerActions } from '../components/OwnerActions';
 import { StatusBadge } from '../components/StatusBadge';
 import { useApi } from '../use-api';
 import styles from './BroadcastPage.module.css';
@@ -15,6 +17,7 @@ const PLAYER_NOTICE: Record<BroadcastStatus, string> = {
 
 export function BroadcastPage() {
   const { id = '' } = useParams();
+  const { state } = useAuth();
   const broadcast = useApi<Broadcast>(`/broadcasts/${encodeURIComponent(id)}`);
 
   if (broadcast.status === 'loading') return null;
@@ -31,6 +34,8 @@ export function BroadcastPage() {
   }
 
   const b = broadcast.data;
+  const isOwner =
+    state.status === 'authenticated' && state.user.id === b.streamer.id;
   return (
     <section className={styles.page}>
       <div className={styles.player}>
@@ -41,6 +46,7 @@ export function BroadcastPage() {
         <h1 className={styles.title}>{b.title}</h1>
         <p className={styles.streamer}>{b.streamer.nickname}</p>
         {b.description && <p className={styles.description}>{b.description}</p>}
+        {isOwner && <OwnerActions broadcast={b} />}
       </div>
     </section>
   );
