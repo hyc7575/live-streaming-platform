@@ -82,7 +82,9 @@ it('says when the camera switch fails', async () => {
 it('tells the streamer when the camera is taken away', async () => {
   const { setState } = await renderCapturing();
   act(() => setState({ status: 'ended', reason: 'device-lost' }));
-  expect(screen.getByText('카메라나 마이크가 꺼졌습니다.')).toBeDefined();
+  expect(
+    await screen.findByText('카메라나 마이크가 꺼졌습니다.'),
+  ).toBeDefined();
   expect(screen.getByRole('button', { name: '카메라 켜기' })).toBeDefined();
 });
 
