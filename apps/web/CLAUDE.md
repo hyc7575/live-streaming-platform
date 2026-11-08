@@ -60,6 +60,7 @@ UI를 만들거나 고치기 전에 이 파일을 읽는다. 여기 없는 결�
 - `src/api.ts`의 `apiFetch<T>(path, init)`만 쓴다. `path`는 `/api` 뒤의 경로다(`apiFetch('/broadcasts')` → `GET /api/broadcasts`).
 - 로그인은 쿠키 세션이라 `apiFetch`가 항상 `credentials: 'include'`를 붙인다. 토큰을 localStorage에 두지 않는다.
 - 2xx가 아니면 `ApiError`(`status` 포함)를 던진다. 401이면 로그인 화면으로, 403이면 "권한이 없습니다" 안내로 처리한다.
+- 로그인 상태는 `src/auth/auth-context.ts`의 `useAuth()`로 읽는다. `state.status`는 `loading`(첫 `GET /api/auth/me` 응답 전), `anonymous`, `authenticated`(`state.user`) 중 하나다. 화면마다 `me`를 다시 부르지 않는다.
 - 개발 중에는 Vite dev proxy가 `/api`를 `http://localhost:${API_PORT}`(기본 3000)로 넘긴다. 그래서 웹과 API가 같은 출처로 보여 쿠키가 그대로 붙는다.
 
 ## 문구

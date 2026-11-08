@@ -18,10 +18,20 @@
 ```sh
 pnpm install
 git config core.hooksPath .githooks   # 커밋 전 비밀값 검사 훅
-cp .env.example .env                  # 비워 둔 값은 기본값을 쓴다
+cp .env.example .env                  # DATABASE_URL, SESSION_SECRET을 채운다
 docker compose up -d --wait           # PostgreSQL + OME
+pnpm --filter @lsp/api db:migrate     # Prisma 마이그레이션 적용
 pnpm dev                              # API :3000, 웹 :5173
 ```
+
+`.env` 예시 (compose 기본값과 맞춘 값):
+
+```sh
+DATABASE_URL=postgresql://lsp:lsp@localhost:5432/lsp
+SESSION_SECRET=<openssl rand -base64 32 결과>
+```
+
+`pnpm install`이 Prisma 클라이언트를 `apps/api/src/generated/`에 만든다(`postinstall`). 스키마를 바꾸면 `pnpm --filter @lsp/api db:migrate:dev --name <이름>`으로 마이그레이션 파일을 만들고 커밋한다.
 
 브라우저에서 `http://localhost:5173`을 연다. 웹은 `/api` 요청을 Vite dev proxy로 API에 넘긴다. API 상태는 `curl http://localhost:3000/api/health`로 확인한다.
 
@@ -46,6 +56,16 @@ pnpm format      # Prettier로 고친다
 
 앱 하나만 돌리려면 `pnpm --filter @lsp/api test`처럼 쓴다.
 
+**API 테스트는 실제 PostgreSQL이 필요하다.** `.env`의 `DATABASE_URL`로 접속하고, 테스트마다 모든 테이블을 비운다(`TRUNCATE`). 개발 데이터가 지워지니 필요하면 테스트용 DB를 따로 둔다. 순서:
+
+```sh
+docker compose up -d --wait postgres
+pnpm --filter @lsp/api db:migrate
+pnpm test
+```
+
+CI도 같은 순서로 GitHub Actions의 Postgres 서비스에 마이그레이션을 적용한 뒤 테스트를 돌린다. 테스트 파일은 DB를 같이 쓰므로 하나씩 차례로 돈다(`apps/api/vitest.config.ts`의 `fileParallelism: false`).
+
 ## 환경변수
 
 `.env.example`에 이름과 설명이 있다. compose, API, 웹이 모두 저장소 루트의 `.env` 하나를 읽는다. 값을 비워 두면 아래 기본값을 쓴다.
@@ -55,8 +75,9 @@ pnpm format      # Prettier로 고친다
 | `COMPOSE_PROJECT_NAME` | `lsp` | compose 프로젝트 이름 (컨테이너·볼륨 이름 앞부분) |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `lsp` / `lsp` / `lsp` | 로컬 PostgreSQL |
 | `POSTGRES_HOST_PORT` | `5432` | PostgreSQL 호스트 포트 (127.0.0.1에만 연다) |
-| `DATABASE_URL` | 없음 | API의 DB 연결 (Prisma 도입 이슈부터 사용) |
-| `SESSION_SECRET` | 없음 | 세션 쿠키 서명 (인증 이슈부터 사용) |
+| `DATABASE_URL` | 없음 (필수) | API·Prisma CLI·API 테스트의 DB 연결 |
+| `SESSION_SECRET` | 없음 (필수) | 세션 쿠키 서명. 바꾸면 기존 로그인이 모두 풀린다 |
+| `NODE_ENV` | 없음 | `production`이면 세션 쿠키에 `Secure`를 붙인다 |
 | `API_PORT` / `WEB_PORT` | `3000` / `5173` | 개발 서버 포트 |
 | `OME_HOST_IP` | `*` | OME가 ICE 후보로 알리는 주소 |
 | `OME_HTTP_PORT` | `3333` | OME WebRTC 시그널링 + LL-HLS |
@@ -97,6 +118,45 @@ git config core.hooksPath .githooks
 
 기능 이슈가 끝날 때마다 확인 절차를 여기에 추가한다.
 
+### 0. 회원가입·로그인·로그아웃과 세션 유지
+
+자동 테스트는 `apps/api/test/auth.e2e.spec.ts`(실제 PostgreSQL)다. 다음을 확인한다.
+
+- 가입 → 로그인 → `me` 200 → 로그아웃 → `me` 401
+- 로그아웃 전 쿠키를 다시 보내도 401 (서버가 세션을 지운다)
+- 앱 인스턴스를 닫고 새로 띄워도 같은 쿠키로 `me` 200 (재시작 후 유지)
+- 쿠키 `HttpOnly`·`SameSite=Lax`, 운영 모드에서 https 프록시 뒤면 `Secure`
+- 잘못된 비밀번호 401, 중복 이메일 409, 로그인 11번째 시도 429
+
+화면에서 확인:
+
+1. `http://localhost:5173`을 연다. 헤더 오른쪽에 "회원가입"과 "로그인"이 보인다.
+2. "회원가입"에서 이메일, 닉네임, 비밀번호(8자 이상)를 넣고 "가입하기"를 누른다. 로그인 화면으로 넘어가고 이메일이 채워져 있다.
+3. 비밀번호를 넣고 "로그인"을 누른다. 방송 목록으로 돌아가고 헤더에 닉네임과 "로그아웃"이 보인다.
+4. 새로고침한다. 헤더에 닉네임이 그대로 있다.
+5. API를 껐다 켠다(`pnpm dev` 재시작). 새로고침해도 닉네임이 그대로 있다. 세션이 PostgreSQL `session` 테이블에 있기 때문이다.
+6. "로그아웃"을 누른다. 헤더가 "로그인"으로 바뀐다. 개발자 도구 콘솔에서 `fetch('/api/auth/me').then(r => r.status)`가 `401`이다.
+
+API로 확인 (쿠키를 파일에 저장해 다시 쓴다):
+
+```sh
+API=http://localhost:3000/api
+curl -s -X POST $API/auth/signup -H 'Content-Type: application/json' \
+  -d '{"email":"a@example.com","password":"password123","nickname":"스트리머A"}'
+curl -s -c jar.txt -X POST $API/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"a@example.com","password":"password123"}'
+curl -s -b jar.txt $API/auth/me                    # 200, 사용자 정보
+cp jar.txt old-jar.txt
+curl -s -b jar.txt -X POST $API/auth/logout -o /dev/null -w '%{http_code}\n'   # 204
+curl -s -b old-jar.txt $API/auth/me -o /dev/null -w '%{http_code}\n'           # 401
+```
+
+세션 쿠키 설정:
+
+- `HttpOnly`, `SameSite=Lax`, 14일 유지. 이름은 `modak.sid`.
+- `Secure`는 `NODE_ENV=production`일 때만 붙인다. 브라우저는 http로 받은 `Secure` 쿠키를 저장하지 않아서, 로컬 http 개발에서 켜면 로그인이 안 된다.
+- API는 `trust proxy`를 1단(Caddy)으로 둔다. Caddy가 보낸 `X-Forwarded-Proto: https`로 https 요청임을 알고 `Secure` 쿠키를 발급하며, 요청 제한은 `X-Forwarded-For`의 클라이언트 IP로 센다. API 포트를 외부에 직접 열면 이 헤더를 위조할 수 있으니 Caddy 뒤에만 둔다.
+- 요청 제한: 로그인은 IP당 1분에 10번, 회원가입은 IP당 1시간에 20번. 넘으면 429. 서버 메모리에 세므로 API를 재시작하면 초기화된다.
 ### PC 화면 캡처·믹싱 (#21)
 
 PC 스트리머의 화면, 화면 소리(탭 소리), 마이크를 브라우저에서 오디오 트랙 하나로 섞는다. 아직 송출하지 않는다.
@@ -144,4 +204,10 @@ macOS 시스템 소리를 직접 확인하는 절차: 시스템 설정 → 개�
 
 | 이름 | 쓰는 곳 | 라이선스 |
 |---|---|---|
+| [Prisma](https://github.com/prisma/prisma) (`prisma`, `@prisma/client`, `@prisma/adapter-pg`) | DB 스키마·마이그레이션·쿼리 | Apache-2.0 |
+| [node-postgres](https://github.com/brianc/node-postgres) (`pg`) | PostgreSQL 연결 풀 | MIT |
+| [express-session](https://github.com/expressjs/session) | 세션 쿠키 | MIT |
+| [connect-pg-simple](https://github.com/voxpelli/node-connect-pg-simple) | 세션을 PostgreSQL에 저장 | MIT |
+| [@nestjs/throttler](https://github.com/nestjs/throttler) | 로그인·회원가입 요청 제한 | MIT |
+| [Zod](https://github.com/colinhacks/zod) | 요청 본문 검증 | MIT |
 | [Playwright](https://playwright.dev) | 웹 e2e 테스트 (개발용, `apps/web/e2e`) | Apache-2.0 |
