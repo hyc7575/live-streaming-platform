@@ -93,6 +93,14 @@ test('mixes screen and mic into one track and stops everything when sharing ends
   await page.addInitScript(recordAcquiredTracks);
   await page.goto('/studio/pc');
   await page.getByRole('button', { name: '화면 선택' }).click();
+  // Chrome focuses the captured tab after getDisplayMedia. A streamer returns
+  // to the studio tab before pressing anything, so do the same. Left in the
+  // background, headless Chrome on Linux drops the studio page to a few
+  // animation frames per second and the meters miss the fake mic's short
+  // beeps, and a second getDisplayMedia from the unfocused document rejects
+  // with InvalidStateError.
+  await expect(page.getByRole('button', { name: '방송 시작' })).toBeVisible();
+  await page.bringToFront();
   await page.getByRole('button', { name: '방송 시작' }).click();
 
   await expect(page.getByText('화면 소리 있음 · 오디오 동작 중')).toBeVisible();
@@ -133,10 +141,6 @@ test('mixes screen and mic into one track and stops everything when sharing ends
     });
   }
 
-  // Chrome focuses the captured tab after getDisplayMedia, and a second call
-  // from an unfocused document rejects with InvalidStateError. A streamer
-  // returns to the studio tab before pressing the button, so do the same.
-  await page.bringToFront();
   await page.getByRole('button', { name: '다시 선택' }).click();
   await expect
     .poll(async () => (await outputTracks(page)).video[0])
