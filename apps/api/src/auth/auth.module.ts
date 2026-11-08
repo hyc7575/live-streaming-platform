@@ -8,12 +8,25 @@ import {
   sessionStoreProvider,
   type SessionStore,
 } from './session.js';
+import { TestAccountsController } from './test-accounts.controller.js';
+import {
+  TEST_ACCOUNTS_CONFIG,
+  testAccountsConfigFromEnv,
+} from './test-accounts.js';
 
 @Module({
   // Each route sets its own limit with @Throttle; this default is unused.
   imports: [ThrottlerModule.forRoot([{ limit: 100, ttl: 60_000 }])],
-  controllers: [AuthController],
-  providers: [AuthService, LoggedInGuard, sessionStoreProvider],
+  controllers: [AuthController, TestAccountsController],
+  providers: [
+    AuthService,
+    LoggedInGuard,
+    sessionStoreProvider,
+    {
+      provide: TEST_ACCOUNTS_CONFIG,
+      useFactory: () => testAccountsConfigFromEnv(process.env),
+    },
+  ],
   exports: [LoggedInGuard, SESSION_STORE],
 })
 export class AuthModule implements OnModuleDestroy {

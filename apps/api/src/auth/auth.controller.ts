@@ -19,30 +19,27 @@ import {
   type Credentials,
   type SignupInput,
 } from './auth.service.js';
+import { emailSchema, newPasswordSchema, nicknameSchema } from './fields.js';
 import { CurrentUser, LoggedInGuard } from './logged-in.guard.js';
-import { SESSION_COOKIE_NAME } from './session.js';
-
-const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
+import {
+  destroySession,
+  SESSION_COOKIE_NAME,
+  startSession,
+} from './session.js';
 
 const signupSchema = z.object({
-  email,
-  password: z.string().min(8).max(128),
-  nickname: z.string().trim().min(1).max(20),
+  email: emailSchema,
+  password: newPasswordSchema,
+  nickname: nicknameSchema,
 }) satisfies z.ZodType<SignupInput>;
 
 const loginSchema = z.object({
-  email,
+  email: emailSchema,
   password: z.string().min(1).max(128),
 }) satisfies z.ZodType<Credentials>;
 
 export const LOGIN_RATE_LIMIT = { limit: 10, ttl: 60_000 };
 export const SIGNUP_RATE_LIMIT = { limit: 20, ttl: 60 * 60_000 };
-
-function promisify(run: (done: (err?: Error) => void) => void): Promise<void> {
-  return new Promise((resolve, reject) =>
-    run((err) => (err ? reject(err) : resolve())),
-  );
-}
 
 @Controller('auth')
 export class AuthController {
@@ -67,10 +64,7 @@ export class AuthController {
   ): Promise<AuthUser> {
     const user = await this.auth.verifyCredentials(body);
     if (!user) throw new UnauthorizedException('Wrong email or password');
-    // A fresh session id on login stops session fixation.
-    await promisify((done) => req.session.regenerate(done));
-    req.session.userId = user.id;
-    await promisify((done) => req.session.save(done));
+    await startSession(req, user.id);
     return user;
   }
 
@@ -80,7 +74,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
-    await promisify((done) => req.session.destroy(done));
+    await destroySession(req);
     res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
   }
 
