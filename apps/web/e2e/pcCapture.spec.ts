@@ -103,7 +103,8 @@ test('mixes screen and mic into one track and stops everything when sharing ends
   await page.bringToFront();
   await page.getByRole('button', { name: '방송 시작' }).click();
 
-  await expect(page.getByText('화면 소리 있음 · 오디오 동작 중')).toBeVisible();
+  await expect(page.getByText('오디오 동작 중')).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
   const before = await outputTracks(page);
   expect(before.audio).toBe(1);
   expect(before.video).toHaveLength(1);
