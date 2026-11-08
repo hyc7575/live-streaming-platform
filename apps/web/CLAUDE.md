@@ -38,6 +38,7 @@ UI를 만들거나 고치기 전에 이 파일을 읽는다. 여기 없는 결�
 | 방송 목록 | `/` | 카드 그리드 `repeat(auto-fill, minmax(280px, 1fr))`. 카드 = 16:9 썸네일 영역(왼쪽 위에 상태 배지) + 제목 + 스트리머 이름. LIVE 먼저, 그다음 방송 종료 |
 | 시청 | `/broadcasts/:id` | 넓은 화면: 왼쪽 16:9 플레이어, 아래에 제목·스트리머·상태 배지·설명. 오른쪽 열은 댓글(P1) 자리. 좁은 화면: 플레이어 → 정보 → 댓글 세로 배치 |
 | 스트리머 대시보드 | `/studio` | 내 방송 목록(방송 전 포함)과 방송 만들기 버튼 |
+| 방송 만들기 | `/studio/new` | 가운데 정렬 카드 하나(제목, 설명). 만들면 `/studio`로 간다 |
 | 송출 | `/studio/broadcasts/:id` | 미리보기 + 송출 사전 점검(레벨 미터 2개) + 시작·종료·마이크 음소거 |
 | 로그인·회원가입 | `/login`, `/signup` | 가운데 정렬 카드 하나. 테스트 계정 원클릭 로그인 버튼 |
 
@@ -59,6 +60,8 @@ UI를 만들거나 고치기 전에 이 파일을 읽는다. 여기 없는 결�
 - `src/api.ts`의 `apiFetch<T>(path, init)`만 쓴다. `path`는 `/api` 뒤의 경로다(`apiFetch('/broadcasts')` → `GET /api/broadcasts`).
 - 로그인은 쿠키 세션이라 `apiFetch`가 항상 `credentials: 'include'`를 붙인다. 토큰을 localStorage에 두지 않는다.
 - 2xx가 아니면 `ApiError`(`status` 포함)를 던진다. 401이면 로그인 화면으로, 403이면 "권한이 없습니다" 안내로 처리한다.
+- 화면을 열 때 데이터를 읽는 GET은 `src/use-api.ts`의 `useApi<T>(path)`를 쓴다. `loading`, `loaded`(`data`), `failed`(`error`) 중 하나를 돌려준다.
+- 로그인이 필요한 화면은 `AppRoutes`에서 `<Route element={<RequireAuth />}>` 아래에 둔다. 비로그인 방문자는 로그인 화면으로 가고, 로그인하면 원래 경로로 돌아온다.
 - 로그인 상태는 `src/auth/auth-context.ts`의 `useAuth()`로 읽는다. `state.status`는 `loading`(첫 `GET /api/auth/me` 응답 전), `anonymous`, `authenticated`(`state.user`) 중 하나다. 화면마다 `me`를 다시 부르지 않는다.
 - 개발 중에는 Vite dev proxy가 `/api`를 `http://localhost:${API_PORT}`(기본 3000)로 넘긴다. 그래서 웹과 API가 같은 출처로 보여 쿠키가 그대로 붙는다.
 

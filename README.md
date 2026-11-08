@@ -158,6 +158,49 @@ curl -s -b old-jar.txt $API/auth/me -o /dev/null -w '%{http_code}\n'           #
 - API는 `trust proxy`를 1단(Caddy)으로 둔다. Caddy가 보낸 `X-Forwarded-Proto: https`로 https 요청임을 알고 `Secure` 쿠키를 발급하며, 요청 제한은 `X-Forwarded-For`의 클라이언트 IP로 센다. API 포트를 외부에 직접 열면 이 헤더를 위조할 수 있으니 Caddy 뒤에만 둔다.
 - 요청 제한: 로그인은 IP당 1분에 10번, 회원가입은 IP당 1시간에 20번. 넘으면 429. 서버 메모리에 세므로 API를 재시작하면 초기화된다.
 
+### 1. 방송 생성·공개 목록·내 방송·상세
+
+인수 시나리오 1: 비로그인으로 목록 진입 → 방송 생성 버튼 클릭 → 로그인 페이지로 이동 (API는 401).
+
+자동 테스트는 `apps/api/test/broadcasts.e2e.spec.ts`(실제 PostgreSQL)와 `apps/web/src/broadcast-pages.test.tsx`다. 다음을 확인한다.
+
+- 비로그인 생성 401(저장되지 않음), 로그인 생성 201 + `READY`, 제목 누락·공백·100자 초과와 설명 2000자 초과는 400
+- 공개 목록은 `LIVE` → `ENDED` 순서이고 `READY`는 없다. 다른 사용자의 `READY`도, 내 `READY`도 없다
+- `?status=LIVE`, `?status=ENDED` 필터. 그 밖의 값(`READY` 포함)은 400
+- 내 방송은 내 방송만 상태와 관계없이 보여 주고, 비로그인은 401
+- 상세는 누구나 `READY`·`LIVE`·`ENDED`를 200으로 받는다. 없는 id와 형식이 잘못된 id는 모두 404
+- 화면: 비로그인으로 "방송 만들기"를 누르면 로그인 화면, 로그인하면 만들기 화면으로 돌아옴, 내 방송의 `READY`는 "방송 전", `READY` 상세는 "아직 시작하지 않은 방송입니다."
+
+화면에서 확인:
+
+1. 로그아웃 상태로 `http://localhost:5173`을 연다. "방송 목록"과 전체/LIVE/방송 종료 필터가 보인다.
+2. "방송 만들기"를 누른다. 로그인 화면으로 간다.
+3. 로그인한다(계정이 없으면 "회원가입"으로 가입한 뒤 로그인). "방송 만들기" 화면으로 돌아온다.
+4. 제목과 설명을 넣고 "만들기"를 누른다. "내 방송"으로 가고 새 방송 카드에 "방송 전" 배지가 있다.
+5. 카드를 누른다. 플레이어 자리에 "아직 시작하지 않은 방송입니다."가 보인다. 주소를 복사해 시크릿 창에서 열어도 같다.
+6. "방송 목록"으로 간다. 방금 만든 방송이 보이지 않는다.
+
+LIVE·ENDED 방송은 송출 기능이 생기기 전까지 DB에서 직접 만든다.
+
+```sh
+docker compose exec postgres psql -U lsp -d lsp -c \
+  "UPDATE \"Broadcast\" SET status='LIVE', \"startedAt\"=now() WHERE title='<제목>'"
+```
+
+API로 확인:
+
+```sh
+API=http://localhost:3000/api
+curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts \
+  -H 'Content-Type: application/json' -d '{"title":"첫 방송"}'          # 401
+curl -s -b jar.txt -X POST $API/broadcasts -H 'Content-Type: application/json' \
+  -d '{"title":"첫 방송","description":"설명"}'                          # 201, status READY
+curl -s $API/broadcasts                    # LIVE·ENDED만
+curl -s "$API/broadcasts?status=LIVE"      # LIVE만
+curl -s -b jar.txt $API/me/broadcasts      # 내 방송 (READY 포함)
+curl -s $API/broadcasts/<id>               # 상세, 없으면 404
+```
+
 ## 지원 환경
 
 송출·시청 기능 이슈에서 실제로 확인한 환경만 적는다.
