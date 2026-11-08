@@ -158,9 +158,43 @@ curl -s -b old-jar.txt $API/auth/me -o /dev/null -w '%{http_code}\n'           #
 - API는 `trust proxy`를 1단(Caddy)으로 둔다. Caddy가 보낸 `X-Forwarded-Proto: https`로 https 요청임을 알고 `Secure` 쿠키를 발급하며, 요청 제한은 `X-Forwarded-For`의 클라이언트 IP로 센다. API 포트를 외부에 직접 열면 이 헤더를 위조할 수 있으니 Caddy 뒤에만 둔다.
 - 요청 제한: 로그인은 IP당 1분에 10번, 회원가입은 IP당 1시간에 20번. 넘으면 429. 서버 메모리에 세므로 API를 재시작하면 초기화된다.
 
+### 모바일 카메라 캡처 (#22)
+
+모바일 스트리머의 카메라와 마이크를 MediaStream 하나로 잡고, 전·후면을 바꾸고, 화면이 꺼지지 않게 한다. 아직 송출하지 않는다. 미리보기 화면은 `/studio/mobile`이고 로그인하지 않아도 열린다.
+
+자동 확인 (Google Chrome 필요, 가짜 카메라·마이크 사용):
+
+```sh
+pnpm --filter @lsp/web e2e   # headless. CI도 같은 명령을 돌린다
+```
+
+`apps/web/e2e/cameraCapture.spec.ts`와 `cameraCaptureSingle.spec.ts`가 Pixel 7 에뮬레이션에서 다음을 확인한다.
+
+- 미리보기 `<video>`의 스트림에 영상 트랙 1개, 오디오 트랙 1개가 있다.
+- "후면 카메라로 전환"을 누르면 같은 스트림 객체에서 영상 트랙만 바뀐다. 오디오 트랙 id는 그대로이고, 이전 영상 트랙은 `ended`다. 다시 누르면 전면으로 돌아온다.
+- "화면 꺼짐 방지가 켜져 있습니다."가 뜬다. "미리보기 끝내기"를 누르면 모든 트랙이 `ended`이고 Wake Lock이 풀린다.
+- Wake Lock 권한이 없거나 API가 없으면 각각 안내 문구가 뜬다.
+- 카메라가 하나뿐이면 전환 버튼이 없다.
+- 카메라 권한을 거부하면 iPhone(Safari)·Android(Chrome)별로 다시 허용하는 방법이 뜬다. 카메라가 없을 때(`NotFoundError`)는 다른 문구가 뜬다.
+
+Chrome의 가짜 카메라는 전·후면(`facingMode`) 정보가 없다. 그래서 테스트는 `facingMode` 요청을 가짜 카메라 두 대(`fake_device_0`이 전면, `fake_device_1`이 후면)로 바꿔 주는 스크립트를 페이지에 넣는다. 페이지가 다시 보일 때 Wake Lock을 다시 요청하는지는 headless Chrome에서 페이지를 숨길 수 없어 단위 테스트(`src/capture/screenWakeLock.test.ts`)로 확인한다.
+
+사람이 확인하는 절차 (PC Chrome):
+
+1. `pnpm --filter @lsp/web dev`로 웹을 띄우고 Chrome에서 `/studio/mobile`을 연다.
+2. "카메라 켜기"를 누르고 카메라·마이크를 허용한다. 미리보기가 보이고 "화면 꺼짐 방지가 켜져 있습니다."가 뜬다.
+3. 주소창의 카메라 아이콘에서 권한을 "차단"으로 바꾸고 새로고침한 뒤 "카메라 켜기"를 누른다. 권한을 다시 허용하는 안내가 뜬다.
+
+휴대폰에서 열려면 https 주소가 필요하다. 브라우저는 `http://<PC의 LAN IP>`에서 카메라 API를 막고, 이 화면은 "https:// 로 시작하는 주소로 여세요"라고 안내한다. 실제 휴대폰(iOS Safari, Android Chrome) 확인은 배포 주소에서 송출과 함께 한다(#15).
+
 ## 지원 환경
 
 송출·시청 기능 이슈에서 실제로 확인한 환경만 적는다.
+
+| 확인한 것 | 환경 | 결과 |
+|---|---|---|
+| Screen Wake Lock | macOS, Chrome 156 headless (Playwright, Pixel 7 에뮬레이션) | 권한(`screen-wake-lock`)을 주면 잠금을 얻는다. 주지 않으면 `NotAllowedError`로 거절되고 "화면 꺼짐 방지를 켜지 못했습니다."가 뜬다 |
+| 모바일 카메라 전·후면 전환, 화면 꺼짐 방지 | iOS Safari, Android Chrome | 미확인. 실제 휴대폰 확인은 #15에서 한다 |
 
 ## 사용한 오픈소스
 
@@ -174,3 +208,4 @@ curl -s -b old-jar.txt $API/auth/me -o /dev/null -w '%{http_code}\n'           #
 | [connect-pg-simple](https://github.com/voxpelli/node-connect-pg-simple) | 세션을 PostgreSQL에 저장 | MIT |
 | [@nestjs/throttler](https://github.com/nestjs/throttler) | 로그인·회원가입 요청 제한 | MIT |
 | [Zod](https://github.com/colinhacks/zod) | 요청 본문 검증 | MIT |
+| [Playwright](https://playwright.dev) | 웹 e2e 테스트 (개발용, `apps/web/e2e`) | Apache-2.0 |
