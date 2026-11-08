@@ -1,0 +1,98 @@
+import 'reflect-metadata';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import type TestAgent from 'supertest/lib/agent.js';
+import { expect } from 'vitest';
+import { AppModule } from '../../src/app.module.js';
+import type { AuthUser } from '../../src/auth/auth-user.js';
+import { configureApp } from '../../src/configure-app.js';
+import { PrismaService } from '../../src/database/database.module.js';
+
+export const TEST_SESSION_SECRET = 'test-session-secret';
+
+// Runs the real AppModule against DATABASE_URL (migrations already applied).
+export async function createTestApp(
+  options: { cookieSecure?: boolean } = {},
+): Promise<NestExpressApplication> {
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
+  const app = moduleRef.createNestApplication<NestExpressApplication>();
+  configureApp(app, {
+    secret: TEST_SESSION_SECRET,
+    cookieSecure: options.cookieSecure ?? false,
+  });
+  await app.init();
+  return app;
+}
+
+// Empties every table except Prisma's migration history.
+export async function resetDatabase(
+  app: NestExpressApplication,
+): Promise<void> {
+  const prisma = app.get(PrismaService);
+  const rows = await prisma.$queryRaw<{ tablename: string }[]>`
+    SELECT tablename FROM pg_tables
+    WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
+  if (rows.length === 0) return;
+  const tables = rows.map((r) => `"${r.tablename}"`).join(', ');
+  await prisma.$executeRawUnsafe(`TRUNCATE ${tables} CASCADE`);
+}
+
+let clientCounter = 0;
+
+// Each client gets its own forwarded IP so rate limits, which count per IP,
+// do not leak between unrelated callers in one test file.
+export function newClientIp(): string {
+  clientCounter += 1;
+  return `10.0.${Math.floor(clientCounter / 250)}.${(clientCounter % 250) + 1}`;
+}
+
+export interface TestUser extends AuthUser {
+  password: string;
+}
+
+export async function signUp(
+  app: NestExpressApplication,
+  overrides: Partial<Omit<TestUser, 'id'>> = {},
+): Promise<TestUser> {
+  clientCounter += 1;
+  const input = {
+    email: `user${clientCounter}-${Date.now()}@example.com`,
+    password: 'correct-horse-battery',
+    nickname: `user${clientCounter}`,
+    ...overrides,
+  };
+  const res = await request(app.getHttpServer())
+    .post('/api/auth/signup')
+    .set('X-Forwarded-For', newClientIp())
+    .send(input);
+  expect(res.status, JSON.stringify(res.body)).toBe(201);
+  return { ...(res.body as AuthUser), password: input.password };
+}
+
+// A supertest agent keeps cookies across requests, like a browser tab.
+export async function logIn(
+  app: NestExpressApplication,
+  user: Pick<TestUser, 'email' | 'password'>,
+): Promise<TestAgent> {
+  const agent = request
+    .agent(app.getHttpServer())
+    .set('X-Forwarded-For', newClientIp());
+  const res = await agent
+    .post('/api/auth/login')
+    .send({ email: user.email, password: user.password });
+  expect(res.status, JSON.stringify(res.body)).toBe(200);
+  return agent;
+}
+
+// The usual starting point for authorization tests: a fresh user who is
+// logged in. Call it twice for an owner and another user.
+export async function signUpAndLogIn(
+  app: NestExpressApplication,
+  overrides: Partial<Omit<TestUser, 'id'>> = {},
+): Promise<{ user: TestUser; agent: TestAgent }> {
+  const user = await signUp(app, overrides);
+  return { user, agent: await logIn(app, user) };
+}
