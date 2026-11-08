@@ -22,7 +22,7 @@
 
 - **왜 지금**: 공모전 제출물이다. 심사자는 README에 적힌 URL과 테스트 계정으로 직접 송출·시청·종료를 해 본다. 접속이나 테스트 로그인이 안 되면 감점된다.
 - **핵심 기술 제약**
-  - 화면 공유 오디오(`getDisplayMedia({audio:true})`)는 브라우저와 OS에 따라 다르다. Chrome/Edge는 탭 소리를 모든 OS에서 지원하고, 시스템 소리는 Windows(및 ChromeOS)에서만 지원한다. Safari와 Firefox는 화면 공유 오디오를 지원하지 않는다.
+  - 화면 공유 오디오(`getDisplayMedia({audio:true})`)는 브라우저와 OS에 따라 다르다. Chrome/Edge는 탭 소리를 모든 OS에서 지원한다. 시스템 소리는 Windows(및 ChromeOS)에서 지원하고, macOS는 Chrome 141+ · macOS 14.2+부터 지원한다는 2차 출처만 있다 (C4에서 직접 확인). Safari와 Firefox는 화면 공유 오디오를 지원하지 않는다.
   - 카메라·마이크·화면 캡처는 HTTPS에서만 동작한다. 배포 환경은 처음부터 HTTPS여야 한다.
   - 모바일 브라우저는 화면이 꺼지거나 앱이 백그라운드로 가면 캡처가 멈춘다.
 - **송출 방식 비교**
@@ -96,11 +96,11 @@
 | 영역 | 기능 | 우선순위 |
 |---|---|---|
 | 인증 | 회원가입·로그인·로그아웃, 인증 상태 유지, 테스트 계정 원클릭 로그인 | P0 |
-| 방송 관리 | 방송 생성(제목·설명)·수정·삭제, 목록(LIVE/종료 필터), 상세 | P0 |
+| 방송 관리 | 방송 생성(제목·설명)·수정·삭제, 공개 목록(LIVE/ENDED 필터), 내 방송(방송 전 포함), 상세 | P0 |
 | PC 송출 | 화면 공유 + 마이크 + 탭/시스템 소리, 시작·종료, 마이크 음소거 | P0 |
 | 송출 사전 점검 | 마이크·화면 오디오 레벨 미터 2개, 화면 오디오 없음 경고 + "다시 선택", Chrome/Edge 외 브라우저 경고 (PRE-MORTEM T4) | P0 |
 | 모바일 송출 | 카메라 + 마이크, 전·후면 전환, 시작·종료, Screen Wake Lock으로 화면 꺼짐 방지, 권한 거부 안내 화면 (T5) | P0 |
-| 시청 | 비로그인 시청(LL-HLS), LIVE/ENDED 상태 표시, 상태 5초 폴링으로 종료 시 자동 중단 (T9) | P0 |
+| 시청 | 비로그인 시청(LL-HLS: iOS는 네이티브 HLS, 그 외 hls.js), LIVE/ENDED 상태 표시, 상태 5초 폴링으로 종료 시 자동 중단 (T9) | P0 |
 | 운영 | 자동 재기동, 다운 감시 알림, 녹화 디스크 상한, DB 일일 덤프 (T6, 7.10) | P0 |
 | 댓글 | 방송별 댓글 작성·목록·수정·삭제, 작성자 권한 검증 | P1 |
 | 녹화·다시보기 | OME 녹화 기능으로 저장, 목록·상세·재생 | P2 |
@@ -111,10 +111,10 @@
 
 | 구성 요소 | 선택 | 이유 |
 |---|---|---|
-| 미디어 서버 | OvenMediaEngine | 치지직과 같은 LL-HLS를 기본 지원하고, WebRTC 송출·시청·녹화까지 한 서버로 해결한다 |
-| 백엔드 | NestJS (TypeScript) | Guard로 "로그인 확인 → 소유자 확인"을 선언한다. OME Admission Webhook을 받는다 |
-| DB | PostgreSQL | 사용자, 채널, 스트림 키, 방송 기록 |
-| 프론트 | React (TypeScript) + hls.js | 주력 스택. hls.js 저지연 모드로 LL-HLS를 재생한다 |
+| 미디어 서버 | OvenMediaEngine v0.21.0 (`ovenmedialabs/ovenmediaengine`, arm64 이미지 있음) | 치지직과 같은 LL-HLS를 기본 지원하고, WebRTC 송출·시청·녹화까지 한 서버로 해결한다 |
+| 백엔드 | NestJS (TypeScript) + Prisma | Guard로 "로그인 확인 → 소유자 확인"을 선언한다. OME Admission Webhook을 받는다 |
+| DB | PostgreSQL | 사용자, 방송 기록, 세션 |
+| 프론트 | React (TypeScript) + hls.js + OvenLiveKit-Web | 주력 스택. 송출은 OvenLiveKit-Web의 WHIP(기본 H.264), 재생은 iOS 네이티브 HLS / 그 외 hls.js 저지연 모드 |
 | 배포 | VPS 한 대 + Docker Compose + Caddy | 혼자 운영 가능한 최소 구성. Caddy가 TLS를 맡고 웹·API·OME 시그널링·LL-HLS를 한 도메인으로 중계한다 |
 
 ```mermaid
@@ -128,13 +128,13 @@ flowchart LR
     C -.TLS 중계.- OME
 ```
 
-- **방화벽**: 443(TCP), OME WebRTC ICE용 UDP 포트 범위, 모바일망 대비 TURN(TCP) 포트를 연다. 정확한 포트는 OME 설정에서 확정한다.
-- **코덱**: 송출은 **H.264로 고정**한다. 브라우저가 VP8을 보내면 영상 트랜스코딩이 필요해 VPS CPU가 버티지 못한다. 오디오는 Opus → AAC 변환만 OME가 한다 (CPU 부담 낮음).
+- **방화벽**: 443/TCP(Caddy), OME ICE `10000-10003/udp`, Direct TCP ICE `10000/tcp`, 내장 TURN `3478/tcp`. OME 시그널링·LL-HLS(`3333`/TLS `3334`)는 Caddy 443 뒤로 중계한다. 내장 TURN은 TCP만 지원하고 443 TLS TURN 옵션은 문서에 없다. 3478을 막는 통신망은 S6에서 판정한다.
+- **코덱**: 송출은 **H.264로 고정**한다. OME 서버에는 코덱 강제 설정이 없고 SDP 협상으로 정해지므로, 클라이언트가 고른다. OvenLiveKit-Web의 WHIP 송출은 기본값이 H.264다 (`preferredVideoFormat`). VP8이 들어오면 영상 bypass 상태의 LL-HLS에 영상이 나오지 않는다. 오디오는 OME 기본 `bypass_stream` 프로필이 Opus → AAC만 변환한다 (LL-HLS는 AAC만 지원, CPU 부담 낮음).
 
 #### 7.3 데이터 모델 (초안)
 
-- `User` 1 : 1 `Channel` (스트림 키 보유, 재발급 가능)
-- `Channel` 1 : N `Broadcast` (제목, 설명, 상태, 시작·종료 시각, 녹화 경로)
+- `User` 1 : N `Broadcast` (제목, 설명, 상태, 시작·종료 시각, 녹화 경로)
+- `Channel`(스트림 키)은 두지 않는다. 스트림 키는 P3(OBS)에만 필요하므로 OBS를 붙일 때 추가한다. 도네이션의 후원 대상 방송자는 `Broadcast`의 소유자로 충분하다.
 - 상세 스키마는 착수 시 설계 문서로 분리한다.
 
 #### 7.4 방송 상태
@@ -151,16 +151,26 @@ stateDiagram-v2
 - 상태 전이는 서버만 한다. 클라이언트는 요청만 보낸다.
 - `LIVE`에서 삭제를 요청하면 서버가 먼저 종료 처리한 뒤 삭제한다.
 - `ENDED`는 다시 `LIVE`로 돌아가지 않는다. 다시 방송하려면 새 방송을 만든다.
-- **종료 시 송출 중단**: NestJS가 DB 상태를 `ENDED`로 바꾸고 OME 관리 API로 해당 스트림의 송출을 끊는다. 클라이언트가 협조하지 않아도 송출이 끊겨야 한다. (해당 API 존재 여부는 D1–D2 스파이크에서 확인)
-- **재송출 차단**: 송출 허가 Webhook은 `READY` 방송에만 허용을 돌려준다. `ENDED` 방송으로 다시 연결하면 거절된다.
-- **비정상 종료**: 송출자 탭이 닫히거나 네트워크가 끊기면 OME가 연결 종료를 Webhook으로 알린다. 유예 시간(예: 30초) 안에 다시 연결되지 않으면 `ENDED`로 바꾼다.
+- **종료 시 송출 중단**: NestJS가 **먼저** DB 상태를 `ENDED`로 저장하고, **그다음** OME 관리 API `DELETE /v1/vhosts/{vhost}/apps/{app}/streams/{stream}`으로 송출 연결을 끊는다. OME는 끊긴 송출자의 재접속을 막지 않으므로, 재접속은 Webhook이 `ENDED`를 보고 거절한다. 순서가 바뀌면 그 사이 재접속이 허용될 수 있다.
+- **송출 허가 규칙 (Webhook)**: 송출 토큰이 유효하고 소유자이며, 다음 중 하나일 때만 허용한다.
+  - `READY` (첫 송출)
+  - `LIVE`이면서 현재 송출 연결이 없고 유예 시간(30초) 안 (새로고침·순간 끊김 후 재접속)
+  - `ENDED` 방송과 유예를 넘긴 재접속은 거절한다.
+- **1인 1 LIVE**: 한 사용자는 동시에 하나의 방송만 `LIVE`로 둔다. 송출 토큰 발급과 Webhook 두 곳에서 확인하고, 위반 시 토큰 발급은 409 + "기존 방송을 종료하세요"를 돌려준다.
+- **비정상 종료**: 송출자 탭이 닫히거나 네트워크가 끊기면 OME가 `closing` Webhook으로 알린다(알림만, 응답은 `{}`). 유예 시간 30초 안에 다시 연결되지 않으면 `ENDED`로 바꾼다.
 - **송출 연결 생성·종료 (클라이언트)**: 시작 시 WebRTC 송출 연결을 만들고, 종료(직접 종료·서버 강제 종료·페이지 이탈) 시 PeerConnection을 닫고 모든 미디어 트랙을 `stop()`한다. 브라우저의 "화면 공유 중"·카메라 표시등이 꺼지는 것까지 종료로 본다. 브라우저의 "공유 중지" 버튼을 누른 경우(트랙 `ended`)도 종료 API를 호출한다.
 - **좀비 방송 정리 (T8)**: Webhook이 누락되거나 순서가 바뀔 수 있으므로, 30초마다 OME 스트림 목록과 DB의 `LIVE` 방송을 대조해 송출이 없는 방송을 유예 후 `ENDED`로 바꾼다. Webhook 처리는 멱등하게 만든다 (같은 이벤트가 두 번 와도 결과가 같다).
-- **시청자 종료 감지 (T9)**: 시청 화면은 방송 상태를 5초마다 조회하고, hls.js 치명적 오류 때도 즉시 다시 조회한다. `ENDED`면 hls 인스턴스를 정리하고 "방송 종료"를 표시한다.
+- **시청자 종료 감지 (T9)**: 시청 화면은 방송 상태를 5초마다 조회하고, hls.js 치명적 오류(네이티브 HLS 경로는 `<video>`의 `error`·`stalled`) 때도 즉시 다시 조회한다. `ENDED`면 재생을 정리하고 "방송 종료"를 표시한다.
+- **목록 노출**: 공개 목록에는 `LIVE`와 `ENDED`만 보인다. `READY`는 소유자의 "내 방송"에만 "방송 전"으로 보인다. `READY` 방송의 상세 URL로 직접 들어오면 "아직 시작하지 않은 방송"을 안내한다.
+- **재생 경로 분기**: `video.canPlayType('application/vnd.apple.mpegurl')`이 되는 브라우저(iOS Safari)는 `<video src>` 네이티브 HLS, 그 외는 hls.js. hls.js는 iOS에서 17.1+에서만 동작하므로 iOS는 네이티브로 보낸다.
 
 #### 7.5 인가 규칙
 
-송출 권한은 **OME Admission Webhook**으로 강제한다. 브라우저는 소유자에게만 발급되는 송출 토큰을 송출 URL에 담아 OME에 연결하고, OME는 연결마다 NestJS에 허용 여부를 묻는다. NestJS가 토큰·소유자·방송 상태를 확인해 거절하면 송출이 시작되지 않는다. 시청은 로그인 없이 허용한다.
+송출 권한은 **OME Admission Webhook**으로 강제한다. 브라우저는 소유자에게만 발급되는 송출 토큰을 송출 URL의 **쿼리스트링**(`?token=`)에 담아 OME에 연결한다. OME는 연결마다 전체 URL을 NestJS에 보내 허용 여부를 묻는다 (HTTP 헤더는 전달되지 않는다). NestJS가 토큰·소유자·방송 상태(7.4 송출 허가 규칙)를 확인해 `allowed:false`를 돌려주면 송출이 시작되지 않는다. 시청은 로그인 없이 허용한다.
+
+- **송출 토큰**: 방송 단위, 짧은 만료(예: 5분, 연결 시점에만 검사). 새로고침하면 새로 발급받는다.
+- **Webhook 신뢰**: `X-OME-Signature`(HMAC-SHA1, `SecretKey`)를 검증한다.
+- **fail-closed**: NestJS가 시간 안에 응답하지 못하거나 오류를 내면 OME는 송출을 거절한다. API가 죽으면 송출도 막힌다 — 의도한 동작이다.
 
 | 행위 | 비로그인 | 로그인(타인) | 소유자 |
 |---|---|---|---|
@@ -168,8 +178,8 @@ stateDiagram-v2
 | 방송 생성 | 401 | 허용 | — |
 | 방송 수정·삭제 | 401 | 403 | 허용 |
 | 송출 토큰 발급·종료 | 401 | 403 | 허용 |
-| OME 송출 연결 (Webhook 판정) | 거절 | 거절 | 허용 (READY 상태만) |
-| 스트림 키 조회·재발급 (P3) | 401 | 403 | 허용 |
+| OME 송출 연결 (Webhook 판정) | 거절 | 거절 | 허용 (READY, 또는 LIVE + 유예 중 재접속) |
+| 스트림 키 조회·재발급 (P3, `Channel` 추가 시) | 401 | 403 | 허용 |
 | 댓글 작성 (P1) | 401 | 허용 | 허용 |
 | 댓글 수정·삭제 (P1) | 401 | 작성자만 | 작성자만 |
 | 후원 (P2) | 401 | 허용 | 자기 방송 후원은 거절 |
@@ -183,14 +193,15 @@ sequenceDiagram
     participant OME as OvenMediaEngine
     participant V as 시청자 브라우저
     B->>API: POST /broadcasts/{id}/publish-token (인증)
-    API-->>B: 송출 URL + 1회성 토큰 (소유자·READY 확인 후)
-    B->>OME: WebRTC 송출 연결 (토큰 포함)
-    OME->>API: Admission Webhook (opening)
-    API-->>OME: 허용, READY→LIVE
+    API-->>B: 송출 URL + 단기 토큰 (소유자·상태·1인 1 LIVE 확인 후)
+    B->>OME: WHIP 송출 연결 (?token=)
+    OME->>API: Admission Webhook (opening, 전체 URL)
+    API-->>OME: allowed:true, READY→LIVE
     V->>OME: LL-HLS 재생 (로그인 불필요)
     B->>API: POST /broadcasts/{id}/end
-    API->>API: LIVE→ENDED
-    API->>OME: 송출 강제 종료
+    API->>API: LIVE→ENDED (먼저 저장)
+    API->>OME: DELETE .../streams/{stream}
+    OME->>API: 재접속 시도 시 Webhook → allowed:false
     V->>API: 상태 폴링 → "방송 종료" 표시
 ```
 
@@ -207,9 +218,11 @@ sequenceDiagram
 | 기능 | 지원 | 미지원·제한 |
 |---|---|---|
 | PC 화면 + 탭 소리 | Chrome/Edge (Windows, macOS) | Safari, Firefox: 화면 공유 오디오 없음 |
-| PC 화면 + 시스템 소리 | Chrome/Edge (Windows) | macOS: 탭 소리만 |
-| 모바일 송출 | iOS Safari 15+, Android Chrome | 화면 꺼짐·백그라운드 전환 시 송출 중단 |
+| PC 화면 + 시스템 소리 | Chrome/Edge (Windows) | macOS: Chrome 141+ · macOS 14.2+에서 지원 여부를 C4에서 직접 확인한 뒤 적는다 |
+| 모바일 송출 | Android Chrome, iOS Safari 16.4+ (화면 꺼짐 방지 포함) | iOS 15.x는 송출만 되고 화면 꺼짐 방지 없음. 화면 꺼짐·백그라운드 전환 시 송출 중단 |
 | 시청 | hls.js 지원 브라우저, iOS Safari(네이티브 HLS) | — |
+
+검증 기기: Windows PC, Android, MacBook(M3, macOS 26 / Chrome 156), **빌린 iPhone(D6에 1회, Wi-Fi 끄고 송출·시청)**. README에는 실제로 확인한 iOS 버전만 지원으로 적는다. 손에 없는 환경을 지원한다고 쓰지 않는다.
 
 #### 7.9 보안·운영 기본값
 
@@ -224,17 +237,17 @@ sequenceDiagram
 | # | 가정 / 질문 | 검증 방법·시점 |
 |---|---|---|
 | A1 | 서버 한 대(ARM 2 OCPU / 12GB)가 오디오 변환과 심사 기간 트래픽(동접 6명 미만)을 감당한다 (가정) | D2 스파이크에서 송출 1개 + 시청 3개 기준 CPU·대역폭 측정 |
-| A2 | **확정**: 백엔드 NestJS(TypeScript) + PostgreSQL, 프론트 React(TypeScript) + hls.js | ORM(Prisma/TypeORM)은 D1에 확정 |
-| A3 | 인증 방식: 같은 도메인 배포를 전제로 세션 쿠키 (가정) | D1에 확정 |
-| A4 | **확정**: Oracle Cloud Always Free (Ampere A1 ARM, 서울/춘천) 한 대 + Docker Compose + Caddy + DuckDNS 도메인. 목표 비용 0원 | D1에 인스턴스 생성, D2에 HTTPS 배포 |
-| A5 | Oracle ARM 재고 부족("Out of capacity")으로 D1 안에 생성 못 하면 서울 리전 유료 VPS 2GB(시간 과금)로 대체한다 | D1 |
-| A6 | 무료 계정의 유휴 인스턴스 회수를 막기 위해 종량제(PAYG) 계정으로 전환하고, 무료 범위 안에서만 쓴다. 심사 기간 내내 서버를 켜 둔다 | D1 전환, 결제 알림 0원 초과 시 알림 설정 |
-| Q6 | OME 공식 Docker 이미지가 linux/arm64를 지원하는가. 미지원이면 ARM용 소스 빌드 | D1 |
-| Q1 | 브라우저 WebRTC 송출을 H.264로 고정할 수 있는가 (OME 협상 설정) | D1–D2 스파이크 |
-| Q2 | OME 관리 API로 특정 스트림의 송출을 강제로 끊을 수 있는가 | D1–D2 스파이크 |
-| Q3 | LTE/5G망 휴대폰에서 UDP가 막힐 때 TURN(TCP)으로 송출되는가 | D2 스파이크 (실제 휴대폰, Wi-Fi 끄고) |
+| A2 | **확정**: 백엔드 NestJS(TypeScript) + **Prisma** + PostgreSQL, 프론트 React(TypeScript) + hls.js + OvenLiveKit-Web | — |
+| A3 | **확정**: 세션 쿠키, 세션 저장소는 PostgreSQL(`connect-pg-simple` 등). 재시작 후에도 로그인 유지, 로그아웃이 서버에서 실제로 무효화된다 | — |
+| A4 | **확정**: Oracle Cloud Always Free (Ampere A1 2 OCPU / 12GB) 한 대 + Docker Compose + Caddy + DuckDNS 도메인. **홈 리전은 서울** (가입 후 변경 불가, 춘천은 A1 생성 불가). 목표 비용 0원 | S1–S4 |
+| A5 | Oracle ARM 재고 부족("Out of host capacity")으로 2시간 안에 생성 못 하면 서울 리전 유료 VPS 2GB(시간 과금)로 대체한다 | S2 |
+| A6 | 종량제(PAYG)로 전환하고 무료 범위 안에서만 쓴다. **PAYG가 유휴 회수(7일간 CPU·네트워크·메모리 95퍼센타일 20% 미만)를 면제한다는 공식 출처는 없다 (미검증)**. 실제 대비책은 UptimeRobot 알림과 A5다 | S1 |
+| Q6 | **확인됨**: `v0.21.0`이 amd64·arm64 멀티 아키텍처 | — |
+| Q1 | **확인됨**: 서버 설정은 없고 클라이언트가 고른다. OvenLiveKit-Web WHIP 기본값이 H.264. C1에서 실제 코덱 확인 | C1 |
+| Q2 | **확인됨**: `DELETE .../streams/{stream}`. 재접속은 막지 않으므로 Webhook으로 거절 (7.4) | C1 |
+| Q3 | LTE/5G망 휴대폰에서 UDP가 막힐 때 TURN(TCP 3478)으로 송출되는가 | S6 (Android, Wi-Fi 끄고) |
 | Q4 | 도네이션 PG: 토스페이먼츠 테스트 모드 사용 가능 여부와 웹훅 수신 조건 | P2 착수 전 |
-| Q5 | 송출 중 새로고침 시 같은 방송에 재접속을 허용할지 | 유예 시간 안 재접속은 허용하는 방향 |
+| Q5 | **확정**: 유예 30초 안 재접속 허용 (7.4 송출 허가 규칙) | — |
 
 ### 8. Release
 
@@ -242,29 +255,31 @@ sequenceDiagram
 
 | 기간 | 내용 | 완료 기준 |
 |---|---|---|
-| D1 (11/9) | 첫 커밋 전 비밀값 차단(T11), Oracle 서버 생성 **2시간 제한**(T2), 로컬 Nest·React 골격, **LiveKit Cloud 샘플을 대기 상태로 준비**(T1) | 서버 확보 또는 유료 VPS 전환 완료 |
-| D2 (11/10) | Compose + Caddy HTTPS 배포, 자동 재기동·UptimeRobot(T6), **OME 스파이크**, 실제 휴대폰 LTE 테스트(T5) | **18:00에 스파이크 기준 판정** |
-| D3–D4 (11/11–11/12) | 인증(테스트 계정, 세션 쿠키·요청 제한 T10), 채널·방송 CRUD, 상태 전이, 인가, Admission Webhook | 7.5 매트릭스 자동 테스트 통과 |
+| D1 (11/9) | 첫 커밋 전 비밀값 차단(T11), 저장소 기반(C0), **LiveKit Cloud 샘플을 대기 상태로 준비**(T1) | CI 통과 |
+| D2 (11/10) | **로컬 OME 스파이크**(C1: 기준 2·3·4), Oracle 서버 생성 **2시간 제한**(T2), 방화벽·Caddy HTTPS(S3–S4) | 로컬 기준 판정 |
+| D3 (11/11) | 서버에서 **기준 1: Android LTE 송출**(S6), 그동안 OME와 무관한 인증·방송 CRUD | **18:00에 스파이크 전체 판정** |
+| D4 (11/12) | 상태 전이, 인가, Admission Webhook, 자동 재기동·UptimeRobot(S5, T6) | 7.5 매트릭스 자동 테스트 통과 |
 | D5 (11/13) | PC 송출(믹싱, AudioContext resume T7), **송출 사전 점검 화면(T4)**, 모바일 송출(Wake Lock T5) | PC·모바일 송출이 실제 기기에서 소리와 함께 나감 |
-| D6 (11/14) | 시청, 종료·비정상 종료, 좀비 방송 정리(T8), 시청자 종료 감지(T9), 실제 기기 LTE 재확인 | 8.3 P0 시나리오 실제 기기 통과 |
+| D6 (11/14) | 시청, 종료·비정상 종료, 좀비 방송 정리(T8), 시청자 종료 감지(T9), 실제 기기 LTE 재확인(Android + 빌린 iPhone) | 8.3 P0 시나리오 실제 기기 통과 |
 | D7 (11/15) | P1 댓글 | 작성자 권한 테스트 통과 |
 | D8–D9 (11/16–11/17) | P2 녹화(OME 내장 기능) → 여유 있으면 도네이션. 녹화 디스크 상한·DB 덤프(T6) | 해당 기능 시나리오 통과 |
 | D10 (11/18) | README 마무리, 실제 기기 회귀 테스트, 시연 영상(선택), Go/No-Go 체크리스트 | 다른 사람이 README만 보고 재현 |
 
 - **README는 기능 하나가 끝날 때마다 해당 절차를 같이 쓴다** (T13). D10에는 다듬기만 한다.
-- 손에 없는 환경(예: Windows 시스템 소리, Android)은 README에 "미검증"으로 적는다. 지원한다고 쓰지 않는다.
+- iPhone은 D6에 빌려서 iOS 송출·시청을 확인한다. 확인하지 못한 환경은 README에 "미검증"으로 적는다. 지원한다고 쓰지 않는다.
 - 선택 기능은 **댓글까지만 해도 성공**으로 본다. 녹화·도네이션은 보너스다.
 | D11 (11/19) | 버퍼. 신규 기능 금지 | 23:00 전 최종 커밋 |
 
-**OME 스파이크 통과 기준 (D2 종료 시점)**
+**OME 스파이크 통과 기준 (D3 18:00 판정)**
 
-1. 휴대폰(Wi-Fi 끈 LTE/5G)에서 Safari로 송출한 영상을 PC의 hls.js로 재생할 때 **영상과 소리가 모두** 나온다.
+1. Android 휴대폰(Wi-Fi 끈 LTE/5G)에서 Chrome으로 송출한 영상을 PC의 hls.js로 재생할 때 **영상과 소리가 모두** 나온다.
 2. 송출 코덱이 H.264이고, 송출 1개 + 시청 3개에서 VPS CPU가 낮게 유지된다 (영상 트랜스코딩 없음).
 3. Admission Webhook으로 토큰 없는 송출이 거절된다.
 4. 관리 API로 송출을 강제 종료할 수 있다.
 
 **컷 규칙**
-- D2 18:00까지 스파이크 기준을 하나라도 통과하지 못하면 "조금만 더" 없이 **LiveKit Cloud로 복귀**한다. 이 경우 시청은 WebRTC, 녹화는 P2에서 제외한다.
+- D3 18:00까지 스파이크 기준을 하나라도 통과하지 못하면 "조금만 더" 없이 **LiveKit Cloud로 복귀**한다 (2026-11-09 약속함). 이 경우 시청은 WebRTC, 녹화는 P2에서 제외한다. LiveKit 무료 요금제(Build): 동시 접속 100, 참여 5,000분, 녹화 60분.
+- 판정 전에는 OME 전용 코드(Webhook, 강제 종료)를 짜지 않는다. 복귀해도 버려지지 않는 인증·CRUD만 짠다.
 - D6 끝까지 P0가 실제 기기에서 통과하지 않으면 P1·P2를 모두 미루고 P0 안정화에 쓴다.
 
 #### 8.2 첫 버전에서 하지 않는 것 (Non-goals)
@@ -279,15 +294,19 @@ sequenceDiagram
 
 #### 8.3 인수 시나리오 (README "기능 확인"의 뼈대)
 
+0. 새 계정으로 회원가입 → 로그인 → 새로고침해도 로그인 유지 → 로그아웃 → 방송 생성 시도 시 401
 1. 비로그인으로 목록 진입 → 방송 생성 버튼 클릭 → 로그인 페이지로 이동 (401)
 2. 방송자 A 로그인 → 방송 생성 → PC에서 화면 + 탭 소리 + 마이크로 시작 → 상태 LIVE
+2-1. A가 자기 방송(READY 또는 ENDED)의 제목을 수정 → 목록·상세에 반영 → 삭제 → 목록에서 사라짐
 3. 휴대폰(비로그인)에서 목록 → 해당 방송 시청 → 영상·탭 소리·마이크 모두 들림
 4. 사용자 B 로그인 → A의 방송 수정·삭제·종료 시도 → 403 (UI 숨김 + API 직접 호출로도 확인)
 5. A가 종료 → 시청 화면이 "방송 종료"로 바뀜 → 목록에서 ENDED 표시
 6. 휴대폰에서 A로 로그인 → 카메라 방송 시작 → PC에서 시청 → 전·후면 전환 → 종료
 7. 서버 재시작 → 목록·상세가 그대로 조회됨
 8. 송출 중 방송자 탭을 강제로 닫음 → 유예 시간 뒤 ENDED로 바뀜
-9. 종료된 방송의 송출 토큰으로 다시 송출 시도 → OME가 거절
+9. 종료된 방송으로 다시 송출 시도 → OME가 거절 (Webhook `allowed:false`)
+12. 송출 중 방송자 탭 새로고침 → 30초 안에 다시 시작하면 같은 방송이 LIVE로 이어짐
+13. A가 LIVE인 상태에서 다른 기기로 두 번째 방송 시작 → 409 + "기존 방송을 종료하세요"
 10. PC 송출에서 "오디오 공유"를 체크하지 않고 화면 선택 → 사전 점검 화면에 경고 + "다시 선택" 표시
 11. 모바일 송출 중 1분간 화면을 건드리지 않음 → 화면이 꺼지지 않고 송출 유지
 
@@ -296,4 +315,4 @@ sequenceDiagram
 #### 8.4 선택 기능 메모 (착수 시 상세화)
 
 - **도네이션 멱등성**: 결제 승인 키(paymentKey/orderId)에 UNIQUE 제약을 건다. 승인 통지가 반복되면 기존 건을 반환하고 다시 적립하지 않는다. 금액·후원 대상은 클라이언트 값이 아니라 서버가 미리 저장한 주문과 PG 조회 결과로 대조한다.
-- **녹화**: 방송이 LIVE가 되면 OME 녹화를 시작하고, 종료 시 파일 경로를 `Broadcast`에 저장한다. 녹화 파일은 Docker 볼륨에 두고 Caddy로 정적 서빙한다. 다시보기 목록은 `ENDED` 상태이면서 녹화 파일이 있는 방송만 보여준다.
+- **녹화**: 방송이 LIVE가 되면 OME 녹화 API(`POST /v1/vhosts/{vh}/apps/{app}:startRecord` / `:stopRecord`, `<FILE>` 퍼블리셔 필요)로 녹화를 시작하고, 종료 시 파일 경로를 `Broadcast`에 저장한다. 녹화 파일은 Docker 볼륨에 두고 Caddy로 정적 서빙한다. 다시보기 목록은 `ENDED` 상태이면서 녹화 파일이 있는 방송만 보여준다.
