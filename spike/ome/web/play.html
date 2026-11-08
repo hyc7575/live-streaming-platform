@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>spike play</title>
+    <script src="/vendor/hls.min.js"></script>
+  </head>
+  <body>
+    <video id="v" autoplay playsinline controls width="640"></video>
+    <pre id="info"></pre>
+    <script>
+      const video = document.getElementById('v');
+      const src = new URLSearchParams(location.search).get('src');
+      window.hlsInfo = { codecs: [], errors: [], tracks: null };
+      const hls = new Hls({ lowLatencyMode: true });
+      window.hls = hls;
+      hls.on(Hls.Events.MANIFEST_PARSED, (_, d) => {
+        window.hlsInfo.codecs = d.levels.map((l) => ({
+          videoCodec: l.videoCodec,
+          audioCodec: l.audioCodec,
+          width: l.width,
+          height: l.height,
+        }));
+      });
+      hls.on(Hls.Events.BUFFER_CODECS, (_, d) => {
+        for (const [k, t] of Object.entries(d))
+          if (t?.codec)
+            (window.hlsInfo.tracks ??= {})[k] = {
+              codec: t.codec,
+              container: t.container,
+            };
+      });
+      hls.on(Hls.Events.ERROR, (_, d) =>
+        window.hlsInfo.errors.push({
+          type: d.type,
+          details: d.details,
+          fatal: d.fatal,
+        }),
+      );
+      hls.loadSource(src);
+      hls.attachMedia(video);
+
+      // Measures whether the decoded audio is actually non-silent, not just present.
+      let analyser, audioCtx;
+      video.addEventListener('playing', () => {
+        if (analyser) return;
+        audioCtx = new AudioContext();
+        analyser = audioCtx.createAnalyser();
+        audioCtx.createMediaElementSource(video).connect(analyser);
+        analyser.connect(audioCtx.destination);
+      });
+      window.audioRms = () => {
+        if (!analyser) return null;
+        const buf = new Float32Array(analyser.fftSize);
+        analyser.getFloatTimeDomainData(buf);
+        return Math.sqrt(buf.reduce((s, x) => s + x * x, 0) / buf.length);
+      };
+      // Chrome's fake mic emits a short beep once a second, so one instant can read as silence.
+      window.audioPeak = async (ms) => {
+        let peak = 0;
+        for (
+          const end = performance.now() + ms;
+          performance.now() < end;
+          await new Promise((r) => setTimeout(r, 20))
+        ) {
+          peak = Math.max(peak, window.audioRms() ?? 0);
+        }
+        return { peakRms: peak, audioContextState: audioCtx?.state };
+      };
+      window.snapshot = () => ({
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        currentTime: video.currentTime,
+        paused: video.paused,
+        audioDecodedBytes: video.webkitAudioDecodedByteCount,
+        videoDecodedBytes: video.webkitVideoDecodedByteCount,
+        decodedFrames: video.getVideoPlaybackQuality().totalVideoFrames,
+        hlsLatency: hls.latency,
+        hlsTargetLatency: hls.targetLatency,
+        audioRms: window.audioRms(),
+        ...window.hlsInfo,
+      });
+    </script>
+  </body>
+</html>

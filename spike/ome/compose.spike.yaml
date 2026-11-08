@@ -1,0 +1,15 @@
+# Used with the root compose.yaml: docker compose -f compose.yaml -f spike/ome/compose.spike.yaml
+# Relative paths resolve against the root compose.yaml directory.
+services:
+  ome:
+    volumes:
+      - ./spike/ome/Server.xml:/opt/ovenmediaengine/bin/origin_conf/Server.xml:ro
+    environment:
+      OME_API_ACCESS_TOKEN: ${OME_API_ACCESS_TOKEN:-spike-api-token}
+      OME_WEBHOOK_URL: ${OME_WEBHOOK_URL:-http://host.docker.internal:18080/admission}
+      OME_WEBHOOK_SECRET: ${OME_WEBHOOK_SECRET:-spike-webhook-secret}
+      OME_WEBHOOK_TIMEOUT_MS: ${OME_WEBHOOK_TIMEOUT_MS:-3000}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - '127.0.0.1:8081:8081/tcp'

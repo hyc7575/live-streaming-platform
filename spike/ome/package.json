@@ -1,0 +1,13 @@
+{
+  "name": "ome-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "./run.sh"
+  },
+  "dependencies": {
+    "hls.js": "1.7.4",
+    "ovenlivekit": "1.5.8",
+    "playwright": "1.65.0"
+  }
+}

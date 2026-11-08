@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>spike publish</title>
+    <script src="/vendor/OvenLiveKit.min.js"></script>
+  </head>
+  <body>
+    <video id="preview" autoplay muted playsinline width="640"></video>
+    <pre id="log"></pre>
+    <script>
+      const logEl = document.getElementById('log');
+      const log = (...a) => (logEl.textContent += a.join(' ') + '\n');
+      window.spikeLog = [];
+
+      // Resolves 'connected', or rejects with the first error/closed signal.
+      window.publish = (url, connectionConfig = {}, audio = true) =>
+        new Promise(async (resolve, reject) => {
+          const settle = (fn, v) => {
+            window.spikeLog.push(String(v));
+            fn(v);
+          };
+          window.olk = OvenLiveKit.create({
+            callbacks: {
+              error: (e) => settle(reject, 'error: ' + (e?.message ?? e)),
+              connected: () => settle(resolve, 'connected'),
+              connectionClosed: (type) => {
+                window.spikeLog.push('connectionClosed: ' + type);
+                reject('connectionClosed: ' + type);
+              },
+              iceStateChange: (s) => window.spikeLog.push('ice: ' + s),
+            },
+          });
+          await window.olk.getUserMedia({
+            audio,
+            video: { width: 1280, height: 720 },
+          });
+          document.getElementById('preview').srcObject = window.olk.inputStream;
+          window.olk.startStreaming(url, connectionConfig);
+        });
+
+      window.outboundStats = async () => {
+        const report = await window.olk.peerConnection.getStats();
+        const byId = new Map([...report.values()].map((s) => [s.id, s]));
+        const out = [];
+        for (const s of report.values()) {
+          if (s.type !== 'outbound-rtp') continue;
+          out.push({
+            kind: s.kind,
+            mimeType: byId.get(s.codecId)?.mimeType,
+            sdpFmtpLine: byId.get(s.codecId)?.sdpFmtpLine,
+            bytesSent: s.bytesSent,
+            framesEncoded: s.framesEncoded,
+            framesPerSecond: s.framesPerSecond,
+            frameWidth: s.frameWidth,
+            frameHeight: s.frameHeight,
+            encoderImplementation: s.encoderImplementation,
+          });
+        }
+        const pair = [...report.values()].find(
+          (s) =>
+            s.type === 'candidate-pair' &&
+            s.nominated &&
+            s.state === 'succeeded',
+        );
+        const remote = pair && byId.get(pair.remoteCandidateId);
+        return {
+          out,
+          remoteCandidate: remote && {
+            address: remote.address,
+            port: remote.port,
+            protocol: remote.protocol,
+            candidateType: remote.candidateType,
+          },
+        };
+      };
+    </script>
+  </body>
+</html>
