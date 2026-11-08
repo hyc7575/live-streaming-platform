@@ -146,10 +146,16 @@ it('says the broadcast does not exist on a 404', async () => {
 
 const other = { id: 'u2', email: 'b@example.com', nickname: '타인' };
 
+// Waits for the header to show who is logged in, so the assertions run after
+// the auth state has settled rather than while it is still loading.
 it.each([
-  ['an anonymous visitor', 401],
-  ['another logged-in user', other],
-])('hides 수정 and 삭제 from %s', async (_who, me) => {
+  [
+    'an anonymous visitor',
+    401,
+    () => screen.findByRole('link', { name: '로그인' }),
+  ],
+  ['another logged-in user', other, () => screen.findByText(other.nickname)],
+])('hides 수정 and 삭제 from %s', async (_who, me, settled) => {
   stubApi({
     'GET /api/auth/me': me,
     'GET /api/broadcasts/b1': broadcast({
@@ -159,6 +165,7 @@ it.each([
   });
   renderAt('/broadcasts/b1');
   await screen.findByRole('heading', { name: '남의 방송' });
+  await settled();
   expect(screen.queryByRole('link', { name: '수정' })).toBeNull();
   expect(screen.queryByRole('button', { name: '삭제' })).toBeNull();
 });
@@ -207,7 +214,7 @@ it('offers no delete on a LIVE broadcast and says why', async () => {
   expect(screen.queryByRole('button', { name: '삭제' })).toBeNull();
 });
 
-it('shows the server’s refusal when a delete races the broadcast going LIVE', async () => {
+it('switches to the LIVE notice when a delete races the broadcast going LIVE', async () => {
   stubApi({
     'GET /api/auth/me': streamer,
     'GET /api/broadcasts/b1': broadcast({ status: 'READY' }),
@@ -216,9 +223,22 @@ it('shows the server’s refusal when a delete races the broadcast going LIVE', 
   renderAt('/broadcasts/b1');
   fireEvent.click(await screen.findByRole('button', { name: '삭제' }));
   fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
-  expect((await screen.findByRole('alert')).textContent).toBe(
-    '방송을 종료한 뒤 삭제하세요.',
-  );
+  expect(
+    await screen.findByText('송출 중인 방송은 종료한 뒤 삭제할 수 있습니다.'),
+  ).toBeDefined();
+  expect(screen.queryByRole('button', { name: '삭제' })).toBeNull();
+});
+
+it('goes to 내 방송 when the broadcast was already deleted elsewhere', async () => {
+  stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+    'GET /api/me/broadcasts': [],
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '삭제' }));
+  fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
+  expect(await screen.findByRole('heading', { name: '내 방송' })).toBeDefined();
 });
 
 it('edits the title and description from the detail page', async () => {

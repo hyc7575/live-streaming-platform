@@ -123,13 +123,18 @@ describe('authorization matrix (PRD §7.5)', () => {
       },
     },
     '방송 수정': {
-      // `status` rides along to prove a client cannot move the lifecycle.
+      // `status` and `streamerId` ride along to prove a client can neither
+      // move the lifecycle nor hand the broadcast to someone else.
       send: (client, w) =>
         client
           .patch(`/api/broadcasts/${w.targetId}`)
-          .send({ ...EDITED, status: 'ENDED' }),
+          .send({ ...EDITED, status: 'ENDED', streamerId: w.other.id }),
       verifyAllowed: async (res, w) => {
-        expect(res.body).toMatchObject({ ...EDITED, status: w.status });
+        expect(res.body).toMatchObject({
+          ...EDITED,
+          status: w.status,
+          streamer: { id: w.owner.id },
+        });
         const detail = await anonymous().get(`/api/broadcasts/${w.targetId}`);
         expect(detail.body).toMatchObject({ ...EDITED, status: w.status });
         const mine = await w.as.owner.get('/api/me/broadcasts');

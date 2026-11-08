@@ -6,9 +6,6 @@ import type { LoginPageState } from '../pages/LoginPage';
 import styles from './OwnerActions.module.css';
 
 function deleteErrorMessage(err: unknown): string {
-  if (err instanceof ApiError && err.status === 409) {
-    return '방송을 종료한 뒤 삭제하세요.';
-  }
   if (err instanceof ApiError && err.status === 403) return '권한이 없습니다.';
   return '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
@@ -20,6 +17,9 @@ export function OwnerActions({ broadcast }: { broadcast: Broadcast }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when the server says the broadcast went LIVE after this page loaded.
+  const [wentLive, setWentLive] = useState(false);
+  const live = broadcast.status === 'LIVE' || wentLive;
 
   async function handleDelete() {
     setDeleting(true);
@@ -33,7 +33,16 @@ export function OwnerActions({ broadcast }: { broadcast: Broadcast }) {
         void navigate('/login', { state: next });
         return;
       }
-      setError(deleteErrorMessage(err));
+      // Already deleted, say from another tab: the goal is met.
+      if (err instanceof ApiError && err.status === 404) {
+        void navigate('/studio');
+        return;
+      }
+      if (err instanceof ApiError && err.status === 409) {
+        setWentLive(true);
+      } else {
+        setError(deleteErrorMessage(err));
+      }
       setDeleting(false);
       setConfirming(false);
     }
@@ -48,7 +57,7 @@ export function OwnerActions({ broadcast }: { broadcast: Broadcast }) {
         >
           수정
         </Link>
-        {broadcast.status !== 'LIVE' && !confirming && (
+        {!live && !confirming && (
           <button
             type="button"
             className={styles.button}
@@ -58,7 +67,7 @@ export function OwnerActions({ broadcast }: { broadcast: Broadcast }) {
           </button>
         )}
       </div>
-      {broadcast.status === 'LIVE' && (
+      {live && (
         <p className={styles.hint}>
           송출 중인 방송은 종료한 뒤 삭제할 수 있습니다.
         </p>
