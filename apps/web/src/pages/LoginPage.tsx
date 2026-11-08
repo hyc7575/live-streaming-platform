@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
 import styles from './AuthForm.module.css';
+import { TestAccountLogin } from './TestAccountLogin';
 
 export interface LoginPageState {
   email?: string;
@@ -20,7 +21,7 @@ function loginErrorMessage(err: unknown): string {
 }
 
 export function LoginPage() {
-  const { state, logIn } = useAuth();
+  const { state, logIn, logInAsTestAccount } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state ?? {}) as LoginPageState;
@@ -33,17 +34,21 @@ export function LoginPage() {
     return <Navigate to="/" replace />;
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submit(attempt: () => Promise<void>) {
     setSubmitting(true);
     setError(null);
     try {
-      await logIn(email, password);
+      await attempt();
       void navigate('/', { replace: true });
     } catch (err) {
       setError(loginErrorMessage(err));
       setSubmitting(false);
     }
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void submit(() => logIn(email, password));
   }
 
   return (
@@ -86,6 +91,10 @@ export function LoginPage() {
           로그인
         </button>
       </form>
+      <TestAccountLogin
+        disabled={submitting}
+        onLogIn={(account) => void submit(() => logInAsTestAccount(account))}
+      />
       <p className={styles.footer}>
         계정이 없으신가요? <Link to="/signup">회원가입</Link>
       </p>

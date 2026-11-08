@@ -13,9 +13,13 @@ export type AuthState =
   | { status: 'anonymous' }
   | { status: 'authenticated'; user: AuthUser };
 
+// Matches the API's TEST_ACCOUNT_KEYS: A is the streamer, B the other user.
+export type TestAccountKey = 'A' | 'B';
+
 export interface AuthContextValue {
   state: AuthState;
   logIn: (email: string, password: string) => Promise<void>;
+  logInAsTestAccount: (account: TestAccountKey) => Promise<void>;
   logOut: () => Promise<void>;
 }
 
