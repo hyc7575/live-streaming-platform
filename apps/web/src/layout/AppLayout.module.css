@@ -46,6 +46,42 @@
   color: var(--color-text);
 }
 
+.account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-left: auto;
+}
+
+.nickname {
+  font-weight: 600;
+}
+
+.loginButton {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-brand);
+  border-radius: var(--radius-md);
+  color: var(--color-on-brand);
+  font-weight: 700;
+}
+
+.loginButton:hover {
+  background: var(--color-brand-hover);
+}
+
+.logoutButton {
+  padding: var(--space-1) var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.logoutButton:hover {
+  color: var(--color-text);
+}
+
 .main {
   max-width: var(--content-max-width);
   margin: 0 auto;
