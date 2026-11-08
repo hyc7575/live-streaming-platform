@@ -2,9 +2,10 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../src/database/database.module.js';
-import type {
-  BroadcastView,
-  PublicStatus,
+import {
+  DELETE_LIVE_MESSAGE,
+  type BroadcastView,
+  type PublicStatus,
 } from '../src/broadcasts/broadcasts.service.js';
 import type { BroadcastStatus as Status } from '../src/generated/prisma/client.js';
 import {
@@ -207,6 +208,72 @@ describe('broadcasts', () => {
         `/api/broadcasts/${id}`,
       );
       expect(res.status).toBe(404);
+    });
+  });
+
+  // Who may call PATCH and DELETE is covered by authorization-matrix.e2e.spec.ts.
+  describe('PATCH /api/broadcasts/:id', () => {
+    it('changes only the fields sent and trims them like create', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '원래 제목', 'ENDED');
+      await prisma.broadcast.update({
+        where: { id },
+        data: { description: '원래 설명' },
+      });
+
+      const res = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ title: '  새 제목  ' });
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        title: '새 제목',
+        description: '원래 설명',
+      });
+
+      const cleared = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ description: '' });
+      expect(cleared.body).toMatchObject({ title: '새 제목', description: '' });
+    });
+
+    it.each([
+      ['an empty body', {}],
+      ['only unknown fields', { status: 'ENDED' }],
+      ['a blank title', { title: '   ' }],
+      ['a title over 100 characters', { title: 'a'.repeat(101) }],
+      ['a description over 2000 characters', { description: 'a'.repeat(2001) }],
+      ['a non-string title', { title: 42 }],
+    ])('rejects %s with 400 and changes nothing', async (_case, body) => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '원래 제목', 'READY');
+      const before = await prisma.broadcast.findUniqueOrThrow({
+        where: { id },
+      });
+      const res = await agent.patch(`/api/broadcasts/${id}`).send(body);
+      expect(res.status).toBe(400);
+      expect(
+        await prisma.broadcast.findUniqueOrThrow({ where: { id } }),
+      ).toEqual(before);
+    });
+  });
+
+  describe('DELETE /api/broadcasts/:id', () => {
+    it('refuses a LIVE broadcast with 409 and keeps it', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '송출 중', 'LIVE');
+      const res = await agent.delete(`/api/broadcasts/${id}`);
+      expect(res.status).toBe(409);
+      expect((res.body as { message: string }).message).toBe(
+        DELETE_LIVE_MESSAGE,
+      );
+      expect(await prisma.broadcast.count({ where: { id } })).toBe(1);
+    });
+
+    it('answers 404 to a second delete of the same broadcast', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '지울 방송', 'READY');
+      expect((await agent.delete(`/api/broadcasts/${id}`)).status).toBe(204);
+      expect((await agent.delete(`/api/broadcasts/${id}`)).status).toBe(404);
     });
   });
 });
