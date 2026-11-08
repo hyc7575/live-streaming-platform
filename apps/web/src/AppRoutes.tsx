@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router';
 import { RequireAuth } from './auth/RequireAuth';
 import { AppLayout } from './layout/AppLayout';
 import { BroadcastPage } from './pages/BroadcastPage';
+import { EditBroadcastPage } from './pages/EditBroadcastPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { NewBroadcastPage } from './pages/NewBroadcastPage';
@@ -20,6 +21,10 @@ export function AppRoutes() {
         <Route element={<RequireAuth />}>
           <Route path="studio" element={<StudioPage />} />
           <Route path="studio/new" element={<NewBroadcastPage />} />
+          <Route
+            path="studio/broadcasts/:id/edit"
+            element={<EditBroadcastPage />}
+          />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

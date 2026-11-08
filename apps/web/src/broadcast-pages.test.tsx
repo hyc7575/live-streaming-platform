@@ -33,11 +33,14 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
 }
 
 // Answers each `METHOD /api/path` from the table; anything else is a 404.
+// `bodies` keeps the request body each call sent, keyed the same way.
 function stubApi(routes: Record<string, unknown>) {
   const calls: string[] = [];
+  const bodies: Record<string, unknown> = {};
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${url}`;
     calls.push(key);
+    if (typeof init?.body === 'string') bodies[key] = JSON.parse(init.body);
     if (!(key in routes)) {
       return Promise.resolve(new Response(null, { status: 404 }));
     }
@@ -48,7 +51,7 @@ function stubApi(routes: Record<string, unknown>) {
         : Response.json(body),
     );
   });
-  return calls;
+  return Object.assign(calls, { bodies });
 }
 
 function renderAt(path: string) {
@@ -139,4 +142,125 @@ it('says the broadcast does not exist on a 404', async () => {
   expect(
     await screen.findByRole('heading', { name: '방송을 찾을 수 없습니다' }),
   ).toBeDefined();
+});
+
+const other = { id: 'u2', email: 'b@example.com', nickname: '타인' };
+
+it.each([
+  ['an anonymous visitor', 401],
+  ['another logged-in user', other],
+])('hides 수정 and 삭제 from %s', async (_who, me) => {
+  stubApi({
+    'GET /api/auth/me': me,
+    'GET /api/broadcasts/b1': broadcast({
+      status: 'ENDED',
+      title: '남의 방송',
+    }),
+  });
+  renderAt('/broadcasts/b1');
+  await screen.findByRole('heading', { name: '남의 방송' });
+  expect(screen.queryByRole('link', { name: '수정' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '삭제' })).toBeNull();
+});
+
+it('lets the streamer delete after confirming, then goes to 내 방송', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({
+      status: 'ENDED',
+      title: '지울 방송',
+    }),
+    'DELETE /api/broadcasts/b1': 204,
+    'GET /api/me/broadcasts': [],
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '삭제' }));
+  expect(calls).not.toContain('DELETE /api/broadcasts/b1');
+
+  fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
+  expect(await screen.findByRole('heading', { name: '내 방송' })).toBeDefined();
+  expect(calls).toContain('DELETE /api/broadcasts/b1');
+});
+
+it('keeps the broadcast when the streamer cancels the delete', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({ status: 'READY' }),
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '삭제' }));
+  fireEvent.click(screen.getByRole('button', { name: '취소' }));
+  expect(screen.getByRole('button', { name: '삭제' })).toBeDefined();
+  expect(calls).not.toContain('DELETE /api/broadcasts/b1');
+});
+
+it('offers no delete on a LIVE broadcast and says why', async () => {
+  stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+  });
+  renderAt('/broadcasts/b1');
+  expect(
+    await screen.findByText('송출 중인 방송은 종료한 뒤 삭제할 수 있습니다.'),
+  ).toBeDefined();
+  expect(screen.getByRole('link', { name: '수정' })).toBeDefined();
+  expect(screen.queryByRole('button', { name: '삭제' })).toBeNull();
+});
+
+it('shows the server’s refusal when a delete races the broadcast going LIVE', async () => {
+  stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({ status: 'READY' }),
+    'DELETE /api/broadcasts/b1': 409,
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '삭제' }));
+  fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '방송을 종료한 뒤 삭제하세요.',
+  );
+});
+
+it('edits the title and description from the detail page', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({
+      status: 'ENDED',
+      title: '원래 제목',
+      description: '원래 설명',
+    }),
+    'PATCH /api/broadcasts/b1': broadcast({ title: '고친 제목' }),
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('link', { name: '수정' }));
+
+  const title = await screen.findByLabelText<HTMLInputElement>('제목');
+  expect(title.value).toBe('원래 제목');
+  expect(screen.getByLabelText<HTMLTextAreaElement>('설명 (선택)').value).toBe(
+    '원래 설명',
+  );
+  fireEvent.change(title, { target: { value: '고친 제목' } });
+  fireEvent.click(screen.getByRole('button', { name: '저장' }));
+
+  // The stub serves the old detail again; the PATCH body is what must change.
+  expect(
+    await screen.findByRole('heading', { name: '원래 제목' }),
+  ).toBeDefined();
+  expect(calls).toContain('PATCH /api/broadcasts/b1');
+  expect(calls.bodies['PATCH /api/broadcasts/b1']).toEqual({
+    title: '고친 제목',
+    description: '원래 설명',
+  });
+});
+
+it('tells a non-owner who opens the edit URL that they lack permission', async () => {
+  stubApi({
+    'GET /api/auth/me': other,
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+  });
+  renderAt('/studio/broadcasts/b1/edit');
+  expect(
+    await screen.findByRole('heading', { name: '권한이 없습니다' }),
+  ).toBeDefined();
+  expect(screen.queryByLabelText('제목')).toBeNull();
 });
