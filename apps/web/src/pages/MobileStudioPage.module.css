@@ -1,0 +1,92 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: var(--form-card-width);
+  margin: 0 auto;
+}
+
+.note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.warning {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+}
+
+.guide > * {
+  margin: 0;
+}
+
+.guide h2 {
+  font-size: var(--font-size-md);
+}
+
+.guide h3 {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.guide ol {
+  padding-left: var(--space-6);
+}
+
+.preview {
+  width: 100%;
+  max-height: 60vh;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+}
+
+/* Front cameras look natural to the streamer only when mirrored, like a selfie view. */
+.preview[data-mirrored='true'] {
+  transform: scaleX(-1);
+}
+
+/* Bottom-pinned so the buttons stay within thumb reach on a 360px-wide phone. */
+.actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  background: var(--color-bg);
+}
+
+.actions button {
+  min-height: calc(var(--space-8) + var(--space-4));
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.actions .primary {
+  border-color: var(--color-brand);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
