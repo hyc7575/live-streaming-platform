@@ -41,6 +41,7 @@ function AccountMenu() {
 }
 
 export function AppLayout() {
+  const loggedIn = useAuth().state.status === 'authenticated';
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
@@ -52,9 +53,11 @@ export function AppLayout() {
           <NavLink to="/" end className={styles.navLink}>
             방송 목록
           </NavLink>
-          <NavLink to="/studio" className={styles.navLink}>
-            내 방송
-          </NavLink>
+          {loggedIn && (
+            <NavLink to="/studio" className={styles.navLink}>
+              내 방송
+            </NavLink>
+          )}
         </nav>
         <AccountMenu />
       </header>
