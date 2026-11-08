@@ -1,0 +1,34 @@
+# 비밀값 — 절대 커밋하지 않는다. 예시는 .env.example에만 둔다
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+
+# 의존성·빌드 산출물
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# 런타임 데이터 (DB 볼륨, OME 녹화 파일, Caddy 인증서)
+data/
+recordings/
+caddy_data/
+caddy_config/
+*.dump
+*.sql.gz
+
+# 로그·OS·에디터
+*.log
+npm-debug.log*
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# 개인 참고 문서 (공모 원문 등) — 공개 저장소에 올리지 않는다
+docs/private/
