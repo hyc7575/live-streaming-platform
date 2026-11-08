@@ -5,6 +5,8 @@ export type PcCaptureState =
       status: 'live';
       hasScreenAudio: boolean;
       micMuted: boolean;
+      /** The mic device went away (unplugged, or revoked by the OS). */
+      micLost: boolean;
       audioRunning: boolean;
     }
   | { status: 'ended'; reason: PcCaptureEndReason };
@@ -101,6 +103,7 @@ function createPcCapture(firstDisplay: MediaStream, mic: MediaStream) {
     status: 'live',
     hasScreenAudio: screen.analyser !== null,
     micMuted: false,
+    micLost: false,
     audioRunning: ctx.state === 'running',
   };
   const listeners = new Set<() => void>();
@@ -146,6 +149,11 @@ function createPcCapture(firstDisplay: MediaStream, mic: MediaStream) {
     void ctx.close();
     setState({ status: 'ended', reason });
   }
+
+  mic.getAudioTracks()[0].addEventListener('ended', () => {
+    if (state.status !== 'live') return;
+    setState({ ...state, micLost: true });
+  });
 
   ctx.addEventListener('statechange', () => {
     if (state.status !== 'live') return;
