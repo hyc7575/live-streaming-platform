@@ -11,6 +11,7 @@ import {
   type AuthContextValue,
   type AuthState,
   type AuthUser,
+  type TestAccountKey,
 } from './auth-context';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -38,14 +39,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ status: 'authenticated', user });
   }, []);
 
+  const logInAsTestAccount = useCallback(async (account: TestAccountKey) => {
+    const user = await apiFetch<AuthUser>('/auth/test-login', {
+      method: 'POST',
+      body: JSON.stringify({ account }),
+    });
+    setState({ status: 'authenticated', user });
+  }, []);
+
   const logOut = useCallback(async () => {
     await apiFetch<void>('/auth/logout', { method: 'POST' });
     setState({ status: 'anonymous' });
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ state, logIn, logOut }),
-    [state, logIn, logOut],
+    () => ({ state, logIn, logInAsTestAccount, logOut }),
+    [state, logIn, logInAsTestAccount, logOut],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;

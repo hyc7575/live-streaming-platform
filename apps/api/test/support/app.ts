@@ -6,18 +6,26 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { expect } from 'vitest';
 import { AppModule } from '../../src/app.module.js';
 import type { AuthUser } from '../../src/auth/auth-user.js';
+import {
+  TEST_ACCOUNTS_CONFIG,
+  type TestAccountsConfig,
+} from '../../src/auth/test-accounts.js';
 import { configureApp } from '../../src/configure-app.js';
 import { PrismaService } from '../../src/database/database.module.js';
 
 export const TEST_SESSION_SECRET = 'test-session-secret';
 
 // Runs the real AppModule against DATABASE_URL (migrations already applied).
+// Test accounts stay off unless a test passes a config, whatever .env says.
 export async function createTestApp(
-  options: { cookieSecure?: boolean } = {},
+  options: { cookieSecure?: boolean; testAccounts?: TestAccountsConfig } = {},
 ): Promise<NestExpressApplication> {
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
-  }).compile();
+  })
+    .overrideProvider(TEST_ACCOUNTS_CONFIG)
+    .useValue(options.testAccounts ?? { enabled: false })
+    .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>();
   configureApp(app, {
     secret: TEST_SESSION_SECRET,
