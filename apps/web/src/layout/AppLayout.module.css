@@ -13,6 +13,24 @@
   padding: 0 var(--space-4);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .header {
+    gap: var(--space-3);
+    padding: 0 var(--space-3);
+  }
+
+  .nav,
+  .account {
+    gap: var(--space-3);
+  }
+
+  /* Nicknames run up to 20 characters; 로그아웃 already shows the session. */
+  .nickname {
+    display: none;
+  }
 }
 
 .logo {

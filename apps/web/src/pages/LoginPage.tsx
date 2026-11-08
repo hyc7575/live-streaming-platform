@@ -8,6 +8,8 @@ import { TestAccountLogin } from './TestAccountLogin';
 export interface LoginPageState {
   email?: string;
   signedUp?: boolean;
+  // The in-app path to return to after logging in.
+  from?: string;
 }
 
 function loginErrorMessage(err: unknown): string {
@@ -30,8 +32,10 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const returnTo = from.from ?? '/';
+
   if (state.status === 'authenticated' && !submitting) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={returnTo} replace />;
   }
 
   async function submit(attempt: () => Promise<void>) {
@@ -39,7 +43,7 @@ export function LoginPage() {
     setError(null);
     try {
       await attempt();
-      void navigate('/', { replace: true });
+      void navigate(returnTo, { replace: true });
     } catch (err) {
       setError(loginErrorMessage(err));
       setSubmitting(false);
@@ -96,7 +100,10 @@ export function LoginPage() {
         onLogIn={(account) => void submit(() => logInAsTestAccount(account))}
       />
       <p className={styles.footer}>
-        계정이 없으신가요? <Link to="/signup">회원가입</Link>
+        계정이 없으신가요?{' '}
+        <Link to="/signup" state={{ from: from.from } satisfies LoginPageState}>
+          회원가입
+        </Link>
       </p>
     </section>
   );

@@ -33,6 +33,9 @@ function stubApi(accounts: string[] | 'error') {
         }),
       );
     }
+    if (url.startsWith('/api/broadcasts')) {
+      return Promise.resolve(Response.json([]));
+    }
     return Promise.resolve(new Response(null, { status: 401 }));
   });
   return calls;
@@ -77,7 +80,7 @@ it('logs in as the clicked account and goes to the broadcast list', async () => 
   renderLogin();
   fireEvent.click(await screen.findByRole('button', { name: '사용자 B' }));
   expect(
-    await screen.findByRole('heading', { name: 'LIVE 방송' }),
+    await screen.findByRole('heading', { name: '방송 목록' }),
   ).toBeDefined();
   expect(screen.getByText('사용자 B')).toBeDefined();
   expect(screen.getByRole('button', { name: '로그아웃' })).toBeDefined();

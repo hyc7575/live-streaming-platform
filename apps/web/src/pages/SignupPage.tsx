@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
 import styles from './AuthForm.module.css';
@@ -21,6 +21,7 @@ function signupErrorMessage(err: unknown): string {
 export function SignupPage() {
   const { state } = useAuth();
   const navigate = useNavigate();
+  const returnTo = (useLocation().state as LoginPageState | null)?.from;
   const [email, setEmail] = useState('');
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +41,7 @@ export function SignupPage() {
         method: 'POST',
         body: JSON.stringify({ email, nickname, password }),
       });
-      const next: LoginPageState = { email, signedUp: true };
+      const next: LoginPageState = { email, signedUp: true, from: returnTo };
       void navigate('/login', { state: next });
     } catch (err) {
       setError(signupErrorMessage(err));
@@ -105,7 +106,10 @@ export function SignupPage() {
         </button>
       </form>
       <p className={styles.footer}>
-        이미 계정이 있으신가요? <Link to="/login">로그인</Link>
+        이미 계정이 있으신가요?{' '}
+        <Link to="/login" state={{ from: returnTo } satisfies LoginPageState}>
+          로그인
+        </Link>
       </p>
     </section>
   );

@@ -28,7 +28,7 @@ function renderAt(path: string) {
 it('shows the service name and the broadcast list on the home route', () => {
   renderAt('/');
   expect(screen.getByRole('link', { name: '모닥' })).toBeDefined();
-  expect(screen.getByRole('heading', { name: 'LIVE 방송' })).toBeDefined();
+  expect(screen.getByRole('heading', { name: '방송 목록' })).toBeDefined();
 });
 
 it('shows a not-found page for unknown routes', () => {
@@ -44,9 +44,13 @@ it('offers login in the header when the session check answers 401', async () => 
 });
 
 it('restores the logged-in header from GET /api/auth/me', async () => {
-  vi.stubGlobal('fetch', () =>
+  vi.stubGlobal('fetch', (url: string) =>
     Promise.resolve(
-      Response.json({ id: 'u1', email: 'a@example.com', nickname: '불씨' }),
+      Response.json(
+        url === '/api/auth/me'
+          ? { id: 'u1', email: 'a@example.com', nickname: '불씨' }
+          : [],
+      ),
     ),
   );
   renderAt('/');
