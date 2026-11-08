@@ -191,6 +191,20 @@ docker compose exec postgres psql -U lsp -d lsp -c \
   "UPDATE \"Broadcast\" SET status='LIVE', \"startedAt\"=now() WHERE title='<제목>'"
 ```
 
+API로 확인:
+
+```sh
+API=http://localhost:3000/api
+curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts \
+  -H 'Content-Type: application/json' -d '{"title":"첫 방송"}'          # 401
+curl -s -b jar.txt -X POST $API/broadcasts -H 'Content-Type: application/json' \
+  -d '{"title":"첫 방송","description":"설명"}'                          # 201, status READY
+curl -s $API/broadcasts                    # LIVE·ENDED만
+curl -s "$API/broadcasts?status=LIVE"      # LIVE만
+curl -s -b jar.txt $API/me/broadcasts      # 내 방송 (READY 포함)
+curl -s $API/broadcasts/<id>               # 상세, 없으면 404
+```
+
 ### 테스트 계정 원클릭 로그인
 
 심사자가 계정을 만들지 않고 버튼 하나로 **스트리머 A** 또는 **사용자 B**가 된다. A는 방송을 만드는 스트리머, B는 A의 방송에 대한 수정·종료가 거절(403)되는지 확인하는 다른 사용자다.
@@ -226,16 +240,6 @@ API로 확인:
 
 ```sh
 API=http://localhost:3000/api
-curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts \
-  -H 'Content-Type: application/json' -d '{"title":"첫 방송"}'          # 401
-curl -s -b jar.txt -X POST $API/broadcasts -H 'Content-Type: application/json' \
-  -d '{"title":"첫 방송","description":"설명"}'                          # 201, status READY
-curl -s $API/broadcasts                    # LIVE·ENDED만
-curl -s "$API/broadcasts?status=LIVE"      # LIVE만
-curl -s -b jar.txt $API/me/broadcasts      # 내 방송 (READY 포함)
-curl -s $API/broadcasts/<id>               # 상세, 없으면 404
-```
-
 curl -s $API/auth/test-accounts                     # {"accounts":["A","B"]}, 꺼져 있으면 {"accounts":[]}
 curl -s -c jar.txt -X POST $API/auth/test-login -H 'Content-Type: application/json' \
   -d '{"account":"A"}'                              # 200, A의 사용자 정보. 꺼져 있으면 404
