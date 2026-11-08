@@ -15,6 +15,32 @@ model User {
   nickname     String
   passwordHash String
   createdAt    DateTime @default(now())
+
+  broadcasts Broadcast[]
+}
+
+enum BroadcastStatus {
+  READY
+  LIVE
+  ENDED
+}
+
+// Only the server moves status forward (READY -> LIVE -> ENDED), from the
+// publish admission flow. startedAt and endedAt record those transitions.
+model Broadcast {
+  id          String          @id @default(uuid()) @db.Uuid
+  streamerId  String          @db.Uuid
+  streamer    User            @relation(fields: [streamerId], references: [id], onDelete: Cascade)
+  title       String
+  description String          @default("")
+  status      BroadcastStatus @default(READY)
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([status, createdAt])
+  @@index([streamerId, createdAt])
 }
 
 // connect-pg-simple reads and writes this table. Its shape follows the
