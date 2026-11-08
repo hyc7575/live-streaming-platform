@@ -34,4 +34,5 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm build
+      - run: pnpm --filter @lsp/api db:migrate
       - run: pnpm test
