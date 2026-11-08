@@ -78,6 +78,10 @@ CI도 같은 순서로 GitHub Actions의 Postgres 서비스에 마이그레이�
 | `DATABASE_URL` | 없음 (필수) | API·Prisma CLI·API 테스트의 DB 연결 |
 | `SESSION_SECRET` | 없음 (필수) | 세션 쿠키 서명. 바꾸면 기존 로그인이 모두 풀린다 |
 | `NODE_ENV` | 없음 | `production`이면 세션 쿠키에 `Secure`를 붙인다 |
+| `TEST_ACCOUNTS_ENABLED` | 없음 (꺼짐) | `true`면 테스트 계정 원클릭 로그인을 켠다 |
+| `TEST_ACCOUNT_A_EMAIL` / `TEST_ACCOUNT_B_EMAIL` | `streamer-a@modak.test` / `user-b@modak.test` | 테스트 계정 이메일 (시드와 API가 같이 읽는다) |
+| `TEST_ACCOUNT_A_NICKNAME` / `TEST_ACCOUNT_B_NICKNAME` | `스트리머 A` / `사용자 B` | 테스트 계정 닉네임 (시드만 읽는다) |
+| `TEST_ACCOUNT_A_PASSWORD` / `TEST_ACCOUNT_B_PASSWORD` | 없음 (시드에 필수) | 테스트 계정 비밀번호 (시드만 읽는다, 8자 이상) |
 | `API_PORT` / `WEB_PORT` | `3000` / `5173` | 개발 서버 포트 |
 | `OME_HOST_IP` | `*` | OME가 ICE 후보로 알리는 주소 |
 | `OME_HTTP_PORT` | `3333` | OME WebRTC 시그널링 + LL-HLS |
@@ -200,6 +204,56 @@ curl -s "$API/broadcasts?status=LIVE"      # LIVE만
 curl -s -b jar.txt $API/me/broadcasts      # 내 방송 (READY 포함)
 curl -s $API/broadcasts/<id>               # 상세, 없으면 404
 ```
+
+### 테스트 계정 원클릭 로그인
+
+심사자가 계정을 만들지 않고 버튼 하나로 **스트리머 A** 또는 **사용자 B**가 된다. A는 방송을 만드는 스트리머, B는 A의 방송에 대한 수정·종료가 거절(403)되는지 확인하는 다른 사용자다.
+
+**공개 테스트 계정이다.** 서비스에 들어오는 누구나 버튼으로 A나 B가 될 수 있다. 심사용이라 운영 배포에서도 켠다. 개인 정보나 중요한 데이터를 두지 않는다.
+
+준비 (한 번):
+
+```sh
+# .env에 추가한다. 비밀번호는 저장소에 올리지 않는다
+TEST_ACCOUNTS_ENABLED=true
+TEST_ACCOUNT_A_PASSWORD=<8자 이상>
+TEST_ACCOUNT_B_PASSWORD=<8자 이상>
+
+pnpm --filter @lsp/api db:seed   # API를 빌드하고 두 계정을 만든다
+```
+
+- 시드는 몇 번을 돌려도 계정 2개로 끝난다. 이메일이 같으면 닉네임과 비밀번호를 환경변수 값으로 덮어쓴다. 비밀번호를 바꾸려면 값을 바꾸고 다시 돌린다.
+- 비밀번호가 없거나 8자보다 짧으면 `Seed failed: TEST_ACCOUNT_A_PASSWORD is not set`처럼 알리고 아무것도 쓰지 않고 실패한다(종료 코드 1).
+- 이메일·닉네임을 비우면 `streamer-a@modak.test`·`스트리머 A`, `user-b@modak.test`·`사용자 B`를 쓴다.
+- `TEST_ACCOUNTS_ENABLED`를 바꾸면 API를 재시작한다.
+
+화면에서 확인:
+
+1. `http://localhost:5173/login`을 연다. 로그인 카드 아래에 "테스트 계정으로 로그인"과 "스트리머 A"·"사용자 B" 버튼이 있다.
+2. "스트리머 A"를 누른다. 방송 목록으로 돌아가고 헤더에 "스트리머 A"와 "로그아웃"이 보인다.
+3. "로그아웃" → 헤더의 "로그인" → "사용자 B"를 누른다. 헤더에 "사용자 B"가 보인다.
+4. `TEST_ACCOUNTS_ENABLED`를 지우고 API를 재시작하면 로그인 화면에서 버튼 영역이 사라진다.
+
+테스트 계정도 일반 계정이라 로그인 폼에 이메일과 `.env`의 비밀번호를 넣어도 로그인된다. 이 README에는 비밀번호를 적지 않는다(PRD §7.9). 버튼은 비밀번호 없이 동작하므로 심사자는 버튼만 쓰면 된다.
+
+API로 확인:
+
+```sh
+API=http://localhost:3000/api
+curl -s $API/auth/test-accounts                     # {"accounts":["A","B"]}, 꺼져 있으면 {"accounts":[]}
+curl -s -c jar.txt -X POST $API/auth/test-login -H 'Content-Type: application/json' \
+  -d '{"account":"A"}'                              # 200, A의 사용자 정보. 꺼져 있으면 404
+curl -s -b jar.txt $API/auth/me                     # A
+curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/auth/test-login \
+  -H 'Content-Type: application/json' -d '{"account":"C"}'   # 400
+```
+
+동작 방식:
+
+- 버튼은 `POST /api/auth/test-login {"account":"A"|"B"}`를 부른다. 서버가 환경변수의 이메일로 계정을 찾아 세션을 만든다. 비밀번호가 브라우저나 웹 번들로 가지 않는다.
+- `GET /api/auth/test-accounts`는 기능이 켜져 있고 시드된 계정만 돌려준다. 로그인 화면은 이 목록이 비면 버튼 영역을 숨긴다.
+- 요청 제한은 일반 로그인과 같다(IP당 1분에 10번).
+- 자동 테스트는 `apps/api/test/test-accounts.e2e.spec.ts`(실제 PostgreSQL)와 `apps/web/src/pages/LoginPage.test.tsx`다. 시드 두 번 실행 후 사용자 2명, A·B 로그인 후 `me`, 꺼짐 404, 잘못된 `account` 400, 응답과 로그에 비밀번호가 없는지, 버튼 표시·숨김을 확인한다. 비밀번호는 테스트가 실행마다 무작위로 만든다.
 
 ## 지원 환경
 
