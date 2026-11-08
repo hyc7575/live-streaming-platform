@@ -15,9 +15,22 @@
 }
 
 .panel {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.side {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/* Side by side so the warnings and the start button stay above the fold. */
+@media (min-width: 960px) {
+  .panel {
+    grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  }
 }
 
 .preview {
@@ -25,19 +38,6 @@
   aspect-ratio: 16 / 9;
   background: var(--color-surface);
   border-radius: var(--radius-md);
-}
-
-.meters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-6);
-}
-
-.meter {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
 }
 
 .actions {
@@ -66,4 +66,8 @@
   border-color: var(--color-brand);
   background: var(--color-brand);
   color: var(--color-on-brand);
+}
+
+.actions .attention {
+  border-color: var(--color-danger);
 }

@@ -4,6 +4,8 @@ import {
   startPcCapture,
   type PcCapture,
 } from '../capture/pcCapture';
+import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
+import { BrowserNotice, PcPreflight } from '../components/PcPreflight';
 import styles from './PcStudioPage.module.css';
 
 type Phase =
@@ -21,6 +23,7 @@ function failureMessage(error: unknown) {
 
 export function PcStudioPage() {
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
+  const [support] = useState(currentScreenAudioSupport);
   const capture = phase.kind === 'active' ? phase.capture : null;
 
   useEffect(() => {
@@ -41,8 +44,10 @@ export function PcStudioPage() {
     <section className={styles.page}>
       <h1>PC 송출 미리보기</h1>
       <p className={styles.note}>
-        화면과 마이크를 한 번에 섞어 미리 봅니다. 아직 송출하지 않습니다.
+        화면과 마이크를 한 번에 섞어 미리 보고, 소리가 잡히는지 점검합니다. 아직
+        송출하지 않습니다.
       </p>
+      <BrowserNotice support={support} />
       {capture ? (
         <CapturePanel
           capture={capture}
@@ -118,69 +123,47 @@ function CapturePanel({
         muted
         playsInline
       />
-      <div className={styles.meters}>
-        <LevelMeter capture={capture} source="mic" label="마이크" />
-        <LevelMeter capture={capture} source="screen" label="화면 소리" />
-      </div>
-      <p role="status" className={styles.note}>
-        {state.hasScreenAudio ? '화면 소리 있음' : '화면 소리 없음'} ·{' '}
-        {state.audioRunning ? '오디오 동작 중' : '오디오 멈춤'}
-      </p>
-      {reselectFailed && (
-        <p role="alert" className={styles.warning}>
-          화면을 바꾸지 않았습니다.
+      <div className={styles.side}>
+        <PcPreflight
+          capture={capture}
+          state={state}
+          onRestart={onSelectAgain}
+        />
+        <p className={styles.note}>
+          {state.audioRunning ? '오디오 동작 중' : '오디오 멈춤'}
         </p>
-      )}
-      <div className={styles.actions}>
-        <button
-          type="button"
-          className={styles.primary}
-          onClick={() => void capture.resumeAudio()}
-        >
-          방송 시작
-        </button>
-        <button
-          type="button"
-          aria-pressed={state.micMuted}
-          onClick={() => capture.setMicMuted(!state.micMuted)}
-        >
-          {state.micMuted ? '마이크 켜기' : '마이크 끄기'}
-        </button>
-        <button type="button" onClick={reselect}>
-          다시 선택
-        </button>
-        <button type="button" onClick={() => capture.stop()}>
-          미리보기 끝내기
-        </button>
+        {reselectFailed && (
+          <p role="alert" className={styles.warning}>
+            화면을 바꾸지 않았습니다.
+          </p>
+        )}
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.primary}
+            onClick={() => void capture.resumeAudio()}
+          >
+            방송 시작
+          </button>
+          <button
+            type="button"
+            aria-pressed={state.micMuted}
+            onClick={() => capture.setMicMuted(!state.micMuted)}
+          >
+            {state.micMuted ? '마이크 켜기' : '마이크 끄기'}
+          </button>
+          <button
+            type="button"
+            className={state.hasScreenAudio ? undefined : styles.attention}
+            onClick={reselect}
+          >
+            다시 선택
+          </button>
+          <button type="button" onClick={() => capture.stop()}>
+            미리보기 끝내기
+          </button>
+        </div>
       </div>
     </div>
-  );
-}
-
-function LevelMeter({
-  capture,
-  source,
-  label,
-}: {
-  capture: PcCapture;
-  source: 'mic' | 'screen';
-  label: string;
-}) {
-  const meterRef = useRef<HTMLMeterElement>(null);
-
-  useEffect(() => {
-    let frame = requestAnimationFrame(function tick() {
-      const level = capture.readLevels()[source];
-      if (meterRef.current) meterRef.current.value = level ?? 0;
-      frame = requestAnimationFrame(tick);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [capture, source]);
-
-  return (
-    <label className={styles.meter}>
-      {label}
-      <meter ref={meterRef} min={0} max={1} value={0} />
-    </label>
   );
 }
