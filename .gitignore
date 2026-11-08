@@ -32,3 +32,7 @@ npm-debug.log*
 
 # 개인 참고 문서 (공모 원문 등) — 공개 저장소에 올리지 않는다
 docs/private/
+
+# Playwright 결과물
+test-results/
+playwright-report/
