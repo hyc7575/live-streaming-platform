@@ -1,0 +1,42 @@
+# 로컬 개발용. 운영 배포 compose는 서버 작업(S5)에서 따로 둔다.
+name: lsp
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lsp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lsp}
+      POSTGRES_DB: ${POSTGRES_DB:-lsp}
+    ports:
+      - '127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ome:
+    image: ovenmedialabs/ovenmediaengine:v0.21.0
+    restart: unless-stopped
+    # OME는 ICE 후보에 자기가 듣는 포트 번호를 그대로 적어 브라우저에 알린다.
+    # 그래서 호스트 포트와 컨테이너 포트를 같은 값으로 묶고, OME 설정도 같은 변수로 바꾼다.
+    environment:
+      OME_HOST_IP: ${OME_HOST_IP:-*}
+      OME_WEBRTC_SIGNALLING_PORT: ${OME_HTTP_PORT:-3333}
+      OME_LLHLS_STREAM_PORT: ${OME_HTTP_PORT:-3333}
+      OME_WEBRTC_CANDIDATE_PORT: ${OME_ICE_UDP_PORTS:-10000-10003}/udp
+      OME_WEBRTC_TCP_ICE_PORT: ${OME_ICE_TCP_PORT:-10000}/tcp
+      OME_WEBRTC_TCP_RELAY_PORT: ${OME_TURN_PORT:-3478}
+    ports:
+      - '${OME_HTTP_PORT:-3333}:${OME_HTTP_PORT:-3333}/tcp'
+      - '${OME_ICE_UDP_PORTS:-10000-10003}:${OME_ICE_UDP_PORTS:-10000-10003}/udp'
+      - '${OME_ICE_TCP_PORT:-10000}:${OME_ICE_TCP_PORT:-10000}/tcp'
+      - '${OME_TURN_PORT:-3478}:${OME_TURN_PORT:-3478}/tcp'
+
+volumes:
+  postgres-data:
