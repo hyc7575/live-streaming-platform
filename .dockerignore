@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+.git
+.claude
+.githooks
+docs
+apps/api/src/generated
+apps/web/e2e
+apps/web/e2e-stack
+**/test-results
+**/playwright-report
+**/coverage

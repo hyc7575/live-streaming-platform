@@ -1,0 +1,112 @@
+# 운영 배포용. 실행 방법은 docs/OPERATIONS.md. 값은 같은 폴더의 .env에서 읽는다(deploy/.env.example).
+name: lsp-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lsp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD를 deploy/.env에 넣으세요}
+      POSTGRES_DB: ${POSTGRES_DB:-lsp}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: '3000'
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lsp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lsp}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET을 deploy/.env에 넣으세요}
+      OME_WEBHOOK_SECRET: ${OME_WEBHOOK_SECRET:?OME_WEBHOOK_SECRET을 deploy/.env에 넣으세요}
+      OME_API_ACCESS_TOKEN: ${OME_API_ACCESS_TOKEN:?OME_API_ACCESS_TOKEN을 deploy/.env에 넣으세요}
+      OME_API_URL: http://ome:8081
+      TEST_ACCOUNTS_ENABLED: ${TEST_ACCOUNTS_ENABLED:-}
+      TEST_ACCOUNT_A_EMAIL: ${TEST_ACCOUNT_A_EMAIL:-}
+      TEST_ACCOUNT_A_NICKNAME: ${TEST_ACCOUNT_A_NICKNAME:-}
+      TEST_ACCOUNT_A_PASSWORD: ${TEST_ACCOUNT_A_PASSWORD:-}
+      TEST_ACCOUNT_B_EMAIL: ${TEST_ACCOUNT_B_EMAIL:-}
+      TEST_ACCOUNT_B_NICKNAME: ${TEST_ACCOUNT_B_NICKNAME:-}
+      TEST_ACCOUNT_B_PASSWORD: ${TEST_ACCOUNT_B_PASSWORD:-}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  ome:
+    image: ovenmedialabs/ovenmediaengine:v0.21.0
+    restart: unless-stopped
+    logging: *logging
+    # OME는 ICE 후보에 자기가 듣는 포트 번호를 그대로 적어 브라우저에 알린다.
+    # 그래서 ICE·TURN 포트는 호스트와 컨테이너를 같은 번호로 묶는다.
+    environment:
+      OME_HOST_IP: ${OME_HOST_IP:?OME_HOST_IP(서버 공인 IP)를 deploy/.env에 넣으세요}
+      OME_WEBRTC_SIGNALLING_PORT: '3333'
+      OME_LLHLS_STREAM_PORT: '3333'
+      OME_WEBRTC_CANDIDATE_PORT: ${OME_ICE_UDP_PORTS:-10000-10003}/udp
+      OME_WEBRTC_TCP_ICE_PORT: ${OME_ICE_TCP_PORT:-10000}/tcp
+      OME_WEBRTC_TCP_RELAY_PORT: ${OME_TURN_PORT:-3478}
+      OME_WEBHOOK_URL: http://api:3000/api/ome/admission
+      OME_WEBHOOK_SECRET: ${OME_WEBHOOK_SECRET}
+      OME_API_ACCESS_TOKEN: ${OME_API_ACCESS_TOKEN}
+    volumes:
+      - ../ome/Server.xml:/opt/ovenmediaengine/bin/origin_conf/Server.xml:ro
+    # 시그널링·LL-HLS(3333)와 관리 API(8081)는 열지 않는다. Caddy와 API가 compose 네트워크로 부른다.
+    ports:
+      - '${OME_ICE_UDP_PORTS:-10000-10003}:${OME_ICE_UDP_PORTS:-10000-10003}/udp'
+      - '${OME_ICE_TCP_PORT:-10000}:${OME_ICE_TCP_PORT:-10000}/tcp'
+      - '${OME_TURN_PORT:-3478}:${OME_TURN_PORT:-3478}/tcp'
+
+  caddy:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      api:
+        condition: service_healthy
+      ome:
+        condition: service_started
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN을 deploy/.env에 넣으세요}
+    ports:
+      - '${HTTP_PORT:-80}:80/tcp'
+      - '${HTTPS_PORT:-443}:443/tcp'
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:
