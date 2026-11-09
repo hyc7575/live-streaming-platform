@@ -7,12 +7,20 @@ export type PublishEvent =
   | { kind: 'failed'; status: number | null }
   | { kind: 'disconnected' };
 
+type TrackKind = 'audio' | 'video';
+
 export interface WhipPublisher {
   /**
    * Sends a clone of `track` in place of the track of the same kind, as when
    * the streamer picks another screen or camera.
    */
   replaceTrack: (track: MediaStreamTrack) => void;
+  /**
+   * Stops sending `kind` until the next `replaceTrack`. The sent clone holds
+   * the camera just like the capture's own track, and most phones open only
+   * one camera at a time.
+   */
+  releaseTrack: (kind: TrackKind) => void;
   stop: () => void;
 }
 
@@ -53,19 +61,26 @@ export function startWhipPublish(
     kit.remove();
     for (const track of tracks) track.stop();
   };
-  const replaceTrack = (track: MediaStreamTrack) => {
-    if (done) return;
-    const previous = sent.getTracks().find((t) => t.kind === track.kind);
-    if (!previous) return;
-    const next = track.clone();
-    sent.removeTrack(previous);
-    sent.addTrack(next);
-    const sender = kit.peerConnection
-      ?.getSenders()
-      .find((s) => s.track === previous);
+  // By transceiver, because a released sender has no track to match on.
+  const senderOf = (kind: string) =>
+    kit.peerConnection
+      ?.getTransceivers()
+      .find((t) => t.receiver.track.kind === kind)?.sender;
+  const swap = (kind: string, next: MediaStreamTrack | null) => {
+    const previous = sent.getTracks().find((t) => t.kind === kind);
+    if (previous) sent.removeTrack(previous);
+    if (next) sent.addTrack(next);
     // A closed connection is already reported through the callbacks.
-    sender?.replaceTrack(next).catch(() => {});
-    previous.stop();
+    senderOf(kind)
+      ?.replaceTrack(next)
+      .catch(() => {});
+    previous?.stop();
+  };
+  const replaceTrack = (track: MediaStreamTrack) => {
+    if (!done) swap(track.kind, track.clone());
+  };
+  const releaseTrack = (kind: TrackKind) => {
+    if (!done) swap(kind, null);
   };
   // The browser cancels OvenLiveKit's own WHIP DELETE (a plain fetch) when
   // the page unloads, and OME then notices the drop only at its ICE timeout,
@@ -106,5 +121,5 @@ export function startWhipPublish(
     // Already reported through the `error` callback.
     () => {},
   );
-  return { replaceTrack, stop: finish };
+  return { replaceTrack, releaseTrack, stop: finish };
 }

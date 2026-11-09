@@ -18,7 +18,12 @@ interface FakeTrack {
 
 interface FakeSender {
   track: FakeTrack | null;
-  replaceTrack: (track: FakeTrack) => Promise<void>;
+  replaceTrack: (track: FakeTrack | null) => Promise<void>;
+}
+
+interface FakeTransceiver {
+  sender: FakeSender;
+  receiver: { track: { kind: FakeTrack['kind'] } };
 }
 
 class FakeMediaStream {
@@ -45,6 +50,7 @@ const kit = vi.hoisted(() => {
     startStreaming: vi.fn(),
     sent: null as FakeMediaStream | null,
     senders: [] as FakeSender[],
+    transceivers: [] as FakeTransceiver[],
   };
 });
 
@@ -54,14 +60,16 @@ vi.mock('ovenlivekit', () => ({
   default: {
     create: (options: { callbacks: Callbacks }) => {
       kit.callbacks = options.callbacks;
-      let peerConnection: { getSenders: () => FakeSender[] } | null = null;
+      let peerConnection: {
+        getTransceivers: () => FakeTransceiver[];
+      } | null = null;
       return {
         setMediaStream: (stream: FakeMediaStream) => {
           kit.sent = stream;
           return Promise.resolve(stream);
         },
         startStreaming: (...args: unknown[]) => {
-          kit.senders = (kit.sent?.getTracks() ?? []).map((track) => {
+          kit.transceivers = (kit.sent?.getTracks() ?? []).map((track) => {
             const sender: FakeSender = {
               track,
               replaceTrack: (next) => {
@@ -69,9 +77,10 @@ vi.mock('ovenlivekit', () => ({
                 return Promise.resolve();
               },
             };
-            return sender;
+            return { sender, receiver: { track: { kind: track.kind } } };
           });
-          peerConnection = { getSenders: () => kit.senders };
+          kit.senders = kit.transceivers.map((t) => t.sender);
+          peerConnection = { getTransceivers: () => kit.transceivers };
           kit.startStreaming(...args);
         },
         remove: kit.remove,
@@ -116,6 +125,7 @@ function videoSender() {
 beforeEach(() => {
   kit.sent = null;
   kit.senders = [];
+  kit.transceivers = [];
   vi.stubGlobal('MediaStream', FakeMediaStream);
   vi.stubGlobal(
     'fetch',
@@ -246,4 +256,34 @@ it('sends a track replaced before the connection is built', async () => {
   expect(sentVideo?.readyState).toBe('live');
   expect(clones[0]?.readyState).toBe('ended');
   expect(kit.senders).toHaveLength(2);
+});
+
+it('releases the sent camera before a switch and sends the next one after it', async () => {
+  const { stream, originals, clones } = fakeStream();
+  const publisher = startWhipPublish(stream, '/app/b1?direction=whip', vi.fn());
+  await vi.waitFor(() => expect(kit.startStreaming).toHaveBeenCalled());
+  kit.callbacks.connected?.();
+  const [frontClone] = clones;
+  const videoTransceiver = kit.transceivers.find(
+    (t) => t.receiver.track.kind === 'video',
+  );
+
+  publisher.releaseTrack('video');
+  expect(frontClone?.readyState, 'the camera is free for the switch').toBe(
+    'ended',
+  );
+  expect(videoTransceiver?.sender.track).toBeNull();
+
+  const rear = fakeTrack('video', clones);
+  publisher.replaceTrack(asTrack(rear));
+  const sentNow = videoTransceiver?.sender.track;
+  expect(clones).toContain(sentNow);
+  expect(sentNow?.readyState).toBe('live');
+  expect(kit.sent?.getTracks().filter((t) => t.kind === 'video')).toEqual([
+    sentNow,
+  ]);
+  expect(originals[1]?.readyState).toBe('live');
+
+  publisher.stop();
+  expect(sentNow?.readyState).toBe('ended');
 });
