@@ -47,7 +47,8 @@ export function PcPreflight({
 }: {
   capture: PcCapture;
   state: LiveState;
-  onRestart: () => void;
+  /** Absent while publishing, when starting over would cut the broadcast. */
+  onRestart?: () => void;
 }) {
   const screenSilent = useScreenSilent(capture);
 
@@ -57,17 +58,22 @@ export function PcPreflight({
         <LevelMeter capture={capture} source="mic" label="마이크" />
         <LevelMeter capture={capture} source="screen" label="화면 소리" />
       </div>
-      {state.micLost && (
-        <div role="alert" className={styles.warning}>
-          <p>
-            마이크 연결이 끊겼습니다. 마이크를 다시 연결한 뒤 &lsquo;처음부터
-            다시&rsquo;를 누르세요.
+      {state.micLost &&
+        (onRestart ? (
+          <div role="alert" className={styles.warning}>
+            <p>
+              마이크 연결이 끊겼습니다. 마이크를 다시 연결한 뒤 &lsquo;처음부터
+              다시&rsquo;를 누르세요.
+            </p>
+            <button type="button" onClick={onRestart}>
+              처음부터 다시
+            </button>
+          </div>
+        ) : (
+          <p role="alert" className={styles.warning}>
+            마이크 연결이 끊겼습니다. 지금은 화면 소리만 송출합니다.
           </p>
-          <button type="button" onClick={onRestart}>
-            처음부터 다시
-          </button>
-        </div>
-      )}
+        ))}
       {!state.hasScreenAudio && (
         <p role="alert" className={styles.warning}>
           화면 소리가 잡히지 않습니다. &lsquo;다시 선택&rsquo;을 누르고 공유

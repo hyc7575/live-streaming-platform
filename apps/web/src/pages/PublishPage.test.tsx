@@ -16,18 +16,40 @@ import type {
   CameraCaptureState,
 } from '../capture/cameraCapture';
 import { startCameraCapture } from '../capture/cameraCapture';
+import type {
+  AudioLevels,
+  PcCapture,
+  PcCaptureState,
+} from '../capture/pcCapture';
+import { PcCaptureError, startPcCapture } from '../capture/pcCapture';
+import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
 import { startWhipPublish, type PublishEvent } from '../publish/whipPublisher';
 
 vi.mock('../capture/cameraCapture', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../capture/cameraCapture')>()),
   startCameraCapture: vi.fn(),
 }));
+vi.mock('../capture/pcCapture', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../capture/pcCapture')>()),
+  startPcCapture: vi.fn(),
+}));
+// jsdom has no getDisplayMedia, so by default the page offers the camera
+// only, as on a phone.
+vi.mock('../capture/screenAudioSupport', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../capture/screenAudioSupport')>();
+  return {
+    ...actual,
+    currentScreenAudioSupport: vi.fn(actual.currentScreenAudioSupport),
+  };
+});
 vi.mock('../publish/whipPublisher', () => ({ startWhipPublish: vi.fn() }));
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  vi.mocked(currentScreenAudioSupport).mockReset();
 });
 
 const me = { id: 'u1', email: 'a@example.com', nickname: '불씨' };
@@ -398,4 +420,229 @@ it('refuses someone else’s broadcast', async () => {
   expect(
     await screen.findByRole('heading', { name: '권한이 없습니다' }),
   ).toBeDefined();
+});
+
+function fakeScreenCapture() {
+  let state: PcCaptureState = {
+    status: 'live',
+    hasScreenAudio: true,
+    micMuted: false,
+    micLost: false,
+    audioRunning: false,
+  };
+  const listeners = new Set<() => void>();
+  const setState = (next: PcCaptureState) => {
+    state = next;
+    listeners.forEach((listener) => listener());
+  };
+  const patchLive = (
+    patch: Partial<Extract<PcCaptureState, { status: 'live' }>>,
+  ) => {
+    if (state.status === 'live') setState({ ...state, ...patch });
+  };
+  const firstScreen = { id: 'screen-1' } as MediaStreamTrack;
+  const nextScreen = { id: 'screen-2' } as MediaStreamTrack;
+  let video = firstScreen;
+  const stream = { getVideoTracks: () => [video] } as unknown as MediaStream;
+  const capture = {
+    stream,
+    getState: () => state,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    resumeAudio: vi.fn(() => Promise.resolve()),
+    setMicMuted: vi.fn((micMuted: boolean) => patchLive({ micMuted })),
+    readLevels: vi.fn<() => AudioLevels>(() => ({ mic: 0, screen: 0 })),
+    reselectScreen: vi.fn(() => {
+      video = nextScreen;
+      return Promise.resolve();
+    }),
+    stop: vi.fn(() => setState({ status: 'ended', reason: 'stopped' })),
+  } satisfies PcCapture;
+  return { capture, setState, patchLive, nextScreen };
+}
+
+function renderDesktopPage(api: Record<string, Reply>) {
+  vi.mocked(currentScreenAudioSupport).mockReturnValue('supported');
+  const screenFake = fakeScreenCapture();
+  vi.mocked(startPcCapture).mockResolvedValue(screenFake.capture);
+  const page = renderPage(api);
+  return { ...page, screen: screenFake };
+}
+
+async function shareScreen() {
+  fireEvent.click(await screen.findByRole('button', { name: '화면 공유' }));
+  await screen.findByRole('button', { name: '방송 시작' });
+}
+
+async function shareScreenAndGoLive(
+  page: ReturnType<typeof renderDesktopPage>,
+) {
+  await shareScreen();
+  fireEvent.click(screen.getByRole('button', { name: '방송 시작' }));
+  await screen.findByText('송출을 연결하는 중입니다.');
+  page.emit({ kind: 'connected' });
+  await screen.findByText('송출 중입니다. 시청자가 방송을 볼 수 있습니다.');
+}
+
+it('offers only the camera where the browser cannot share a screen', async () => {
+  renderPage({});
+  await screen.findByRole('button', { name: '카메라 켜기' });
+  expect(screen.queryByRole('button', { name: '화면 공유' })).toBeNull();
+});
+
+it('offers screen sharing first on a desktop browser', async () => {
+  renderDesktopPage({});
+  const share = await screen.findByRole('button', { name: '화면 공유' });
+  const camera = screen.getByRole('button', { name: '카메라 켜기' });
+  expect(
+    share.compareDocumentPosition(camera) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('publishes the shared screen, resuming the mixer inside the start click', async () => {
+  const page = renderDesktopPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+  });
+  await shareScreen();
+  expect(page.screen.capture.resumeAudio).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: '방송 시작' }));
+  expect(page.screen.capture.resumeAudio).toHaveBeenCalledTimes(1);
+  await screen.findByText('송출을 연결하는 중입니다.');
+  expect(startWhipPublish).toHaveBeenCalledWith(
+    page.screen.capture.stream,
+    PUBLISH_URL,
+    expect.any(Function),
+  );
+});
+
+it('ends the broadcast when the screen share is stopped while live', async () => {
+  const page = renderDesktopPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+    'POST /api/broadcasts/b1/end': ENDED,
+  });
+  await shareScreenAndGoLive(page);
+  act(() => page.screen.setState({ status: 'ended', reason: 'share-stopped' }));
+  expect(await screen.findByText('방송을 종료했습니다.')).toBeDefined();
+  expect(page.calls).toContain('POST /api/broadcasts/b1/end');
+  expect(page.publisher.stop).toHaveBeenCalled();
+  expect(
+    screen.getByText('화면 공유를 중지해 방송을 종료했습니다.'),
+  ).toBeDefined();
+});
+
+it('drops a connecting publish, without ending, when the screen share is stopped', async () => {
+  const page = renderDesktopPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+  });
+  await shareScreen();
+  fireEvent.click(screen.getByRole('button', { name: '방송 시작' }));
+  await screen.findByText('송출을 연결하는 중입니다.');
+  act(() => page.screen.setState({ status: 'ended', reason: 'share-stopped' }));
+  expect(screen.getByText('화면 공유가 중지되었습니다.')).toBeDefined();
+  expect(page.publisher.stop).toHaveBeenCalled();
+  expect(page.calls).not.toContain('POST /api/broadcasts/b1/end');
+  expect(screen.getByRole('button', { name: '화면 공유' })).toBeDefined();
+});
+
+it('says the share stopped before going live, without ending', async () => {
+  const page = renderDesktopPage({});
+  await shareScreen();
+  act(() => page.screen.setState({ status: 'ended', reason: 'share-stopped' }));
+  expect(screen.getByRole('alert').textContent).toBe(
+    '화면 공유가 중지되었습니다.',
+  );
+  expect(page.calls).not.toContain('POST /api/broadcasts/b1/end');
+});
+
+it('mutes and unmutes the mic', async () => {
+  const page = renderDesktopPage({});
+  await shareScreen();
+  fireEvent.click(screen.getByRole('button', { name: '마이크 끄기' }));
+  expect(page.screen.capture.setMicMuted).toHaveBeenLastCalledWith(true);
+  const unmute = screen.getByRole('button', { name: '마이크 켜기' });
+  expect(unmute.getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(unmute);
+  expect(page.screen.capture.setMicMuted).toHaveBeenLastCalledWith(false);
+});
+
+it('sends the newly picked screen while live', async () => {
+  const page = renderDesktopPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+  });
+  await shareScreenAndGoLive(page);
+  fireEvent.click(screen.getByRole('button', { name: '다시 선택' }));
+  await vi.waitFor(() =>
+    expect(page.publisher.replaceTrack).toHaveBeenCalledWith(
+      page.screen.nextScreen,
+    ),
+  );
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('keeps the current screen when the streamer cancels reselecting', async () => {
+  const page = renderDesktopPage({});
+  await shareScreen();
+  page.screen.capture.reselectScreen.mockRejectedValueOnce(
+    new PcCaptureError('screen', new DOMException('', 'NotAllowedError')),
+  );
+  fireEvent.click(screen.getByRole('button', { name: '다시 선택' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '화면을 바꾸지 않았습니다.',
+  );
+  expect(page.screen.capture.stop).not.toHaveBeenCalled();
+});
+
+it('offers to start over when the mic is lost before going live, not while live', async () => {
+  const page = renderDesktopPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+  });
+  await shareScreen();
+  act(() => page.screen.patchLive({ micLost: true }));
+  expect(screen.getByRole('button', { name: '처음부터 다시' })).toBeDefined();
+
+  fireEvent.click(screen.getByRole('button', { name: '방송 시작' }));
+  await screen.findByText('송출을 연결하는 중입니다.');
+  page.emit({ kind: 'connected' });
+  await screen.findByText('송출 중입니다. 시청자가 방송을 볼 수 있습니다.');
+  expect(screen.queryByRole('button', { name: '처음부터 다시' })).toBeNull();
+  expect(screen.getByRole('alert').textContent).toBe(
+    '마이크 연결이 끊겼습니다. 지금은 화면 소리만 송출합니다.',
+  );
+});
+
+it('starts over with a new screen capture when asked after the mic is lost', async () => {
+  const page = renderDesktopPage({});
+  await shareScreen();
+  act(() => page.screen.patchLive({ micLost: true }));
+  fireEvent.click(screen.getByRole('button', { name: '처음부터 다시' }));
+  expect(page.screen.capture.stop).toHaveBeenCalled();
+  await vi.waitFor(() => expect(startPcCapture).toHaveBeenCalledTimes(2));
+});
+
+it('stops a screen capture that arrives after the streamer left', async () => {
+  vi.mocked(currentScreenAudioSupport).mockReturnValue('supported');
+  renderPage({});
+  const late = fakeScreenCapture();
+  let resolve: (capture: PcCapture) => void = () => {};
+  vi.mocked(startPcCapture).mockReturnValue(
+    new Promise((r) => {
+      resolve = r;
+    }),
+  );
+  fireEvent.click(await screen.findByRole('button', { name: '화면 공유' }));
+  cleanup();
+  resolve(late.capture);
+  await act(() => Promise.resolve());
+  expect(late.capture.stop).toHaveBeenCalled();
+});
+
+it('warns before sharing on a browser that cannot share screen audio', async () => {
+  vi.mocked(currentScreenAudioSupport).mockReturnValue('no-screen-audio');
+  renderPage({});
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    '이 브라우저는 화면 소리를 공유하지 못합니다',
+  );
 });

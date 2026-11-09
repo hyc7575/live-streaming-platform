@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: var(--player-max-width);
+  max-width: var(--content-max-width);
 }
 
 .heading {
@@ -20,6 +20,25 @@
 .title {
   margin: 0;
   font-size: var(--font-size-xl);
+}
+
+.studio {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Side by side so the checks and the start button stay above the fold. */
+@media (min-width: 960px) {
+  .studio {
+    grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  }
 }
 
 .preview,
@@ -96,6 +115,10 @@
   border-color: var(--color-danger);
   background: var(--color-danger);
   color: var(--color-on-status);
+}
+
+.secondary.attention {
+  border-color: var(--color-danger);
 }
 
 .primary:disabled,

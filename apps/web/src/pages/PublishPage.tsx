@@ -1,38 +1,32 @@
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import {
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { Link, useParams } from 'react-router';
 import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
-import {
-  CameraCaptureError,
-  startCameraCapture,
-  type CameraCapture,
-  type CameraCaptureEndReason,
-  type CameraCaptureFailure,
-} from '../capture/cameraCapture';
+import type { PcCapture } from '../capture/pcCapture';
+import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
+import { BrowserNotice, PcPreflight } from '../components/PcPreflight';
 import {
   usePublishSession,
   type PublishSessionState,
 } from '../publish/usePublishSession';
 import { useApi } from '../use-api';
+import {
+  CAPTURE_SOURCES,
+  endNotice,
+  offeredSources,
+  type ActiveCapture,
+  type CaptureEndReason,
+  type CaptureSlot,
+  type CaptureSource,
+} from './captureSources';
 import styles from './PublishPage.module.css';
-
-type Camera =
-  | { kind: 'off'; notice: string | null }
-  | { kind: 'acquiring' }
-  | { kind: 'failed'; reason: CameraCaptureFailure }
-  | { kind: 'on'; capture: CameraCapture };
-
-const CAMERA_FAILURE: Record<CameraCaptureFailure, string> = {
-  denied:
-    '카메라·마이크 권한이 꺼져 있습니다. 주소창의 사이트 설정에서 허용한 뒤 다시 시도하세요.',
-  'not-found': '카메라나 마이크를 찾지 못했습니다.',
-  'in-use':
-    '다른 앱이 카메라나 마이크를 쓰고 있습니다. 그 앱을 닫고 다시 시도하세요.',
-  insecure:
-    '이 주소에서는 카메라를 쓸 수 없습니다. https:// 로 시작하는 주소로 여세요.',
-  unknown: '카메라를 켜지 못했습니다. 다시 시도하세요.',
-};
 
 export function PublishPage() {
   const { id = '' } = useParams();
@@ -99,8 +93,13 @@ function Heading({ broadcast }: { broadcast: Broadcast }) {
 
 function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
   const session = usePublishSession(broadcast.id);
-  const [camera, setCamera] = useState<Camera>({ kind: 'off', notice: null });
+  const [slot, setSlot] = useState<CaptureSlot>({ kind: 'off', notice: null });
+  const [support] = useState(currentScreenAudioSupport);
+  const sources = offeredSources(support);
   const videoRef = useRef<HTMLVideoElement>(null);
+  // A capture that resolves after the page is gone must still be stopped, or
+  // the browser keeps showing that the screen or camera is in use.
+  const alive = useRef(false);
   const ended = session.state.kind === 'ended';
   // The server keeps the broadcast LIVE after a publish drops, and a page
   // opened on a LIVE broadcast has no publish of its own: either way the
@@ -109,19 +108,23 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
   if (session.state.kind === 'live' && !onAir) setOnAir(true);
   // Once the broadcast has ended, the capture has no further use: dropping
   // it here stops its tracks through the effect below.
-  const capture = camera.kind === 'on' && !ended ? camera.capture : null;
+  const active: ActiveCapture | null =
+    slot.kind === 'on' && !ended ? slot : null;
+  const capture = active?.capture ?? null;
+
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   const onCaptureEnded = useEffectEvent(
-    (which: CameraCapture, reason: CameraCaptureEndReason) => {
+    (which: ActiveCapture['capture'], reason: CaptureEndReason) => {
       const live = session.state.kind === 'live';
-      let notice: string | null = null;
-      if (reason === 'device-lost') {
-        notice = live
-          ? '카메라나 마이크가 꺼져 방송을 종료했습니다.'
-          : '카메라나 마이크가 꺼져 송출을 멈췄습니다.';
-      }
-      setCamera((c) =>
-        c.kind === 'on' && c.capture === which ? { kind: 'off', notice } : c,
+      const notice = endNotice(reason, live);
+      setSlot((s) =>
+        s.kind === 'on' && s.capture === which ? { kind: 'off', notice } : s,
       );
       if (live) {
         session.end();
@@ -150,20 +153,34 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
     };
   }, [capture]);
 
-  async function turnOnCamera() {
-    setCamera({ kind: 'acquiring' });
+  async function turnOn(source: CaptureSource) {
+    const spec = CAPTURE_SOURCES[source];
+    setSlot({ kind: 'acquiring', source });
+    let next: ActiveCapture;
     try {
-      const next = await startCameraCapture();
-      setCamera({ kind: 'on', capture: next });
+      next = await spec.start();
     } catch (error) {
-      const reason =
-        error instanceof CameraCaptureError ? error.reason : 'unknown';
-      setCamera({ kind: 'failed', reason });
+      if (alive.current) {
+        setSlot({ kind: 'failed', message: spec.failureMessage(error) });
+      }
+      return;
     }
+    if (!alive.current) {
+      next.capture.stop();
+      return;
+    }
+    setSlot({ kind: 'on', ...next });
+  }
+
+  function startPublish(next: ActiveCapture) {
+    // T7: the mixer's AudioContext may only resume inside the click, or the
+    // publish goes out silent.
+    if (next.source === 'screen') void next.capture.resumeAudio();
+    session.start(next.capture.stream);
   }
 
   if (session.state.kind === 'ended') {
-    const notice = camera.kind === 'off' ? camera.notice : null;
+    const notice = slot.kind === 'off' ? slot.notice : null;
     return (
       <section className={styles.page}>
         <Heading broadcast={broadcast} />
@@ -191,66 +208,179 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
     session.state.kind === 'live' ||
     session.state.kind === 'ending' ||
     session.state.kind === 'end-failed';
+  const offer = CAPTURE_SOURCES[sources[0]].offer;
+  const desktop = sources.includes('screen');
 
   return (
     <section className={styles.page}>
       <Heading broadcast={broadcast} />
-      {capture ? (
-        <video
-          ref={videoRef}
-          className={styles.preview}
-          aria-label="미리보기"
-          autoPlay
-          muted
-          playsInline
-        />
-      ) : (
-        <div className={styles.placeholder}>
-          <p className={styles.note}>카메라를 켜면 미리보기가 보입니다.</p>
+      <div className={styles.studio}>
+        {capture ? (
+          <video
+            ref={videoRef}
+            className={styles.preview}
+            aria-label="미리보기"
+            autoPlay
+            muted
+            playsInline
+          />
+        ) : (
+          <div className={styles.placeholder}>
+            <p className={styles.note}>{offer.placeholder}</p>
+          </div>
+        )}
+        <div className={styles.side}>
+          {desktop && (!active || active.source === 'screen') && (
+            <BrowserNotice support={support} />
+          )}
+          <StatusLine
+            slot={slot}
+            session={session.state}
+            onAir={onAir}
+            onAirWithoutCapture={offer.onAirWithoutCapture}
+          />
+          {active && (
+            <SourcePanel
+              active={active}
+              onReplaceTrack={session.replaceTrack}
+              onRestart={
+                session.state.kind === 'idle'
+                  ? () => {
+                      active.capture.stop();
+                      void turnOn(active.source);
+                    }
+                  : undefined
+              }
+            />
+          )}
+          <div className={styles.actions}>
+            {!active &&
+              session.state.kind === 'idle' &&
+              sources.map((source, index) => (
+                <button
+                  key={source}
+                  type="button"
+                  className={index === 0 ? styles.primary : styles.secondary}
+                  disabled={slot.kind === 'acquiring'}
+                  onClick={() => void turnOn(source)}
+                >
+                  {CAPTURE_SOURCES[source].startLabel}
+                </button>
+              ))}
+            {active && !publishing && (
+              <>
+                <button
+                  type="button"
+                  className={styles.primary}
+                  disabled={session.state.kind !== 'idle'}
+                  onClick={() => startPublish(active)}
+                >
+                  방송 시작
+                </button>
+                <button
+                  type="button"
+                  className={styles.secondary}
+                  onClick={() => active.capture.stop()}
+                >
+                  {CAPTURE_SOURCES[active.source].stopLabel}
+                </button>
+              </>
+            )}
+            {(session.state.kind === 'live' ||
+              (session.state.kind === 'idle' && onAir)) && (
+              <EndControl onEnd={session.end} />
+            )}
+            {session.state.kind === 'end-failed' && (
+              <button
+                type="button"
+                className={styles.danger}
+                onClick={session.end}
+              >
+                다시 종료하기
+              </button>
+            )}
+          </div>
         </div>
-      )}
-      <StatusLine camera={camera} session={session.state} onAir={onAir} />
-      <div className={styles.actions}>
-        {!capture && session.state.kind === 'idle' && (
-          <button
-            type="button"
-            className={styles.primary}
-            disabled={camera.kind === 'acquiring'}
-            onClick={() => void turnOnCamera()}
-          >
-            카메라 켜기
-          </button>
-        )}
-        {capture && !publishing && (
-          <>
-            <button
-              type="button"
-              className={styles.primary}
-              disabled={session.state.kind !== 'idle'}
-              onClick={() => session.start(capture.stream)}
-            >
-              방송 시작
-            </button>
-            <button
-              type="button"
-              className={styles.secondary}
-              onClick={() => capture.stop()}
-            >
-              카메라 끄기
-            </button>
-          </>
-        )}
-        {(session.state.kind === 'live' ||
-          (session.state.kind === 'idle' && onAir)) && (
-          <EndControl onEnd={session.end} />
-        )}
-        {session.state.kind === 'end-failed' && (
-          <button type="button" className={styles.danger} onClick={session.end}>
-            다시 종료하기
-          </button>
-        )}
       </div>
     </section>
+  );
+}
+
+/** Controls that only one capture source has. */
+function SourcePanel({
+  active,
+  onReplaceTrack,
+  onRestart,
+}: {
+  active: ActiveCapture;
+  onReplaceTrack: (track: MediaStreamTrack) => void;
+  onRestart?: () => void;
+}) {
+  switch (active.source) {
+    case 'screen':
+      return (
+        <ScreenControls
+          capture={active.capture}
+          onReplaceTrack={onReplaceTrack}
+          onRestart={onRestart}
+        />
+      );
+    case 'camera':
+      return null;
+  }
+}
+
+function ScreenControls({
+  capture,
+  onReplaceTrack,
+  onRestart,
+}: {
+  capture: PcCapture;
+  onReplaceTrack: (track: MediaStreamTrack) => void;
+  onRestart?: () => void;
+}) {
+  const state = useSyncExternalStore(capture.subscribe, capture.getState);
+  const [reselectFailed, setReselectFailed] = useState(false);
+  if (state.status === 'ended') return null;
+
+  function reselect() {
+    setReselectFailed(false);
+    capture.reselectScreen().then(
+      () => onReplaceTrack(capture.stream.getVideoTracks()[0]),
+      () => setReselectFailed(true),
+    );
+  }
+
+  return (
+    <>
+      <PcPreflight capture={capture} state={state} onRestart={onRestart} />
+      {reselectFailed && (
+        <p role="alert" className={styles.warning}>
+          화면을 바꾸지 않았습니다.
+        </p>
+      )}
+      <div className={styles.actions}>
+        <button
+          type="button"
+          className={styles.secondary}
+          aria-pressed={state.micMuted}
+          onClick={() => capture.setMicMuted(!state.micMuted)}
+        >
+          {state.micMuted ? '마이크 켜기' : '마이크 끄기'}
+        </button>
+        <button
+          type="button"
+          className={
+            state.hasScreenAudio
+              ? styles.secondary
+              : `${styles.secondary} ${styles.attention}`
+          }
+          onClick={reselect}
+        >
+          다시 선택
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -289,13 +419,15 @@ function EndControl({ onEnd }: { onEnd: () => void }) {
 }
 
 function StatusLine({
-  camera,
+  slot,
   session,
   onAir,
+  onAirWithoutCapture,
 }: {
-  camera: Camera;
+  slot: CaptureSlot;
   session: PublishSessionState;
   onAir: boolean;
+  onAirWithoutCapture: string;
 }) {
   switch (session.kind) {
     case 'requesting':
@@ -328,27 +460,28 @@ function StatusLine({
     case 'idle':
       break;
   }
-  switch (camera.kind) {
+  switch (slot.kind) {
     case 'off':
-      if (camera.notice) {
+      if (slot.notice) {
         return (
           <p role="alert" className={styles.warning}>
-            {camera.notice}
+            {slot.notice}
           </p>
         );
       }
       return onAir ? (
-        <p className={styles.note}>
-          이 방송은 아직 LIVE입니다. 카메라를 켜서 송출을 이어 가거나 방송을
-          종료하세요.
-        </p>
+        <p className={styles.note}>{onAirWithoutCapture}</p>
       ) : null;
     case 'acquiring':
-      return <p className={styles.note}>카메라를 켜는 중입니다.</p>;
+      return (
+        <p className={styles.note}>
+          {CAPTURE_SOURCES[slot.source].acquiringText}
+        </p>
+      );
     case 'failed':
       return (
         <p role="alert" className={styles.warning}>
-          {CAMERA_FAILURE[camera.reason]}
+          {slot.message}
         </p>
       );
     case 'on':
