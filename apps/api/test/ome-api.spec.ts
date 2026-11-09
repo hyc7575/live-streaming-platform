@@ -9,11 +9,12 @@ interface SeenRequest {
   authorization: string | undefined;
 }
 
-describe('HttpOmeApi.dropStream', () => {
+describe('HttpOmeApi', () => {
   let server: Server;
   let baseUrl: string;
   let seen: SeenRequest[];
   let answer: number;
+  let answerBody: string | null;
 
   beforeAll(async () => {
     server = createServer((req, res) => {
@@ -23,7 +24,7 @@ describe('HttpOmeApi.dropStream', () => {
         authorization: req.headers.authorization,
       });
       res.writeHead(answer, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ statusCode: answer }));
+      res.end(answerBody ?? JSON.stringify({ statusCode: answer }));
     });
     await new Promise<void>((resolve) =>
       server.listen(0, '127.0.0.1', resolve),
@@ -34,6 +35,7 @@ describe('HttpOmeApi.dropStream', () => {
   beforeEach(() => {
     seen = [];
     answer = 200;
+    answerBody = null;
   });
 
   afterAll(async () => {
@@ -64,18 +66,66 @@ describe('HttpOmeApi.dropStream', () => {
     await expect(api().dropStream('b-1')).rejects.toThrow(String(status));
   });
 
-  it('throws when OME is unreachable', async () => {
+  async function unreachableApi(): Promise<HttpOmeApi> {
     const closed = createServer();
     await new Promise<void>((resolve) =>
       closed.listen(0, '127.0.0.1', resolve),
     );
     const port = (closed.address() as AddressInfo).port;
     await new Promise((resolve) => closed.close(resolve));
-    const unreachable = new HttpOmeApi({
+    return new HttpOmeApi({
       baseUrl: `http://127.0.0.1:${port}`,
       accessToken: 'admin-token',
     });
-    await expect(unreachable.dropStream('b-1')).rejects.toThrow();
+  }
+
+  it('throws when OME is unreachable', async () => {
+    await expect((await unreachableApi()).dropStream('b-1')).rejects.toThrow();
+  });
+
+  describe('listStreams', () => {
+    it('sends GET for the app’s streams with the token as Basic auth', async () => {
+      answerBody = JSON.stringify({
+        message: 'OK',
+        response: ['b-1', 'b-2'],
+        statusCode: 200,
+      });
+      expect(await api().listStreams()).toEqual(['b-1', 'b-2']);
+      expect(seen).toEqual([
+        {
+          method: 'GET',
+          url: '/v1/vhosts/default/apps/app/streams',
+          authorization: `Basic ${Buffer.from('admin-token').toString('base64')}`,
+        },
+      ]);
+    });
+
+    it('reads an empty list', async () => {
+      answerBody = JSON.stringify({
+        message: 'OK',
+        response: [],
+        statusCode: 200,
+      });
+      expect(await api().listStreams()).toEqual([]);
+    });
+
+    it.each([401, 404, 500])('throws when OME answers %i', async (status) => {
+      answer = status;
+      await expect(api().listStreams()).rejects.toThrow(String(status));
+    });
+
+    it.each([
+      ['no list', JSON.stringify({ statusCode: 200 })],
+      ['a list of non-names', JSON.stringify({ response: [1, 2] })],
+      ['not JSON', 'OK'],
+    ])('throws on a body with %s', async (_case, body) => {
+      answerBody = body;
+      await expect(api().listStreams()).rejects.toThrow();
+    });
+
+    it('throws when OME is unreachable', async () => {
+      await expect((await unreachableApi()).listStreams()).rejects.toThrow();
+    });
   });
 });
 

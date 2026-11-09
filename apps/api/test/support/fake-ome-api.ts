@@ -14,6 +14,9 @@ export interface DropStreamCall {
 export class FakeOmeApi implements OmeApi {
   calls: DropStreamCall[] = [];
   failing = false;
+  // What listStreams answers: the broadcasts OME is receiving.
+  streams: string[] = [];
+  listFailing = false;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -26,9 +29,18 @@ export class FakeOmeApi implements OmeApi {
     if (this.failing) throw new Error('OME is unreachable');
   }
 
+  listStreams(): Promise<string[]> {
+    if (this.listFailing) {
+      return Promise.reject(new Error('OME is unreachable'));
+    }
+    return Promise.resolve([...this.streams]);
+  }
+
   reset(): void {
     this.calls = [];
     this.failing = false;
+    this.streams = [];
+    this.listFailing = false;
   }
 }
 
