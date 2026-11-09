@@ -12,8 +12,13 @@ import {
 } from '../../src/auth/test-accounts.js';
 import { configureApp } from '../../src/configure-app.js';
 import { PrismaService } from '../../src/database/database.module.js';
+import {
+  PUBLISH_CONFIG,
+  publishConfig,
+} from '../../src/publish/publish-config.js';
 
 export const TEST_SESSION_SECRET = 'test-session-secret';
+export const TEST_OME_WEBHOOK_SECRET = 'test-ome-webhook-secret';
 
 // Runs the real AppModule against DATABASE_URL (migrations already applied).
 // Test accounts stay off unless a test passes a config, whatever .env says.
@@ -25,8 +30,17 @@ export async function createTestApp(
   })
     .overrideProvider(TEST_ACCOUNTS_CONFIG)
     .useValue(options.testAccounts ?? { enabled: false })
+    .overrideProvider(PUBLISH_CONFIG)
+    .useValue(
+      publishConfig({
+        sessionSecret: TEST_SESSION_SECRET,
+        omeWebhookSecret: TEST_OME_WEBHOOK_SECRET,
+      }),
+    )
     .compile();
-  const app = moduleRef.createNestApplication<NestExpressApplication>();
+  const app = moduleRef.createNestApplication<NestExpressApplication>({
+    rawBody: true,
+  });
   configureApp(app, {
     secret: TEST_SESSION_SECRET,
     cookieSecure: options.cookieSecure ?? false,

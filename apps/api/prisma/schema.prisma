@@ -3,6 +3,7 @@ generator client {
   output              = "../src/generated/prisma"
   moduleFormat        = "esm"
   importFileExtension = "js"
+  previewFeatures     = ["partialIndexes"]
 }
 
 datasource db {
@@ -39,6 +40,9 @@ model Broadcast {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
+  // PRD §7.4 one LIVE broadcast per streamer, held by the database so two
+  // admissions racing for different broadcasts cannot both win.
+  @@unique([streamerId], map: "Broadcast_one_live_per_streamer", where: raw("status = 'LIVE'"))
   @@index([status, createdAt])
   @@index([streamerId, createdAt])
 }
