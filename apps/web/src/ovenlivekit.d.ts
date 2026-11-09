@@ -18,6 +18,7 @@ declare module 'ovenlivekit' {
 
   interface OvenLiveKitInstance {
     peerConnection: RTCPeerConnection | null;
+    resourceUrl: string | null;
     setMediaStream: (stream: MediaStream) => Promise<MediaStream>;
     // Needs an absolute http(s) URL for WHIP.
     startStreaming: (
