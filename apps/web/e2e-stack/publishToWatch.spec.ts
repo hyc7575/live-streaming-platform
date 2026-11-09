@@ -1,63 +1,11 @@
+import { expect, test } from '@playwright/test';
 import {
-  expect,
-  test,
-  type APIRequestContext,
-  type Page,
-} from '@playwright/test';
-
-const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR;
-
-interface BroadcastView {
-  id: string;
-  status: 'READY' | 'LIVE' | 'ENDED';
-}
-
-let clientCounter = 0;
-
-// Signup is rate limited per client IP. The API trusts one proxy hop, and
-// the Vite proxy adds none, so a fresh forwarded address per run keeps
-// repeated local runs under the limit.
-function clientIp(): string {
-  clientCounter += 1;
-  const n = (Date.now() + clientCounter) % 250;
-  return `10.99.${clientCounter % 250}.${n + 1}`;
-}
-
-async function signUpAndLogIn(request: APIRequestContext): Promise<void> {
-  const email = `stack-${Date.now()}-${clientCounter}@example.com`;
-  const password = 'correct-horse-battery';
-  const headers = { 'X-Forwarded-For': clientIp() };
-  const signup = await request.post('/api/auth/signup', {
-    headers,
-    data: { email, password, nickname: '송출 확인' },
-  });
-  expect(signup.status(), await signup.text()).toBe(201);
-  const login = await request.post('/api/auth/login', {
-    headers,
-    data: { email, password },
-  });
-  expect(login.status(), await login.text()).toBe(200);
-}
-
-async function createBroadcast(
-  request: APIRequestContext,
-  title: string,
-): Promise<string> {
-  const res = await request.post('/api/broadcasts', { data: { title } });
-  expect(res.status(), await res.text()).toBe(201);
-  return ((await res.json()) as BroadcastView).id;
-}
-
-async function statusOf(request: APIRequestContext, id: string) {
-  const res = await request.get(`/api/broadcasts/${id}`);
-  return ((await res.json()) as BroadcastView).status;
-}
-
-async function screenshot(page: Page, name: string) {
-  if (SCREENSHOT_DIR) {
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/${name}.png` });
-  }
-}
+  createBroadcast,
+  screenshot,
+  signUpAndLogIn,
+  statusOf,
+  watchUntilPlaying,
+} from './support';
 
 test('a published camera reaches an anonymous viewer over LL-HLS', async ({
   page,
@@ -122,15 +70,6 @@ test('a published camera reaches an anonymous viewer over LL-HLS', async ({
 interface TrackProbe {
   __clones: MediaStreamTrack[];
   __preview: MediaStreamTrack[];
-}
-
-async function watchUntilPlaying(viewer: Page) {
-  const video = viewer.getByLabel('방송 화면');
-  await expect
-    .poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), {
-      timeout: 60_000,
-    })
-    .toBeGreaterThan(1);
 }
 
 test('ending stops every track, tells the viewer, and refuses a republish', async ({

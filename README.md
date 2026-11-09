@@ -391,7 +391,7 @@ curl -s -o /dev/null -w '%{http_code}\n' $API/broadcasts/$ID                    
 
 ### 3. 송출에서 시청까지 (#10)
 
-인수 시나리오 1의 앞부분: 스트리머가 카메라·마이크를 송출하면 방송이 `LIVE`가 되고, 로그인하지 않은 시청자가 LL-HLS로 본다. 끊긴 송출의 유예·정리(#12), PC 화면 송출(#13)은 아직 없다. 종료는 아래 4절에 있다.
+인수 시나리오 1의 앞부분: 스트리머가 카메라·마이크를 송출하면 방송이 `LIVE`가 되고, 로그인하지 않은 시청자가 LL-HLS로 본다. PC 화면 송출(#13)은 아직 없다. 종료는 아래 4절, 끊긴 송출의 유예와 정리는 5절에 있다.
 
 흐름 (PRD §7.6):
 
@@ -404,7 +404,7 @@ curl -s -o /dev/null -w '%{http_code}\n' $API/broadcasts/$ID                    
 
 자동 테스트:
 
-- `apps/api/test/publish.e2e.spec.ts` (실제 PostgreSQL, `pnpm test`): 토큰 발급 201·401·403·404·409(다른 방송 LIVE)·409(ENDED). Webhook은 서명 없음·위조·다른 키·본문을 바꾼 경우 401, 토큰 없음·변조·만료·다른 방송의 토큰 거절, `ENDED`·`LIVE` 거절, `READY` 허가 후 `LIVE`와 `startedAt`, 같은 스트리머의 두 번째 방송 거절, `closing`은 `{}`만 돌려주고 상태 그대로.
+- `apps/api/test/publish.e2e.spec.ts` (실제 PostgreSQL, `pnpm test`): 토큰 발급 201·401·403·404·409(다른 방송 LIVE)·409(ENDED). Webhook은 서명 없음·위조·다른 키·본문을 바꾼 경우 401, 토큰 없음·변조·만료·다른 방송의 토큰 거절, `ENDED`·`LIVE` 거절, `READY` 허가 후 `LIVE`와 `startedAt`, 같은 스트리머의 두 번째 방송 거절, `closing`은 `{}`를 돌려주고 재접속 유예를 시작한다(5절).
 - `apps/api/test/publish-token.spec.ts`, `admission.spec.ts`: 토큰·서명·판정 순수 함수.
 - `apps/web/e2e-stack/publishToWatch.spec.ts`: 실제 OME까지 이어서 확인한다(아래).
 
@@ -417,7 +417,7 @@ pnpm --filter @lsp/api dev             # API :3000. OME가 host.docker.internal:
 pnpm --filter @lsp/web e2e:stack       # 웹 dev 서버가 없으면 띄운다. WEB_PORT를 바꿨으면 같은 값을 앞에 붙인다
 ```
 
-`e2e:stack`은 CI의 `e2e` 작업에 들어가지 않는다(CI에는 OME가 없다). 아래 두 테스트와 4절의 종료 테스트를 돌린다.
+`e2e:stack`은 CI의 `e2e` 작업에 들어가지 않는다(CI에는 OME가 없다). 아래 두 테스트와 4절의 종료 테스트, 5절의 비정상 종료 테스트를 돌린다.
 
 - 새 계정으로 방송을 만들고 송출 화면에서 "카메라 켜기" → "방송 시작"을 누른다. "송출 중입니다."가 뜨고 `GET /api/broadcasts/:id`가 `LIVE`가 된다. 로그인하지 않은 새 브라우저 컨텍스트가 시청 화면을 열면 hls.js(`blob:` 주소)로 재생되고, `currentTime`이 늘고 `videoWidth`가 0보다 크다. 같은 스트리머가 두 번째 방송의 송출 화면에서 "방송 시작"을 누르면 "기존 방송을 종료하세요."가 뜬다.
 - 토큰 없이, 엉터리 토큰으로, 다른 방송의 토큰으로 `/app/<id>?direction=whip...`에 WHIP을 보내면 모두 401이고 방송은 `READY` 그대로다.
@@ -445,7 +445,7 @@ curl -s http://localhost:3000/api/broadcasts/$ID                           # sta
 
 ### 4. 방송 종료 (#11)
 
-인수 시나리오 5, 9: 스트리머가 종료하면 송출이 끊기고, 시청 화면은 10초 안에 "방송이 끝났습니다."로 바뀌며, 같은 방송으로 다시 송출할 수 없다. 탭을 닫거나 네트워크가 끊긴 비정상 종료와 재접속 유예는 #12에서 다룬다.
+인수 시나리오 5, 9: 스트리머가 종료하면 송출이 끊기고, 시청 화면은 10초 안에 "방송이 끝났습니다."로 바뀌며, 같은 방송으로 다시 송출할 수 없다. 탭을 닫거나 네트워크가 끊긴 비정상 종료와 재접속 유예는 5절에 있다.
 
 흐름 (PRD §7.4, §7.6):
 
@@ -486,6 +486,58 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts/$ID/end        
 curl -s -b jar.txt -X POST $API/broadcasts/$ID/end                                    # 200, "status":"ENDED"
 curl -s -b jar.txt -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts/$ID/end   # 200 (다시 불러도 같다)
 curl -s -b jar.txt -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts/$ID/publish-token   # 409
+```
+
+### 5. 비정상 종료와 재접속 유예 (#12)
+
+인수 시나리오 8, 12: 송출 중에 탭을 닫으면 30초 유예 뒤 방송이 `ENDED`가 된다. 30초 안에 새로고침해 다시 시작하면 같은 방송이 `LIVE`로 이어진다. Webhook이 빠지거나 순서가 바뀌어도 송출 없는 `LIVE` 방송(좀비 방송, T8)이 남지 않는다.
+
+이 기능은 `Broadcast.disconnectedAt` 열을 새로 쓴다. 이 변경을 받은 뒤에는 `pnpm --filter @lsp/api db:migrate`로 마이그레이션을 적용한다(실행 방법과 같은 명령).
+
+흐름 (PRD §7.4):
+
+1. 송출 연결이 끊기면 OME가 Admission Webhook에 `closing`을 보낸다. API는 `LIVE`이고 연결 중(`disconnectedAt`이 비어 있음)인 방송에만 끊긴 시각을 적고 `{}`를 돌려준다. 같은 `closing`이 두 번 와도 처음 시각이 남는다. 송출 중에 5분 토큰이 만료될 수 있으므로 `closing`에서는 토큰을 보지 않는다(본문은 OME가 서명한다).
+2. 끊긴 지 30초 안에 같은 방송으로 송출을 다시 열면 Webhook이 허가한다. 방송 id와 `startedAt`은 그대로다. 30초가 지났으면 `broadcast ended`, 아직 연결 중이면 `broadcast already live`로 거절한다. 경계는 정확히 30초다(끊긴 시각이 지금 − 30초보다 뒤면 유예 중).
+3. API가 30초마다 OME 관리 API `GET /v1/vhosts/default/apps/app/streams`로 받고 있는 스트림 목록을 읽어 DB의 `LIVE` 방송과 대조한다.
+   - 목록에 있는데 끊긴 시각이 남아 있으면(재접속 뒤 늦게 온 `closing`) 지운다.
+   - 목록에 없는데 연결 중으로 되어 있으면(`closing`이 빠짐) 지금부터 유예를 시작한다.
+   - 목록에 없고 유예 30초를 넘겼으면 `ENDED`와 `endedAt`을 적는다.
+4. OME 목록을 읽지 못하면(OME 중단, 401, 응답 모양이 다름) 그 회차는 DB를 하나도 바꾸지 않는다. 그대로 대조하면 모든 `LIVE` 방송이 끊긴 것으로 보이기 때문이다.
+5. 유예를 넘겨 끝낼 때는 4절과 달리 OME `DELETE`를 보내지 않는다. 같은 회차에 읽은 목록에 없는 방송만 끝내므로 끊을 스트림이 없고, 그 뒤의 재접속은 DB가 먼저 `ENDED`라 Webhook이 거절한다.
+6. 송출 화면은 탭을 닫거나 새로고침할 때(`pagehide`) WHIP 자원에 `keepalive` `DELETE`를 보낸다. OvenLiveKit의 기본 `DELETE`는 일반 fetch라 페이지가 내려갈 때 브라우저가 취소한다. 그러면 OME는 ICE 타임아웃이 지나서야 `closing`을 보낸다. 로컬 OME 실측으로 이 요청이 없으면 약 30.8초, 있으면 탭 닫기 0.6초, 새로고침 0.9초 뒤에 `closing`이 왔다. 이 요청이 없으면 새로고침 직후 "방송 시작"이 `broadcast already live`로 거절된다.
+
+최악의 경우 걸리는 시간 (정리 주기와 유예가 모두 30초):
+
+- 탭 닫기·새로고침 뒤 다시 시작하지 않음: `closing` 약 1초 + 유예 30초 + 다음 정리까지 최대 30초로, 약 61초 안에 `ENDED`가 된다. 시청 화면은 상태를 5초마다 조회하므로 최대 5초가 더 걸린다.
+- 브라우저 강제 종료, 네트워크 끊김처럼 `pagehide` `DELETE`가 나가지 못한 경우: OME가 ICE 타임아웃(약 30초) 뒤에 `closing`을 보내므로 약 30초가 더 걸린다.
+- `closing`이 빠진 경우: 스트림이 OME 목록에서 사라진 뒤 다음 정리(최대 30초)에서 유예를 시작하고, 그다음 정리에서 유예 30초가 차서 `ENDED`가 된다.
+
+자동 테스트:
+
+- `apps/api/test/reconnect-grace.e2e.spec.ts` (실제 PostgreSQL, 가짜 시계와 가짜 OME 목록): `closing` 뒤 29초 재접속 허가(같은 방송, `startedAt` 그대로), 30초 뒤 정리에서 `ENDED`(29초 정리에서는 그대로)와 그 뒤 재접속 거절, 같은 `closing` 두 번에 같은 행, `READY`·`ENDED`에 온 `closing`은 변화 없음, 재접속 뒤 늦게 온 `closing`을 정리가 지우고 그 뒤로 끝내지 않음, 정리 시작 뒤에 온 끊김은 다음 회차로 미룸, `closing` 없이 목록에서 빠진 방송은 첫 정리에서 유예 시작 후 30초 뒤 `ENDED`, OME 목록 실패 때 행 하나도 안 바뀜, 연결 중 두 번째 연결 거절, 유예가 지났지만 정리 전인 재접속 거절, 재접속 둘이 겹치면 하나만 허가, 재접속과 정리가 겹쳐도 결과가 하나(정확히 30초는 `ENDED`, 29.999초는 `LIVE`), 타이머가 스스로 정리를 돈다.
+- `apps/api/test/authorization-matrix.e2e.spec.ts`: "OME 송출 연결 (Webhook 판정)" 행. 비로그인(토큰 없음)·타인(타인 id로 서명한 토큰)은 모든 상태에서 거절. 소유자는 `READY` 허용, `LIVE` 연결 중 거절, `LIVE` 유예 중 허용, `LIVE` 유예 초과 거절, `ENDED` 거절. 거절된 칸은 DB가 그대로다.
+- `apps/api/test/publish.e2e.spec.ts`: `closing`이 유예를 시작한다(토큰이 만료돼도). 재생 연결이나 모르는 스트림의 `closing`은 아무것도 바꾸지 않는다.
+- `apps/api/test/admission.spec.ts`: 판정 표. 29.999초는 재접속, 정확히 30초는 거절.
+- `apps/api/test/ome-api.spec.ts`: 스트림 목록 요청의 경로와 `Basic` 인증, 200 응답 읽기, 401·404·500·응답 모양 오류·연결 실패는 오류.
+- `apps/web/src/publish/whipPublisher.test.ts`: `pagehide`에서 `keepalive` `DELETE`를 보내고 트랙을 멈추며, 이미 멈춘 송출은 아무것도 보내지 않는다.
+- `apps/web/e2e-stack/abnormalEnd.spec.ts` (실제 OME, `e2e:stack`): 송출 탭을 닫으면 시청 화면이 75초 안에(30초보다 늦게) "방송이 끝났습니다."로 바뀌고 `ENDED`가 된다. 걸린 시간을 로그로 남긴다. 다른 테스트는 송출 탭을 새로고침하고 30초 안에 다시 시작해, 같은 방송이 `LIVE`와 같은 `startedAt`을 유지하고 시청 화면이 실제 속도로 다시 재생되는 것을 확인한다. 로컬 실측: 탭 닫기에서 종료 표시까지 33.1초·41.3초, 새로고침에서 재송출까지 0.4초, 시청 재생 재개까지 29.6초.
+
+화면에서 확인:
+
+1. 3절 1~4번대로 송출을 시작하고 시크릿 창에서 시청 화면을 연다.
+2. 송출 탭을 닫는다. API 로그에 `closing ... token=*** → grace started`가 1초 안에 남는다. 유예 동안 시청 화면의 상태 배지는 LIVE로 남는다.
+3. 유예 30초가 지난 뒤 첫 정리에서 API 로그에 `Swept: 0 reconnected, 0 lost without closing, 1 ended`가 남는다. 탭을 닫고 30~66초 사이에 시크릿 창이 "방송이 끝났습니다."로 바뀐다.
+4. 새 방송으로 송출을 시작하고 시크릿 창에서 시청한다. 송출 탭을 새로고침하면 "이 방송은 아직 LIVE입니다. 카메라를 켜서 송출을 이어 가거나 방송을 종료하세요."가 뜬다.
+5. 30초 안에 "카메라 켜기" → "방송 시작"을 누른다. "송출 중입니다."가 뜨고 API 로그에 `{"allowed":true}`가 남는다. 시청 화면은 같은 주소에서 다시 재생된다. 새 스트림의 첫 재생 목록이 나오기까지 약 9.5초가 걸리고(3절), 그동안 hls.js가 멈췄다가 새 타임라인으로 건너뛰므로 재생이 이어지기까지 약 30초가 걸린다(실측 29.6초, 새로고침부터).
+6. 다시 새로고침한 뒤 1분 넘게 기다렸다가 "카메라 켜기" → "방송 시작"을 누르면 "종료된 방송은 다시 송출할 수 없습니다. 새 방송을 만드세요."가 뜬다.
+
+API로 확인 (`LIVE` 방송의 송출 탭을 닫은 뒤):
+
+```sh
+ID=<방금 송출을 끊은 방송 id>
+curl -s http://localhost:3000/api/broadcasts/$ID   # 30초 안에는 "status":"LIVE"
+sleep 65
+curl -s http://localhost:3000/api/broadcasts/$ID   # "status":"ENDED", endedAt이 찍힌다
 ```
 
 ### 모바일 카메라 캡처 (#22)
