@@ -1,11 +1,15 @@
 import {
+  BadGatewayException,
   ConflictException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma, type BroadcastStatus } from '../generated/prisma/client.js';
+import { OME_API, type OmeApi } from '../ome/ome-api.js';
 
 export interface CreateBroadcastInput {
   title: string;
@@ -17,7 +21,10 @@ export interface UpdateBroadcastInput {
   description?: string | undefined;
 }
 
-export const DELETE_LIVE_MESSAGE = '방송을 종료한 뒤 삭제하세요.';
+export const END_READY_MESSAGE =
+  '아직 시작하지 않은 방송은 종료할 수 없습니다.';
+export const DROP_STREAM_FAILED_MESSAGE =
+  '송출 연결을 끊지 못했습니다. 다시 시도하세요.';
 
 export type PublicStatus = Extract<BroadcastStatus, 'LIVE' | 'ENDED'>;
 
@@ -48,7 +55,12 @@ const uuid = z.uuid();
 
 @Injectable()
 export class BroadcastsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(BroadcastsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(OME_API) private readonly ome: OmeApi,
+  ) {}
 
   create(
     streamerId: string,
@@ -126,19 +138,40 @@ export class BroadcastsService {
     }
   }
 
-  // PRD 7.4 wants a LIVE delete to end the broadcast first. Ending it means
-  // cutting the publish connection on the media server, which lands with the
-  // end-broadcast issue (#11), so until then a LIVE delete is refused. The
-  // status filter sits in the DELETE itself, so a broadcast that goes LIVE
-  // between the ownership check and here is still refused.
+  // PRD §7.4: the database turns ENDED before OME drops the stream, so a
+  // publisher reconnecting in between is refused by the admission webhook.
+  // The reverse order would let it slip back in. An ENDED broadcast still
+  // gets the drop, so a retry after a failed drop converges.
+  async end(id: string): Promise<BroadcastView> {
+    await this.prisma.broadcast.updateMany({
+      where: { id, status: 'LIVE' },
+      data: { status: 'ENDED', endedAt: new Date() },
+    });
+    const broadcast = await this.get(id);
+    // §7.4 has no READY → ENDED edge. A READY broadcast is deleted instead.
+    if (broadcast.status === 'READY') {
+      throw new ConflictException(END_READY_MESSAGE);
+    }
+    try {
+      await this.ome.dropStream(id);
+    } catch (error) {
+      this.logger.error(`Dropping the stream of ${id} failed`, error);
+      throw new BadGatewayException(DROP_STREAM_FAILED_MESSAGE);
+    }
+    return broadcast;
+  }
+
+  // A READY broadcast never had a stream, so it is deleted outright. Any
+  // other is ended first, which also retries the stream drop of an ENDED
+  // broadcast whose earlier drop failed. Once a broadcast leaves READY it
+  // never returns, so the filtered delete cannot race the end.
   async remove(id: string): Promise<void> {
     const { count } = await this.prisma.broadcast.deleteMany({
-      where: { id, status: { not: 'LIVE' } },
+      where: { id, status: 'READY' },
     });
     if (count === 1) return;
-    const exists = await this.prisma.broadcast.count({ where: { id } });
-    if (exists === 0) throw new NotFoundException('Broadcast not found');
-    throw new ConflictException(DELETE_LIVE_MESSAGE);
+    await this.end(id);
+    await this.prisma.broadcast.deleteMany({ where: { id } });
   }
 }
 

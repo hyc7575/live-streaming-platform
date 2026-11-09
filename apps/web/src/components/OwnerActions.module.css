@@ -66,14 +66,9 @@
 }
 
 .confirmText,
-.hint,
 .error {
   margin: 0;
   font-size: var(--font-size-sm);
-}
-
-.hint {
-  color: var(--color-text-muted);
 }
 
 .error {

@@ -82,6 +82,13 @@ export class BroadcastsController {
     return this.broadcasts.update(id, body);
   }
 
+  @Post('broadcasts/:id/end')
+  @HttpCode(200)
+  @UseGuards(LoggedInGuard, BroadcastOwnerGuard)
+  end(@Param('id') id: string): Promise<BroadcastView> {
+    return this.broadcasts.end(id);
+  }
+
   @Delete('broadcasts/:id')
   @HttpCode(204)
   @UseGuards(LoggedInGuard, BroadcastOwnerGuard)

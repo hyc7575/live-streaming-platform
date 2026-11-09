@@ -144,3 +144,29 @@ it('says so when the browser can play neither', () => {
     screen.getByText('이 브라우저에서는 방송을 재생할 수 없습니다.'),
   ).toBeDefined();
 });
+
+it('reports a fatal hls.js error, not a recoverable one, and still retries', () => {
+  vi.stubGlobal('MediaSource', class {});
+  const onPlaybackError = vi.fn();
+  render(<LivePlayer broadcastId="b1" onPlaybackError={onPlaybackError} />);
+  act(() => hls.instances[0]?.fail(false));
+  expect(onPlaybackError).not.toHaveBeenCalled();
+
+  act(() => hls.instances[0]?.fail(true));
+  expect(onPlaybackError).toHaveBeenCalledTimes(1);
+  act(() => {
+    vi.advanceTimersByTime(RETRY_DELAY_MS);
+  });
+  expect(hls.instances).toHaveLength(2);
+});
+
+it('reports native HLS error and stalled events', () => {
+  canPlayNativeHls('maybe');
+  const onPlaybackError = vi.fn();
+  render(<LivePlayer broadcastId="b1" onPlaybackError={onPlaybackError} />);
+  const video = screen.getByLabelText<HTMLVideoElement>('방송 화면');
+  fireEvent.error(video);
+  expect(onPlaybackError).toHaveBeenCalledTimes(1);
+  fireEvent.stalled(video);
+  expect(onPlaybackError).toHaveBeenCalledTimes(2);
+});

@@ -1,10 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { BroadcastStatus } from '../generated/prisma/client.js';
-
-// The OME application every broadcast publishes into. The stream name is
-// the broadcast id, so a publish URL path is /app/<broadcastId>.
-export const OME_APP = 'app';
+import { OME_APP } from '../ome/ome-api.js';
 
 export function publishPath(broadcastId: string, token: string): string {
   return `/${OME_APP}/${broadcastId}?direction=whip&transport=all&token=${token}`;

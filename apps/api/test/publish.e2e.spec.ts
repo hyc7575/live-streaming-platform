@@ -245,6 +245,19 @@ describe('publish', () => {
       expect(await statusOf(id)).toBe(status);
     });
 
+    it('refuses a reconnect after the streamer ends the broadcast', async () => {
+      const id = await seed('READY');
+      const live = await admission(
+        admissionBody(whipUrl(id, await tokenFor(id))),
+      );
+      expect(live.body).toEqual({ allowed: true });
+      const end = await owner.agent.post(`/api/broadcasts/${id}/end`);
+      expect(end.status, JSON.stringify(end.body)).toBe(200);
+      const res = await admission(admissionBody(whipUrl(id, mintedToken(id))));
+      expect(res.body).toEqual({ allowed: false, reason: 'broadcast ended' });
+      expect(await statusOf(id)).toBe('ENDED');
+    });
+
     it('lets one broadcast per streamer be LIVE', async () => {
       const first = await seed('READY');
       const second = await seed('READY');

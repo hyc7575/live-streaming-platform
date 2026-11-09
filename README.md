@@ -18,7 +18,7 @@
 ```sh
 pnpm install
 git config core.hooksPath .githooks   # 커밋 전 비밀값 검사 훅
-cp .env.example .env                  # DATABASE_URL, SESSION_SECRET, OME_WEBHOOK_SECRET, OME_HOST_IP를 채운다
+cp .env.example .env                  # DATABASE_URL, SESSION_SECRET, OME_WEBHOOK_SECRET, OME_API_ACCESS_TOKEN, OME_HOST_IP를 채운다
 docker compose up -d --wait           # PostgreSQL + OME
 pnpm --filter @lsp/api db:migrate     # Prisma 마이그레이션 적용
 pnpm dev                              # API :3000, 웹 :5173
@@ -30,6 +30,7 @@ pnpm dev                              # API :3000, 웹 :5173
 DATABASE_URL=postgresql://lsp:lsp@localhost:5432/lsp
 SESSION_SECRET=<openssl rand -base64 32 결과>
 OME_WEBHOOK_SECRET=<openssl rand -base64 32 결과>
+OME_API_ACCESS_TOKEN=<openssl rand -hex 24 결과>
 OME_HOST_IP=127.0.0.1
 ```
 
@@ -92,7 +93,9 @@ CI도 같은 순서로 GitHub Actions의 Postgres 서비스에 마이그레이�
 | `OME_ICE_TCP_PORT` | `10000` | OME WebRTC ICE (TCP) |
 | `OME_TURN_PORT` | `3478` | OME 내장 TURN (TCP) |
 | `OME_WEBHOOK_URL` | `http://host.docker.internal:${API_PORT}/api/ome/admission` | OME가 송출 허가를 묻는 API 주소 |
-| `OME_API_ACCESS_TOKEN` | 없음 | OME 관리 API 토큰. 방송 종료(#11)에서 쓴다 |
+| `OME_API_ACCESS_TOKEN` | 없음 (필수) | OME 관리 API 토큰. API가 방송을 종료할 때 이 토큰으로 송출 연결을 끊는다. compose의 OME도 같은 값을 읽고, 비어 있으면 `docker compose`가 시작하지 않는다 |
+| `OME_API_PORT` | `8081` | OME 관리 API의 호스트 포트. `127.0.0.1`에만 열린다 |
+| `OME_API_URL` | `http://127.0.0.1:${OME_API_PORT}` | API가 부르는 OME 관리 API 주소 |
 
 ### 여러 worktree에서 동시에 띄우기
 
@@ -388,7 +391,7 @@ curl -s -o /dev/null -w '%{http_code}\n' $API/broadcasts/$ID                    
 
 ### 3. 송출에서 시청까지 (#10)
 
-인수 시나리오 1의 앞부분: 스트리머가 카메라·마이크를 송출하면 방송이 `LIVE`가 되고, 로그인하지 않은 시청자가 LL-HLS로 본다. 방송 종료(#11), 끊긴 송출의 유예·정리(#12), PC 화면 송출(#13)은 아직 없다.
+인수 시나리오 1의 앞부분: 스트리머가 카메라·마이크를 송출하면 방송이 `LIVE`가 되고, 로그인하지 않은 시청자가 LL-HLS로 본다. 끊긴 송출의 유예·정리(#12), PC 화면 송출(#13)은 아직 없다. 종료는 아래 4절에 있다.
 
 흐름 (PRD §7.6):
 
@@ -414,7 +417,7 @@ pnpm --filter @lsp/api dev             # API :3000. OME가 host.docker.internal:
 pnpm --filter @lsp/web e2e:stack       # 웹 dev 서버가 없으면 띄운다. WEB_PORT를 바꿨으면 같은 값을 앞에 붙인다
 ```
 
-`e2e:stack`은 CI의 `e2e` 작업에 들어가지 않는다(CI에는 OME가 없다). 두 테스트를 돌린다.
+`e2e:stack`은 CI의 `e2e` 작업에 들어가지 않는다(CI에는 OME가 없다). 아래 두 테스트와 4절의 종료 테스트를 돌린다.
 
 - 새 계정으로 방송을 만들고 송출 화면에서 "카메라 켜기" → "방송 시작"을 누른다. "송출 중입니다."가 뜨고 `GET /api/broadcasts/:id`가 `LIVE`가 된다. 로그인하지 않은 새 브라우저 컨텍스트가 시청 화면을 열면 hls.js(`blob:` 주소)로 재생되고, `currentTime`이 늘고 `videoWidth`가 0보다 크다. 같은 스트리머가 두 번째 방송의 송출 화면에서 "방송 시작"을 누르면 "기존 방송을 종료하세요."가 뜬다.
 - 토큰 없이, 엉터리 토큰으로, 다른 방송의 토큰으로 `/app/<id>?direction=whip...`에 WHIP을 보내면 모두 401이고 방송은 `READY` 그대로다.
@@ -429,7 +432,7 @@ pnpm --filter @lsp/web e2e:stack       # 웹 dev 서버가 없으면 띄운다. 
 4. 시크릿 창(로그인 안 함)에서 "시청 화면 열기" 주소를 연다. "방송을 불러오는 중입니다"가 약 10초 보인 뒤 카메라 영상이 재생된다. 상태 배지는 LIVE다.
 5. API 로그에 `PublishController`의 `... token=*** → {"allowed":true}` 한 줄이 남는다(토큰은 가린다).
 6. A가 다른 방송을 하나 더 만들고 그 송출 화면에서 "방송 시작"을 누르면 "기존 방송을 종료하세요."가 뜬다.
-7. 송출 화면에서 "송출 중지"를 누르면 카메라 표시등이 꺼진다. 방송을 `ENDED`로 바꾸는 종료 기능은 #11에서 생기므로, 지금은 방송이 `LIVE`로 남는다.
+7. 송출 화면에서 "방송 종료" → "종료하기"를 누른다. 이어지는 확인은 4절에 있다.
 
 API로 거절 확인 (토큰이 없거나 틀리면 OME가 401을 준다):
 
@@ -438,6 +441,51 @@ ID=<READY 방송 id>
 curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/sdp' --data-binary $'v=0\r\n' \
   "http://localhost:3333/app/$ID?direction=whip&transport=all&token=bad"   # 401
 curl -s http://localhost:3000/api/broadcasts/$ID                           # status "READY" 그대로
+```
+
+### 4. 방송 종료 (#11)
+
+인수 시나리오 5, 9: 스트리머가 종료하면 송출이 끊기고, 시청 화면은 10초 안에 "방송이 끝났습니다."로 바뀌며, 같은 방송으로 다시 송출할 수 없다. 탭을 닫거나 네트워크가 끊긴 비정상 종료와 재접속 유예는 #12에서 다룬다.
+
+흐름 (PRD §7.4, §7.6):
+
+1. 송출 화면에서 "방송 종료" → "종료하기"를 누른다. 브라우저가 먼저 PeerConnection을 닫고 송출에 쓴 트랙 복제본과 카메라·마이크 원본 트랙을 모두 멈춘 뒤 `POST /api/broadcasts/:id/end`를 부른다. 송출 중에 카메라나 마이크가 꺼져도 같은 API를 부른다.
+2. API는 소유자만 받는다(비로그인 401, 타인 403, 없는 방송 404). `LIVE`를 `ENDED`로 바꾸고 `endedAt`을 기록한 **다음** OME 관리 API `DELETE /v1/vhosts/default/apps/app/streams/<방송 id>`로 송출 연결을 끊는다. 순서가 반대면 그 사이 재접속이 허가될 수 있다. OME의 404(송출 없음)는 성공으로 본다.
+3. 이미 `ENDED`인 방송에 다시 부르면 200이고 `endedAt`은 그대로다. OME DELETE는 다시 보낸다. 그래서 OME 호출이 실패해 502를 받았더라도 다시 부르면 끊긴다. `READY` 방송은 409 `아직 시작하지 않은 방송은 종료할 수 없습니다.`다.
+4. 끊긴 송출자가 다시 접속하면 Admission Webhook이 `ENDED`를 보고 `{"allowed":false,"reason":"broadcast ended"}`로 거절한다. 송출 토큰 발급도 409다.
+5. 시청 화면은 방송 상태를 5초마다 조회하고, hls.js 치명적 오류(네이티브 HLS는 `<video>`의 `error`·`stalled`) 때도 바로 조회한다. `ENDED`면 플레이어를 내리고 "방송이 끝났습니다."를 띄운다.
+6. `LIVE` 방송 삭제는 이제 409가 아니다. 같은 방식으로 종료한 뒤 삭제한다(204).
+7. 지금 송출하지 않는 곳에서도 종료할 수 있다. 상세 화면의 소유자 버튼에 `LIVE`일 때만 "방송 종료"가 있다. 새로고침했거나 송출이 끊긴 송출 화면에도 "방송 종료"가 남는다. 어느 쪽이든 같은 API를 부르고, 송출 중이던 탭은 연결이 끊기면 상태를 다시 읽어 "방송이 종료되었습니다."를 띄운다.
+
+자동 테스트:
+
+- `apps/api/test/authorization-matrix.e2e.spec.ts`: "방송 종료" 행. 비로그인 401, 타인 403, 소유자는 `READY` 409, `LIVE`·`ENDED` 200. 거절된 칸은 DB와 OME 호출이 모두 그대로다. 허용된 칸에서는 OME 호출 시점에 DB가 이미 `ENDED`다. "방송 삭제"의 소유자 칸은 모든 상태에서 204다.
+- `apps/api/test/broadcasts.e2e.spec.ts`: OME 호출이 실패하면 502이고 DB는 `ENDED`다. 다시 부르면 200이고 `endedAt`이 같다. `LIVE` 삭제도 같은 방식으로 다시 시도하면 204다.
+- `apps/api/test/publish.e2e.spec.ts`: Webhook으로 `LIVE`가 된 뒤 종료하면, 새로 받은 유효한 토큰으로 재접속해도 `broadcast ended`로 거절된다.
+- `apps/api/test/ome-api.spec.ts`: OME 관리 API 클라이언트의 경로와 `Basic` 인증 헤더. 200·404는 성공이고 401·500·연결 실패는 오류다.
+- `apps/web/e2e-stack/publishToWatch.spec.ts` (실제 OME): 송출하고 시청자가 재생하는 것을 확인한 뒤 종료한다. 시청 화면은 "방송이 끝났습니다."로 10초 안에 바뀌고 플레이어가 사라진다. 송출 화면의 원본 트랙과 복제본은 모두 `ended`다. 종료 전에 받아 둔 토큰으로 WHIP을 다시 보내면 401이고 토큰 재발급은 409다. 다른 테스트는 송출 중에 상세 화면에서 종료하고, 송출 탭이 "방송이 종료되었습니다."로 바뀌는 것을 확인한다.
+
+실제 OME로 확인: 3절의 명령에 더해 `.env`에 `OME_API_ACCESS_TOKEN`을 채운다. 이 값을 바꿨으면 `docker compose up -d ome`으로 OME를 다시 만든다. OME 관리 API는 `127.0.0.1:8081`에만 열린다.
+
+화면에서 확인:
+
+1. 3절 1~4번대로 송출을 시작하고 시크릿 창에서 시청 화면을 연다.
+2. 송출 화면에서 "방송 종료"를 누른다. "방송을 종료할까요? 종료하면 이 방송은 다시 시작할 수 없습니다."가 뜬다. "종료하기"를 누른다.
+3. 송출 화면에 "방송을 종료했습니다."가 뜨고 미리보기가 사라진다. 카메라 표시등이 꺼진다.
+4. 시크릿 창은 10초 안에 "방송이 끝났습니다."로 바뀌고 상태 배지가 "방송 종료"가 된다.
+5. 송출 화면 주소를 다시 열면 "종료된 방송입니다. 새 방송을 만드세요."가 뜬다.
+6. 새 방송으로 송출을 시작한 뒤 다른 탭에서 상세 화면을 연다. "방송 종료" → "종료하기"를 누르면 상세는 "방송이 끝났습니다."로, 송출 탭은 "방송이 종료되었습니다."로 바뀐다.
+7. 다른 방송으로 송출을 시작한 뒤 상세의 "삭제"를 누르면 "송출 중인 방송입니다. 삭제하면 방송을 종료하고 되돌릴 수 없습니다."가 뜬다. "삭제하기"를 누르면 송출 화면이 "방송이 종료되었습니다."로 바뀐다.
+
+API로 확인 (`jar.txt`는 0절처럼 소유자로 로그인해 저장한 쿠키):
+
+```sh
+API=http://localhost:3000/api
+ID=<LIVE 방송 id>
+curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts/$ID/end              # 401 (비로그인)
+curl -s -b jar.txt -X POST $API/broadcasts/$ID/end                                    # 200, "status":"ENDED"
+curl -s -b jar.txt -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts/$ID/end   # 200 (다시 불러도 같다)
+curl -s -b jar.txt -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts/$ID/publish-token   # 409
 ```
 
 ### 모바일 카메라 캡처 (#22)

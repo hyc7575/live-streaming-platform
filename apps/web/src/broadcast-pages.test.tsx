@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -201,33 +202,75 @@ it('keeps the broadcast when the streamer cancels the delete', async () => {
   expect(calls).not.toContain('DELETE /api/broadcasts/b1');
 });
 
-it('offers no delete on a LIVE broadcast and says why', async () => {
-  stubApi({
+it('lets the streamer delete a LIVE broadcast after a warning that it ends', async () => {
+  const calls = stubApi({
     'GET /api/auth/me': streamer,
     'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-  });
-  renderAt('/broadcasts/b1');
-  expect(
-    await screen.findByText('송출 중인 방송은 종료한 뒤 삭제할 수 있습니다.'),
-  ).toBeDefined();
-  expect(screen.getByRole('link', { name: '수정' })).toBeDefined();
-  expect(screen.queryByRole('button', { name: '삭제' })).toBeNull();
-});
-
-it('switches to the LIVE notice when a delete races the broadcast going LIVE', async () => {
-  stubApi({
-    'GET /api/auth/me': streamer,
-    'GET /api/broadcasts/b1': broadcast({ status: 'READY' }),
-    'DELETE /api/broadcasts/b1': 409,
+    'DELETE /api/broadcasts/b1': 204,
+    'GET /api/me/broadcasts': [],
   });
   renderAt('/broadcasts/b1');
   fireEvent.click(await screen.findByRole('button', { name: '삭제' }));
-  fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
   expect(
-    await screen.findByText('송출 중인 방송은 종료한 뒤 삭제할 수 있습니다.'),
+    screen.getByText(
+      '송출 중인 방송입니다. 삭제하면 방송을 종료하고 되돌릴 수 없습니다.',
+    ),
   ).toBeDefined();
-  expect(screen.queryByRole('button', { name: '삭제' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
+  expect(await screen.findByRole('heading', { name: '내 방송' })).toBeDefined();
+  expect(calls).toContain('DELETE /api/broadcasts/b1');
 });
+
+it('lets the streamer end a LIVE broadcast from the detail page', async () => {
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    'POST /api/broadcasts/b1/end': broadcast({ status: 'ENDED' }),
+  };
+  const calls = stubApi(routes);
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '방송 종료' }));
+  expect(calls).not.toContain('POST /api/broadcasts/b1/end');
+  expect(
+    screen.getByText(
+      '방송을 종료할까요? 송출이 끊기고 이 방송은 다시 시작할 수 없습니다.',
+    ),
+  ).toBeDefined();
+
+  routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
+  fireEvent.click(screen.getByRole('button', { name: '종료하기' }));
+  expect(await screen.findByText('방송이 끝났습니다.')).toBeDefined();
+  expect(calls).toContain('POST /api/broadcasts/b1/end');
+  expect(screen.queryByRole('button', { name: '방송 종료' })).toBeNull();
+});
+
+it('says so when ending fails, and keeps the broadcast LIVE', async () => {
+  stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    'POST /api/broadcasts/b1/end': 502,
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '방송 종료' }));
+  fireEvent.click(screen.getByRole('button', { name: '종료하기' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '방송을 종료하지 못했습니다. 다시 시도하세요.',
+  );
+  expect(screen.getByRole('button', { name: '방송 종료' })).toBeDefined();
+});
+
+it.each(['READY', 'ENDED'] as const)(
+  'offers no 방송 종료 on a %s broadcast',
+  async (status) => {
+    stubApi({
+      'GET /api/auth/me': streamer,
+      'GET /api/broadcasts/b1': broadcast({ status }),
+    });
+    renderAt('/broadcasts/b1');
+    await screen.findByRole('button', { name: '삭제' });
+    expect(screen.queryByRole('button', { name: '방송 종료' })).toBeNull();
+  },
+);
 
 it('goes to 내 방송 when the broadcast was already deleted elsewhere', async () => {
   stubApi({
@@ -304,3 +347,57 @@ it.each([
     );
   },
 );
+
+it('switches a viewer to 방송이 끝났습니다 once a status poll says ENDED', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  try {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    };
+    const calls = stubApi(routes);
+    renderAt('/broadcasts/b1');
+    await screen.findByLabelText('방송 화면');
+
+    routes['GET /api/broadcasts/b1'] = 500;
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(screen.getByLabelText('방송 화면')).toBeDefined();
+    expect(screen.getByText('LIVE')).toBeDefined();
+
+    routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
+    await act(() => vi.advanceTimersByTimeAsync(4999));
+    expect(screen.queryByText('방송이 끝났습니다.')).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(await screen.findByText('방송이 끝났습니다.')).toBeDefined();
+    expect(screen.queryByLabelText('방송 화면')).toBeNull();
+    expect(screen.getByText('방송 종료')).toBeDefined();
+
+    const reads = () =>
+      calls.filter((call) => call === 'GET /api/broadcasts/b1').length;
+    const settled = reads();
+    await act(() => vi.advanceTimersByTimeAsync(20_000));
+    expect(reads()).toBe(settled);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('rechecks the status right away when playback fails', async () => {
+  vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('maybe');
+  try {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    };
+    stubApi(routes);
+    renderAt('/broadcasts/b1');
+    const video = await screen.findByLabelText('방송 화면');
+
+    routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
+    fireEvent.error(video);
+    expect(await screen.findByText('방송이 끝났습니다.')).toBeDefined();
+  } finally {
+    vi.restoreAllMocks();
+  }
+});
