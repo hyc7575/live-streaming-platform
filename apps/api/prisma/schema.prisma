@@ -29,16 +29,17 @@ enum BroadcastStatus {
 // Only the server moves status forward (READY -> LIVE -> ENDED), from the
 // publish admission flow. startedAt and endedAt record those transitions.
 model Broadcast {
-  id          String          @id @default(uuid()) @db.Uuid
-  streamerId  String          @db.Uuid
-  streamer    User            @relation(fields: [streamerId], references: [id], onDelete: Cascade)
-  title       String
-  description String          @default("")
-  status      BroadcastStatus @default(READY)
-  startedAt   DateTime?
-  endedAt     DateTime?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id             String          @id @default(uuid()) @db.Uuid
+  streamerId     String          @db.Uuid
+  streamer       User            @relation(fields: [streamerId], references: [id], onDelete: Cascade)
+  title          String
+  description    String          @default("")
+  status         BroadcastStatus @default(READY)
+  startedAt      DateTime?
+  endedAt        DateTime?
+  disconnectedAt DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   // PRD §7.4 one LIVE broadcast per streamer, held by the database so two
   // admissions racing for different broadcasts cannot both win.

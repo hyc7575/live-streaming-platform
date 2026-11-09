@@ -1,14 +1,9 @@
-import { createHmac } from 'node:crypto';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../src/database/database.module.js';
 import type { BroadcastStatus } from '../src/generated/prisma/client.js';
-import {
-  mintPublishToken,
-  publishTokenKey,
-} from '../src/publish/publish-token.js';
 import {
   ENDED_PUBLISH_MESSAGE,
   OTHER_LIVE_MESSAGE,
@@ -18,48 +13,29 @@ import {
   createTestApp,
   resetDatabase,
   signUpAndLogIn,
-  TEST_OME_WEBHOOK_SECRET,
-  TEST_SESSION_SECRET,
   type TestUser,
 } from './support/app.js';
+import { fakeClockOf, type FakeClock } from './support/fake-clock.js';
+import {
+  admissionBody,
+  mintedToken as mintToken,
+  omeSignature,
+  postAdmission,
+  whipUrl,
+} from './support/webhook.js';
 
 const unknownId = '00000000-0000-4000-8000-000000000000';
-
-function whipUrl(id: string, token: string | null): string {
-  const query = token ? `&token=${token}` : '';
-  return `http://127.0.0.1:3333/app/${id}?direction=whip&transport=all${query}`;
-}
-
-// The shape OME v0.21 posts, as recorded in the #2 spike.
-function admissionBody(
-  url: string,
-  overrides: { direction?: string; status?: string } = {},
-): string {
-  return JSON.stringify({
-    client: { address: '172.17.0.1', port: 50000, user_agent: 'Chrome' },
-    request: {
-      direction: 'incoming',
-      protocol: 'WebRTC',
-      status: 'opening',
-      url,
-      time: new Date().toISOString(),
-      ...overrides,
-    },
-  });
-}
-
-function omeSignature(body: string, secret = TEST_OME_WEBHOOK_SECRET): string {
-  return createHmac('sha1', secret).update(body).digest('base64url');
-}
 
 describe('publish', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
+  let clock: FakeClock;
   let owner: { user: TestUser; agent: TestAgent };
 
   beforeAll(async () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
+    clock = fakeClockOf(app);
   });
 
   beforeEach(async () => {
@@ -72,7 +48,7 @@ describe('publish', () => {
   });
 
   async function seed(status: BroadcastStatus, streamer = owner.user) {
-    const now = new Date();
+    const now = clock.now();
     const row = await prisma.broadcast.create({
       data: {
         streamerId: streamer.id,
@@ -100,30 +76,17 @@ describe('publish', () => {
 
   // A token the API would never issue (ENDED, expired), signed with the
   // same key so only the rule under test can reject it.
-  function mintedToken(id: string, now = new Date()): string {
-    return mintPublishToken(
-      publishTokenKey(TEST_SESSION_SECRET),
-      { broadcastId: id, streamerId: owner.user.id },
-      now,
-    ).token;
+  function mintedToken(id: string, now = clock.now()): string {
+    return mintToken({ broadcastId: id, streamerId: owner.user.id }, now);
   }
 
-  function admission(
-    body: string,
-    signature: string | null = omeSignature(body),
-  ) {
-    const req = request(app.getHttpServer())
-      .post('/api/ome/admission')
-      .set('Content-Type', 'application/json');
-    return (
-      signature === null ? req : req.set('X-OME-Signature', signature)
-    ).send(body);
-  }
+  const admission = (body: string, signature?: string | null) =>
+    postAdmission(app, body, signature);
 
   describe('POST /api/broadcasts/:id/publish-token', () => {
     it('returns a same-origin WHIP path with a five-minute token', async () => {
       const id = await seed('READY');
-      const before = Date.now();
+      const before = clock.now().getTime();
       const res = await issue(owner.agent, id);
       expect(res.status).toBe(201);
       const ticket = res.body as { publishUrl: string; expiresAt: string };
@@ -184,7 +147,6 @@ describe('publish', () => {
   describe('POST /api/ome/admission', () => {
     it('admits a READY broadcast with its token and makes it LIVE', async () => {
       const id = await seed('READY');
-      const before = new Date();
       const res = await admission(
         admissionBody(whipUrl(id, await tokenFor(id))),
       );
@@ -192,7 +154,8 @@ describe('publish', () => {
       expect(res.body).toEqual({ allowed: true });
       const row = await prisma.broadcast.findUniqueOrThrow({ where: { id } });
       expect(row.status).toBe('LIVE');
-      expect(row.startedAt?.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(row.startedAt).toEqual(clock.now());
+      expect(row.disconnectedAt).toBeNull();
       const detail = await request(app.getHttpServer()).get(
         `/api/broadcasts/${id}`,
       );
@@ -218,7 +181,10 @@ describe('publish', () => {
 
     it('refuses an expired token', async () => {
       const id = await seed('READY');
-      const token = mintedToken(id, new Date(Date.now() - 6 * 60_000));
+      const token = mintedToken(
+        id,
+        new Date(clock.now().getTime() - 6 * 60_000),
+      );
       const res = await admission(admissionBody(whipUrl(id, token)));
       expect(res.body).toEqual({ allowed: false, reason: 'invalid token' });
       expect(await statusOf(id)).toBe('READY');
@@ -288,14 +254,51 @@ describe('publish', () => {
       }
     });
 
-    it('answers closing with {} and changes nothing', async () => {
+    it('starts the grace period on closing and answers {}', async () => {
       const id = await seed('LIVE');
       const res = await admission(
         admissionBody(whipUrl(id, mintedToken(id)), { status: 'closing' }),
       );
       expect(res.status).toBe(200);
       expect(res.body).toEqual({});
-      expect(await statusOf(id)).toBe('LIVE');
+      const row = await prisma.broadcast.findUniqueOrThrow({ where: { id } });
+      expect(row.status).toBe('LIVE');
+      expect(row.disconnectedAt).toEqual(clock.now());
+    });
+
+    it('starts the grace period on a closing whose token expired', async () => {
+      const id = await seed('LIVE');
+      const expired = mintedToken(
+        id,
+        new Date(clock.now().getTime() - 60 * 60_000),
+      );
+      const res = await admission(
+        admissionBody(whipUrl(id, expired), { status: 'closing' }),
+      );
+      expect(res.body).toEqual({});
+      const row = await prisma.broadcast.findUniqueOrThrow({ where: { id } });
+      expect(row.disconnectedAt).toEqual(clock.now());
+    });
+
+    it('ignores closing of playback connections and unknown streams', async () => {
+      const id = await seed('LIVE');
+      const before = await prisma.broadcast.findMany();
+      for (const body of [
+        admissionBody(`http://127.0.0.1:3333/app/${id}/llhls.m3u8`, {
+          direction: 'outgoing',
+          status: 'closing',
+        }),
+        admissionBody(whipUrl('not-a-uuid', null), { status: 'closing' }),
+        admissionBody(whipUrl(unknownId, null), { status: 'closing' }),
+        admissionBody('http://127.0.0.1:3333/other/stream', {
+          status: 'closing',
+        }),
+      ]) {
+        const res = await admission(body);
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({});
+      }
+      expect(await prisma.broadcast.findMany()).toEqual(before);
     });
 
     it('allows outgoing (playback) connections', async () => {

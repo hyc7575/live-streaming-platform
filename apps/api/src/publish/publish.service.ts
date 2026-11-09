@@ -1,10 +1,13 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
+import { CLOCK, type Clock } from '../clock.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma } from '../generated/prisma/client.js';
 import {
   decideAdmission,
+  graceWindow,
   publishPath,
+  publishPhaseOf,
   type AdmissionDecision,
   type PublishTarget,
 } from './admission.js';
@@ -29,6 +32,7 @@ export class PublishService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(PUBLISH_CONFIG) private readonly config: PublishConfig,
+    @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
   // The caller already passed BroadcastOwnerGuard, so the broadcast exists
@@ -51,17 +55,17 @@ export class PublishService {
     const { token, expiresAt } = mintPublishToken(
       this.config.tokenKey,
       { broadcastId, streamerId },
-      new Date(),
+      this.clock.now(),
     );
     return { publishUrl: publishPath(broadcastId, token), expiresAt };
   }
 
   async admit(target: PublishTarget): Promise<AdmissionDecision> {
-    const now = new Date();
+    const now = this.clock.now();
     const broadcast = uuid.safeParse(target.broadcastId).success
       ? await this.prisma.broadcast.findUnique({
           where: { id: target.broadcastId },
-          select: { status: true, streamerId: true },
+          select: { status: true, streamerId: true, disconnectedAt: true },
         })
       : null;
     const token =
@@ -79,9 +83,24 @@ export class PublishService {
             )
           ? 'valid'
           : 'invalid';
-    const decision = decideAdmission(broadcast, token);
-    if (!decision.allowed) return decision;
-    return this.goLive(target.broadcastId, now);
+    const plan = decideAdmission(broadcast, token, now);
+    switch (plan.kind) {
+      case 'reject':
+        return { allowed: false, reason: plan.reason };
+      case 'go-live':
+        return this.goLive(target.broadcastId, now);
+      case 'reconnect':
+        return this.reconnect(target.broadcastId, now);
+    }
+  }
+
+  async disconnect(broadcastId: string): Promise<boolean> {
+    if (!uuid.safeParse(broadcastId).success) return false;
+    const { count } = await this.prisma.broadcast.updateMany({
+      where: { id: broadcastId, status: 'LIVE', disconnectedAt: null },
+      data: { disconnectedAt: this.clock.now() },
+    });
+    return count === 1;
   }
 
   // The status filter makes READY → LIVE one conditional write, so two
@@ -105,5 +124,20 @@ export class PublishService {
       }
       throw error;
     }
+  }
+
+  private async reconnect(id: string, now: Date): Promise<AdmissionDecision> {
+    const { count } = await this.prisma.broadcast.updateMany({
+      where: { id, status: 'LIVE', disconnectedAt: graceWindow(now).within },
+      data: { disconnectedAt: null },
+    });
+    if (count === 1) return { allowed: true };
+    const row = await this.prisma.broadcast.findUnique({
+      where: { id },
+      select: { status: true, disconnectedAt: true },
+    });
+    return row && publishPhaseOf(row, now) === 'connected'
+      ? { allowed: false, reason: 'broadcast already live' }
+      : { allowed: false, reason: 'broadcast ended' };
   }
 }

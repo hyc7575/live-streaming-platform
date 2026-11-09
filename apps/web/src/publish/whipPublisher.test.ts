@@ -7,6 +7,8 @@ interface Callbacks {
   error?: (error: unknown) => void;
 }
 
+const RESOURCE_URL = 'http://localhost/app/b1/whip-resource';
+
 const kit = vi.hoisted(() => {
   const callbacks: Callbacks = {};
   return { callbacks, remove: vi.fn(), startStreaming: vi.fn() };
@@ -20,6 +22,7 @@ vi.mock('ovenlivekit', () => ({
         setMediaStream: (stream: MediaStream) => Promise.resolve(stream),
         startStreaming: kit.startStreaming,
         remove: kit.remove,
+        resourceUrl: RESOURCE_URL,
       };
     },
   },
@@ -60,6 +63,10 @@ beforeEach(() => {
       constructor(readonly tracks: unknown[]) {}
     },
   );
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve(new Response())),
+  );
 });
 
 afterEach(() => {
@@ -95,4 +102,38 @@ it('stops its tracks when the connection drops, and reports it once', async () =
   ]);
   expect(clones.map((t) => t.readyState)).toEqual(['ended', 'ended']);
   expect(originals.map((t) => t.readyState)).toEqual(['live', 'live']);
+});
+
+it('on pagehide, deletes the WHIP resource with a request that outlives the page', async () => {
+  const { stream, originals, clones } = fakeStream();
+  const publisher = startWhipPublish(stream, '/app/b1?direction=whip', vi.fn());
+  await vi.waitFor(() => expect(kit.startStreaming).toHaveBeenCalled());
+  kit.callbacks.connected?.();
+
+  window.dispatchEvent(new Event('pagehide'));
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch).toHaveBeenCalledWith(RESOURCE_URL, {
+    method: 'DELETE',
+    keepalive: true,
+  });
+  expect(clones.map((t) => t.readyState)).toEqual(['ended', 'ended']);
+  expect(originals.map((t) => t.readyState)).toEqual(['live', 'live']);
+  expect(kit.remove).toHaveBeenCalledTimes(1);
+
+  publisher.stop();
+  window.dispatchEvent(new Event('pagehide'));
+  expect(kit.remove).toHaveBeenCalledTimes(1);
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it('sends nothing on pagehide after it was stopped', async () => {
+  const { stream } = fakeStream();
+  const publisher = startWhipPublish(stream, '/app/b1?direction=whip', vi.fn());
+  await vi.waitFor(() => expect(kit.startStreaming).toHaveBeenCalled());
+  kit.callbacks.connected?.();
+
+  publisher.stop();
+  window.dispatchEvent(new Event('pagehide'));
+  expect(fetch).not.toHaveBeenCalled();
+  expect(kit.remove).toHaveBeenCalledTimes(1);
 });

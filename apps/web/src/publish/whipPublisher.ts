@@ -39,9 +39,22 @@ export function startWhipPublish(
   const finish = () => {
     if (done) return;
     done = true;
+    window.removeEventListener('pagehide', leave);
     kit.remove();
     for (const track of tracks) track.stop();
   };
+  // The browser cancels OvenLiveKit's own WHIP DELETE (a plain fetch) when
+  // the page unloads, and OME then notices the drop only at its ICE timeout,
+  // about 30 s later. Until it does, a reload cannot publish again because
+  // the API still sees the broadcast connected. A keepalive request outlives
+  // the page, so OME sends `closing` within a second.
+  const leave = () => {
+    if (kit.resourceUrl) {
+      void fetch(kit.resourceUrl, { method: 'DELETE', keepalive: true });
+    }
+    finish();
+  };
+  window.addEventListener('pagehide', leave);
   const report = (event: Exclude<PublishEvent, { kind: 'connected' }>) => {
     if (done) return;
     finish();
