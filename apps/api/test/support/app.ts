@@ -18,6 +18,10 @@ import {
   PUBLISH_CONFIG,
   publishConfig,
 } from '../../src/publish/publish-config.js';
+import {
+  PublishSweeper,
+  SWEEP_INTERVAL_MS,
+} from '../../src/publish/publish-sweeper.js';
 import { FakeClock } from './fake-clock.js';
 import { FakeOmeApi } from './fake-ome-api.js';
 
@@ -27,9 +31,15 @@ export const TEST_OME_WEBHOOK_SECRET = 'test-ome-webhook-secret';
 // Runs the real AppModule against DATABASE_URL (migrations already applied).
 // Test accounts stay off unless a test passes a config, whatever .env says.
 // OME's admin API is a FakeOmeApi; reach it with fakeOmeApiOf(app). Time
-// comes from a FakeClock; reach it with fakeClockOf(app).
+// comes from a FakeClock; reach it with fakeClockOf(app). The sweeper runs
+// only when a test calls sweeperOf(app).sweep(), unless sweepIntervalMs is
+// given.
 export async function createTestApp(
-  options: { cookieSecure?: boolean; testAccounts?: TestAccountsConfig } = {},
+  options: {
+    cookieSecure?: boolean;
+    testAccounts?: TestAccountsConfig;
+    sweepIntervalMs?: number;
+  } = {},
 ): Promise<NestExpressApplication> {
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -50,6 +60,8 @@ export async function createTestApp(
     })
     .overrideProvider(CLOCK)
     .useValue(new FakeClock())
+    .overrideProvider(SWEEP_INTERVAL_MS)
+    .useValue(options.sweepIntervalMs ?? null)
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({
     rawBody: true,
@@ -60,6 +72,10 @@ export async function createTestApp(
   });
   await app.init();
   return app;
+}
+
+export function sweeperOf(app: NestExpressApplication): PublishSweeper {
+  return app.get(PublishSweeper);
 }
 
 // Empties every table except Prisma's migration history.

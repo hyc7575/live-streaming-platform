@@ -78,8 +78,8 @@ export function graceCutoff(now: Date): Date {
 
 export interface PublishState {
   status: BroadcastStatus;
-  // Set only on LIVE: when the publish connection dropped. null on LIVE
-  // means the publisher is connected.
+  // Read only on LIVE: when the publish connection dropped, or null while
+  // the publisher is connected.
   disconnectedAt: Date | null;
 }
 
