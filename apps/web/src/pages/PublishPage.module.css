@@ -53,6 +53,28 @@
   object-fit: contain;
 }
 
+/* Front cameras look natural to the streamer only when mirrored, like a selfie view. Viewers get the unmirrored picture. */
+.preview[data-mirrored='true'] {
+  transform: scaleX(-1);
+}
+
+/* A phone held upright: a taller preview, and the main buttons pinned to the bottom within thumb reach on a 360px-wide screen. */
+@media (max-width: 959px) {
+  .preview[data-source='camera'] {
+    max-height: 50vh;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+  }
+
+  .mainActions {
+    position: sticky;
+    bottom: 0;
+    flex-direction: column;
+    padding: var(--space-3) 0;
+    background: var(--color-bg);
+  }
+}
+
 .placeholder {
   display: flex;
   align-items: center;

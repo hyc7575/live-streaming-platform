@@ -9,9 +9,15 @@ import { Link, useParams } from 'react-router';
 import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
+import type {
+  CameraCapture,
+  CameraCaptureState,
+  WakeLockStatus,
+} from '../capture/cameraCapture';
 import type { PcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
 import { BrowserNotice, PcPreflight } from '../components/PcPreflight';
+import { PermissionGuide } from '../components/PermissionGuide';
 import {
   usePublishSession,
   type PublishSessionState,
@@ -111,6 +117,10 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
   const active: ActiveCapture | null =
     slot.kind === 'on' && !ended ? slot : null;
   const capture = active?.capture ?? null;
+  const camera = useCameraState(
+    active?.source === 'camera' ? active.capture : null,
+  );
+  const cameraSwitching = camera?.status === 'live' && camera.switching;
 
   useEffect(() => {
     alive.current = true;
@@ -161,7 +171,11 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
       next = await spec.start();
     } catch (error) {
       if (alive.current) {
-        setSlot({ kind: 'failed', message: spec.failureMessage(error) });
+        setSlot({
+          kind: 'failed',
+          message: spec.failureMessage(error),
+          permissionGuide: spec.isPermissionDenied(error),
+        });
       }
       return;
     }
@@ -219,6 +233,10 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
           <video
             ref={videoRef}
             className={styles.preview}
+            data-source={active?.source}
+            data-mirrored={
+              camera?.status === 'live' && camera.facing === 'user'
+            }
             aria-label="미리보기"
             autoPlay
             muted
@@ -242,6 +260,7 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
           {active && (
             <SourcePanel
               active={active}
+              cameraState={camera}
               onReplaceTrack={session.replaceTrack}
               onRestart={
                 session.state.kind === 'idle'
@@ -253,7 +272,23 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
               }
             />
           )}
-          <div className={styles.actions}>
+          <div className={`${styles.actions} ${styles.mainActions}`}>
+            {active?.source === 'camera' &&
+              camera?.status === 'live' &&
+              camera.canSwitchCamera && (
+                <CameraSwitch
+                  capture={active.capture}
+                  state={camera}
+                  // A switch while the publish is being built could leave it
+                  // with no camera track to replace.
+                  allowed={
+                    session.state.kind === 'idle' ||
+                    session.state.kind === 'live'
+                  }
+                  onReleaseTrack={session.releaseTrack}
+                  onReplaceTrack={session.replaceTrack}
+                />
+              )}
             {!active &&
               session.state.kind === 'idle' &&
               sources.map((source, index) => (
@@ -272,7 +307,7 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
                 <button
                   type="button"
                   className={styles.primary}
-                  disabled={session.state.kind !== 'idle'}
+                  disabled={session.state.kind !== 'idle' || cameraSwitching}
                   onClick={() => startPublish(active)}
                 >
                   방송 시작
@@ -306,13 +341,27 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
   );
 }
 
+const noSubscribe = () => () => {};
+const noCamera = () => null;
+
+function useCameraState(
+  camera: CameraCapture | null,
+): CameraCaptureState | null {
+  return useSyncExternalStore(
+    camera?.subscribe ?? noSubscribe,
+    camera?.getState ?? noCamera,
+  );
+}
+
 /** Controls that only one capture source has. */
 function SourcePanel({
   active,
+  cameraState,
   onReplaceTrack,
   onRestart,
 }: {
   active: ActiveCapture;
+  cameraState: CameraCaptureState | null;
   onReplaceTrack: (track: MediaStreamTrack) => void;
   onRestart?: () => void;
 }) {
@@ -326,8 +375,70 @@ function SourcePanel({
         />
       );
     case 'camera':
-      return null;
+      return cameraState?.status === 'live' ? (
+        <p className={styles.note}>
+          {cameraState.facing === 'user' ? '전면 카메라' : '후면 카메라'} ·{' '}
+          {WAKE_LOCK_MESSAGES[cameraState.wakeLock]}
+        </p>
+      ) : null;
   }
+}
+
+const WAKE_LOCK_MESSAGES: Record<WakeLockStatus, string> = {
+  pending: '화면 꺼짐 방지를 켜는 중입니다.',
+  active: '화면 꺼짐 방지가 켜져 있습니다.',
+  unsupported:
+    '이 브라우저는 화면 꺼짐 방지를 지원하지 않습니다. 방송하는 동안 화면을 직접 켜 두세요. iPhone은 iOS 16.4 이상에서 지원합니다.',
+  failed:
+    '화면 꺼짐 방지를 켜지 못했습니다. 방송하는 동안 화면을 직접 켜 두세요.',
+};
+
+function CameraSwitch({
+  capture,
+  state,
+  allowed,
+  onReleaseTrack,
+  onReplaceTrack,
+}: {
+  capture: CameraCapture;
+  state: Extract<CameraCaptureState, { status: 'live' }>;
+  allowed: boolean;
+  onReleaseTrack: (kind: 'audio' | 'video') => void;
+  onReplaceTrack: (track: MediaStreamTrack) => void;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  function switchCamera() {
+    setFailed(false);
+    onReleaseTrack('video');
+    capture
+      .switchCamera()
+      .catch(() => setFailed(true))
+      .finally(() => {
+        // Even a failed switch reopens the previous camera, which goes out
+        // again; a capture that could not reopen any has ended the broadcast.
+        const video = capture.stream.getVideoTracks()[0];
+        if (video) onReplaceTrack(video);
+      });
+  }
+
+  return (
+    <>
+      {failed && (
+        <p role="alert" className={styles.warning}>
+          카메라를 바꾸지 못했습니다.
+        </p>
+      )}
+      <button
+        type="button"
+        className={styles.secondary}
+        disabled={state.switching || !allowed}
+        onClick={switchCamera}
+      >
+        {state.facing === 'user' ? '후면 카메라로 전환' : '전면 카메라로 전환'}
+      </button>
+    </>
+  );
 }
 
 function ScreenControls({
@@ -479,7 +590,9 @@ function StatusLine({
         </p>
       );
     case 'failed':
-      return (
+      return slot.permissionGuide ? (
+        <PermissionGuide />
+      ) : (
         <p role="alert" className={styles.warning}>
           {slot.message}
         </p>

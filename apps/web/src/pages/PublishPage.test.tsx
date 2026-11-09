@@ -15,7 +15,10 @@ import type {
   CameraCapture,
   CameraCaptureState,
 } from '../capture/cameraCapture';
-import { startCameraCapture } from '../capture/cameraCapture';
+import {
+  CameraCaptureError,
+  startCameraCapture,
+} from '../capture/cameraCapture';
 import type {
   AudioLevels,
   PcCapture,
@@ -88,11 +91,11 @@ const TOKEN_OK = {
   body: { publishUrl: PUBLISH_URL, expiresAt: '2026-11-09T00:05:00.000Z' },
 };
 
-function fakeCapture() {
+function fakeCapture({ canSwitchCamera = false } = {}) {
   let state: CameraCaptureState = {
     status: 'live',
     facing: 'user',
-    canSwitchCamera: false,
+    canSwitchCamera,
     switching: false,
     wakeLock: 'active',
   };
@@ -101,8 +104,9 @@ function fakeCapture() {
     state = next;
     listeners.forEach((listener) => listener());
   };
+  const videoTracks = [{ id: 'front' } as MediaStreamTrack];
   const capture = {
-    stream: {} as MediaStream,
+    stream: { getVideoTracks: () => videoTracks } as unknown as MediaStream,
     getState: () => state,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -111,11 +115,15 @@ function fakeCapture() {
     switchCamera: vi.fn(() => Promise.resolve()),
     stop: vi.fn(() => setState({ status: 'ended', reason: 'stopped' })),
   } satisfies CameraCapture;
-  return { capture, setState };
+  return { capture, setState, videoTracks };
 }
 
 function fakePublisher() {
-  const publisher = { stop: vi.fn(), replaceTrack: vi.fn() };
+  const publisher = {
+    stop: vi.fn(),
+    replaceTrack: vi.fn(),
+    releaseTrack: vi.fn(),
+  };
   let emit: (event: PublishEvent) => void = () => {};
   vi.mocked(startWhipPublish).mockImplementation((_stream, _url, onEvent) => {
     emit = onEvent;
@@ -126,14 +134,17 @@ function fakePublisher() {
 
 // The returned `routes` can be changed mid-test to answer later calls
 // differently.
-function renderPage(api: Record<string, Reply>) {
+function renderPage(
+  api: Record<string, Reply>,
+  { canSwitchCamera = false } = {},
+) {
   const routes: Record<string, Reply> = {
     'GET /api/auth/me': { status: 200, body: me },
     'GET /api/broadcasts/b1': { status: 200, body: broadcast },
     ...api,
   };
   const calls = stubApi(routes);
-  const fake = fakeCapture();
+  const fake = fakeCapture({ canSwitchCamera });
   vi.mocked(startCameraCapture).mockResolvedValue(fake.capture);
   const whip = fakePublisher();
   render(
@@ -647,4 +658,95 @@ it('warns before sharing on a browser that cannot share screen audio', async () 
   expect((await screen.findByRole('alert')).textContent).toContain(
     '이 브라우저는 화면 소리를 공유하지 못합니다',
   );
+});
+
+it('switches cameras while live, freeing the sent camera first and sending the new one', async () => {
+  const page = renderPage(
+    { 'POST /api/broadcasts/b1/publish-token': TOKEN_OK },
+    { canSwitchCamera: true },
+  );
+  await goLive(page);
+  expect(screen.getByLabelText('미리보기').dataset.mirrored).toBe('true');
+  expect(screen.getByText(/화면 꺼짐 방지가 켜져 있습니다/)).toBeDefined();
+
+  const order: string[] = [];
+  page.publisher.releaseTrack.mockImplementation(() => order.push('release'));
+  const rear = { id: 'rear' } as MediaStreamTrack;
+  page.capture.switchCamera.mockImplementation(() => {
+    order.push('switch');
+    page.videoTracks.splice(0, 1, rear);
+    page.setState({
+      ...page.capture.getState(),
+      facing: 'environment',
+    } as CameraCaptureState);
+    return Promise.resolve();
+  });
+  fireEvent.click(screen.getByRole('button', { name: '후면 카메라로 전환' }));
+
+  await screen.findByRole('button', { name: '전면 카메라로 전환' });
+  await vi.waitFor(() =>
+    expect(page.publisher.replaceTrack).toHaveBeenCalledWith(rear),
+  );
+  expect(order).toEqual(['release', 'switch']);
+  expect(page.publisher.releaseTrack).toHaveBeenCalledWith('video');
+  expect(screen.getByLabelText('미리보기').dataset.mirrored).toBe('false');
+  expect(page.publisher.stop).not.toHaveBeenCalled();
+});
+
+it('sends the previous camera again when a switch fails', async () => {
+  const page = renderPage(
+    { 'POST /api/broadcasts/b1/publish-token': TOKEN_OK },
+    { canSwitchCamera: true },
+  );
+  await goLive(page);
+  page.capture.switchCamera.mockRejectedValue(new Error('in use'));
+  fireEvent.click(screen.getByRole('button', { name: '후면 카메라로 전환' }));
+
+  await screen.findByText('카메라를 바꾸지 못했습니다.');
+  await vi.waitFor(() =>
+    expect(page.publisher.replaceTrack).toHaveBeenCalledWith(
+      page.videoTracks[0],
+    ),
+  );
+});
+
+it('holds the camera switch while the publish is connecting', async () => {
+  renderPage(
+    { 'POST /api/broadcasts/b1/publish-token': TOKEN_OK },
+    { canSwitchCamera: true },
+  );
+  await turnOnCameraAndStart();
+  await screen.findByText('송출을 연결하는 중입니다.');
+  expect(
+    screen
+      .getByRole('button', { name: '후면 카메라로 전환' })
+      .hasAttribute('disabled'),
+  ).toBe(true);
+});
+
+it('holds 방송 시작 while the camera is switching', async () => {
+  const page = renderPage({}, { canSwitchCamera: true });
+  fireEvent.click(await screen.findByRole('button', { name: '카메라 켜기' }));
+  await screen.findByRole('button', { name: '방송 시작' });
+  act(() =>
+    page.setState({
+      ...page.capture.getState(),
+      switching: true,
+    } as CameraCaptureState),
+  );
+  expect(
+    screen.getByRole('button', { name: '방송 시작' }).hasAttribute('disabled'),
+  ).toBe(true);
+});
+
+it('shows how to allow the camera again when permission is denied', async () => {
+  renderPage({});
+  vi.mocked(startCameraCapture).mockRejectedValue(
+    new CameraCaptureError('denied'),
+  );
+  fireEvent.click(await screen.findByRole('button', { name: '카메라 켜기' }));
+  const guide = await screen.findByRole('alert');
+  expect(guide.textContent).toContain('카메라·마이크 권한이 꺼져 있습니다');
+  expect(guide.textContent).toContain('Android (Chrome)');
+  expect(screen.getByRole('button', { name: '카메라 켜기' })).toBeDefined();
 });

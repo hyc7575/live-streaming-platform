@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { openPreview, PHONE, shoot } from './phone';
+import { mockPublishApi, PUBLISH_PAGE } from './publishPage';
 
 function previewTracks(page: Page) {
   return page.evaluate(() => {
@@ -25,9 +26,7 @@ test('switches cameras inside one stream and keeps the screen on', async ({
   await openPreview(page);
   const toRear = page.getByRole('button', { name: '후면 카메라로 전환' });
   await expect(toRear).toBeVisible();
-  await expect(page.getByRole('status')).toContainText(
-    '화면 꺼짐 방지가 켜져 있습니다.',
-  );
+  await expect(page.getByText(/화면 꺼짐 방지가 켜져 있습니다/)).toBeVisible();
   await expect
     .poll(() =>
       page
@@ -76,8 +75,8 @@ test('switches cameras inside one stream and keeps the screen on', async ({
     video: ['fake_device_0'],
   });
 
-  await page.getByRole('button', { name: '미리보기 끝내기' }).click();
-  await expect(page.getByText('미리보기를 끝냈습니다.')).toBeVisible();
+  await page.getByRole('button', { name: '카메라 끄기' }).click();
+  await expect(page.getByRole('button', { name: '카메라 켜기' })).toBeVisible();
   const leftovers = await page.evaluate(() => ({
     tracks: window.acquiredTracks.map((t) => t.readyState),
     wakeLocksReleased: window.wakeLocks.map((s) => s.released),
@@ -91,9 +90,9 @@ test.describe('without the wake lock permission', () => {
 
   test('says the screen may turn off', async ({ page }) => {
     await openPreview(page);
-    await expect(page.getByRole('status')).toContainText(
-      '화면 꺼짐 방지를 켜지 못했습니다.',
-    );
+    await expect(
+      page.getByText(/화면 꺼짐 방지를 켜지 못했습니다/),
+    ).toBeVisible();
   });
 });
 
@@ -102,9 +101,9 @@ test('explains a browser without the Wake Lock API', async ({ page }) => {
     Reflect.deleteProperty(Navigator.prototype, 'wakeLock');
   });
   await openPreview(page);
-  await expect(page.getByRole('status')).toContainText(
-    '이 브라우저는 화면 꺼짐 방지를 지원하지 않습니다.',
-  );
+  await expect(
+    page.getByText(/이 브라우저는 화면 꺼짐 방지를 지원하지 않습니다/),
+  ).toBeVisible();
 });
 
 test.describe('when camera permission is denied', () => {
@@ -116,7 +115,9 @@ test.describe('when camera permission is denied', () => {
     await expect(guide).toContainText('카메라·마이크 권한이 꺼져 있습니다');
     await expect(guide).toContainText('iPhone (Safari)');
     await expect(guide).toContainText('Android (Chrome)');
-    await expect(page.getByRole('button', { name: '다시 시도' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '카메라 켜기' }),
+    ).toBeVisible();
     await shoot(page, 'mobile-denied');
   });
 });
@@ -128,9 +129,10 @@ test('tells a device without a camera apart from a denied permission', async ({
     navigator.mediaDevices.getUserMedia = () =>
       Promise.reject(new DOMException('no camera', 'NotFoundError'));
   });
-  await page.goto('/studio/mobile');
+  await mockPublishApi(page.context());
+  await page.goto(PUBLISH_PAGE);
   await page.getByRole('button', { name: '카메라 켜기' }).click();
   await expect(page.getByRole('alert')).toHaveText(
-    '카메라나 마이크를 찾지 못했습니다. 카메라와 마이크가 있는 기기에서 여세요.',
+    '카메라나 마이크를 찾지 못했습니다.',
   );
 });

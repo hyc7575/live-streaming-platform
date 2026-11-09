@@ -1,0 +1,27 @@
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+}
+
+.guide > * {
+  margin: 0;
+}
+
+.guide h2 {
+  font-size: var(--font-size-md);
+}
+
+.guide h3 {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.guide ol {
+  padding-left: var(--space-6);
+}
