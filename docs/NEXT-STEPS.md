@@ -18,11 +18,12 @@ PRD 8.1은 D2에 서버에서 OME 스파이크를 끝내는 일정이다. 서버
 | 3. 토큰 없는 송출 거절 (Webhook) | ✓ | |
 | 4. 관리 API로 송출 강제 종료 | ✓ | |
 | Q6. OME 이미지 arm64 지원 | ✓ (Apple Silicon도 arm64) | |
-| 1. **LTE 휴대폰 → hls.js 영상·소리** | | ✓ (HTTPS, 공인 IP, UDP) |
+| 1. **LTE 휴대폰 → hls.js 영상·소리** | | ✓ (HTTPS, 공인 IP, UDP) 2026-11-09 S6 |
 
 - 로컬 스파이크(C1)로 기준 2·3·4를 D2(11/10)에 먼저 판정한다. 하나라도 실패하면 그 시점에 LiveKit 복귀를 판정한다.
 - 기준 1(Android LTE 송출)은 **D3(11/11) 18:00**에 서버에서 판정한다. 이를 위해 S1–S4와 S6만 먼저 하고, S5·S7·S8은 그 뒤에 한다.
 - **판정 전에는 OME 전용 코드(Webhook, 강제 종료)를 짜지 않는다.** C2(인증)와 C3의 CRUD처럼 LiveKit으로 복귀해도 버려지지 않는 것만 짠다. D4로 미루면 OME 의존 코드를 짠 뒤에 판정하게 되어 컷 규칙이 무력해진다.
+- **판정 (2026-11-09): OME 유지.** 기준 1–4와 Q6 모두 통과(#2, #9). D3 18:00보다 이틀 먼저 판정했으므로 OME 전용 코드(C3 후반, C4·C5 송출 연결)를 바로 시작한다.
 
 ---
 
@@ -49,12 +50,12 @@ PRD 8.1은 D2에 서버에서 OME 스파이크를 끝내는 일정이다. 서버
 
 | # | 작업 | 완료 기준 | 컨텍스트 |
 |---|---|---|---|
-| S1 | Oracle Cloud 가입(**홈 리전 서울** — 변경 불가, 춘천은 A1 불가) → 종량제(PAYG) 전환 → 0원 초과 결제 알림 | 콘솔에서 알림 확인 | A4·A6 |
-| S2 | 서울 ARM A1 인스턴스 (2 OCPU / 12GB, Ubuntu). **2시간 제한**, 실패 시 서울 유료 VPS 2GB | SSH 접속 | A5, T2 |
-| S3 | 방화벽 **두 곳**: Oracle 보안 목록 + 인스턴스 iptables. 443/TCP, `10000-10003/udp`, `10000/tcp`, `3478/tcp` | 외부에서 포트 도달 확인 | §7.2 |
-| S4 | Docker 설치·부팅 시 자동 시작, DuckDNS 도메인, Caddy 자동 HTTPS | `https://<도메인>` 응답 | §7.2, A4 |
+| S1 | Oracle Cloud 가입(**홈 리전 오사카** — 변경 불가) ✓ 2026-11-09. PAYG 전환은 보류(A6), S2에서 재고 부족이 30분~1시간 이어지면 전환하고 결제 알림(Budget)을 함께 건다 | 가입 완료 / 전환 시 알림 확인 | A4·A6 |
+| S2 | 오사카 ARM A1 인스턴스 (2 OCPU / 12GB 이하, Ubuntu 24.04). **2시간 제한**, 실패 시 서울 유료 VPS 2GB. ✓ 2026-11-09: A1은 AD-1 재고 부족(Out of capacity)으로 생성 실패. 체험 크레딧($300, 30일 뒤 소멸)으로 **E5.Flex 2 OCPU / 16GB(x86)** `lsp-prod`를 대신 생성, 공인 IP `129.225.169.22`, SSH 접속 확인. 체험 종료(약 12/9) 전에 A1로 옮기거나 PAYG 전환 필요 (A4) | SSH 접속 | A5, T2 |
+| S3 | 방화벽 **두 곳**: Oracle 보안 목록 + 인스턴스 iptables. 443/TCP, `10000-10003/udp`, `10000/tcp`, `3478/tcp` (+ ACME용 80/TCP). ✓ 2026-11-09: 두 곳 모두 추가, iptables는 `netfilter-persistent save`로 영구화. Mac에서 TCP 80·443·3478·10000, UDP 10002 도달 확인 | 외부에서 포트 도달 확인 | §7.2 |
+| S4 | Docker 설치·부팅 시 자동 시작, DuckDNS 도메인, Caddy 자동 HTTPS. ✓ 2026-11-09: Docker 29.9 + Compose 설치·`enable`, 도메인 **`lsp-live.duckdns.org`** → `129.225.169.22`, Caddy가 Let's Encrypt 인증서 발급(HTTP-01). 서버 `~/lsp`에 임시 구성(`compose.yaml` + `compose.server.yaml` + `Caddyfile`): `/app/*`는 OME(3333)로 중계(응답 헤더 `server: OvenMediaEngine`, `via: Caddy` 확인), HTTP는 HTTPS로 308. OME ICE 후보에 공인 IP 확인. 운영 구성은 S5에서 정리 | `https://<도메인>` 응답 | §7.2, A4 |
 | S5 | 운영용 Compose 배포, 전 서비스 `restart: unless-stopped`, UptimeRobot 감시 | 재부팅 후 자동 복구, 다운 알림 수신 | §7.9, T6 |
-| S6 | **스파이크 기준 1**: Wi-Fi 끈 Android Chrome → 서버 → PC hls.js 영상·소리. 송출 1 + 시청 3에서 CPU 확인 | 통과 못 하면 LiveKit 복귀 판정 | §8.1, A1, Q3, T1·T5 |
+| S6 | **스파이크 기준 1**: Wi-Fi 끈 Android Chrome → 서버 → PC hls.js 영상·소리. 송출 1 + 시청 3에서 CPU 확인. ✓ 2026-11-09: LTE에서 `transport=all`은 UDP 직결, `relay` 강제 시 TURN(TCP 3478)으로 송출, 둘 다 PC에서 영상·소리 확인. 송출 1 + 시청 3에서 OME CPU 평균 5.1%·최대 6.5%(코어 1개 = 100%), 호스트 평균 0.9%. 근거는 #9 댓글, 페이지는 `spike/issue-2-ome`의 `spike/ome/s6/`. **판정: OME 유지** | 통과 못 하면 LiveKit 복귀 판정 | §8.1, A1, Q3, T1·T5 |
 | S7 | 녹화 디스크 상한·오래된 파일 삭제, PostgreSQL 일일 덤프 + 복원 리허설 1회 | 덤프 복원 성공 | §7.9, T6 |
 | S8 | README에 서비스 URL·테스트 계정 반영, 복구 절차 운영 메모 | README만으로 접속·로그인 | C9 |
 
@@ -86,9 +87,10 @@ PRD 8.1은 D2에 서버에서 OME 스파이크를 끝내는 일정이다. 서버
 | 인수 시나리오 | 회원가입·로그아웃(0), 소유자 수정·삭제 성공(2-1) 추가 | PRD 8.3 |
 | 목록 노출 | 공개 목록은 LIVE·ENDED만, READY는 "내 방송"에 "방송 전" | PRD 7.4 |
 | 오픈소스 출처 | README "사용한 오픈소스" 절 + 가져온 코드 파일 주석 | C9 |
-| 컷 규칙 | 약속함. 판정은 D3 18:00, 판정 전 OME 전용 코드 금지 | PRD 8.1 |
+| 컷 규칙 | 약속함. 2026-11-09 판정: OME 유지 | PRD 8.1 |
 | 서버 기한 | S1–S4·S6을 D3까지 | 1장, 3장 |
-| Oracle 홈 리전 | 서울 | PRD A4 |
+| Oracle 홈 리전 | 오사카 (가입 목록에 서울 없음, 2026-11-09 변경) | PRD A4 |
+| PAYG 전환 | 보류. A1 재고 부족이 이어질 때 전환 | PRD A6 |
 
 ## 6. 검증 결과 (2026-11-09, 공식 문서 확인)
 
@@ -104,12 +106,10 @@ PRD 8.1은 D2에 서버에서 OME 스파이크를 끝내는 일정이다. 서버
 | macOS 시스템 소리 | Chrome 141+ · macOS 14.2+ 지원 (2차 출처) → C4에서 직접 확인 |
 | iOS Wake Lock | 16.4+ |
 | iOS 재생 | 네이티브 HLS가 LL-HLS 지원(iOS 14+), hls.js는 iOS 17.1+ |
-| Oracle | A1 무료 2 OCPU / 12GB, 춘천 A1 불가, 유휴 기준 7일 95퍼센타일 20% 미만. PAYG 회수 면제는 공식 출처 없음 |
+| Oracle | A1 무료 2 OCPU / 12GB(월 1,500 OCPU시간, 2026-06에 4 OCPU / 24GB에서 절반으로 줄어듦), 춘천 A1 불가, 도쿄·오사카 AD 1개, 유휴 기준 7일 95퍼센타일 20% 미만. PAYG 회수 면제는 공식 출처 없음. Always Free는 홈 리전에서만 무료 |
 | LiveKit Build | 무료, 동시 100, 5,000 참여분, 녹화 60분 |
 
 ## 7. 아직 남은 검증 (실측)
 
-- S6: LTE망에서 UDP가 막힐 때 TURN(TCP 3478)으로 송출되는가 (PRD Q3)
-- C1: OvenLiveKit-Web 송출이 실제로 H.264인가, DELETE 후 재접속이 Webhook에서 거절되는가
 - C4: Mac Chrome에서 시스템 소리 공유가 되는가
 - 토스페이먼츠 테스트 모드 (PRD Q4, P2 착수 전)

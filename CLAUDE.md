@@ -19,9 +19,9 @@ UI 작업 전 `apps/web/CLAUDE.md`를 읽는다.
 
 PRD의 결정과 다르게 구현해야 하면 PR 본문에 "PRD §x와 어긋남"과 이유를 쓰고 보고에 올린다.
 
-## 컷 규칙 (#9 판정 전까지)
+## 미디어 서버 판정
 
-main에는 LiveKit으로 바꿔도 그대로 남는 코드(인증, 방송 CRUD, 인가)만 넣는다. OME 전용 코드(Admission Webhook, 강제 종료, OvenLiveKit 송출)는 `spike/` 브랜치에서만 실험한다. #9가 닫히면 이 절을 판정 결과로 바꾼다.
+2026-11-09 #9 판정으로 OvenMediaEngine을 유지한다(근거는 #2·#9 댓글). OME 전용 코드(Admission Webhook, 강제 종료, OvenLiveKit 송출)도 main에 넣는다. WHIP 송출 URL과 ICE 설정은 PRD §7.2 "WHIP ICE"를 따른다.
 
 ## Agent skills
 

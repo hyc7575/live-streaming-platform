@@ -129,6 +129,7 @@ flowchart LR
 ```
 
 - **방화벽**: 443/TCP(Caddy), OME ICE `10000-10003/udp`, Direct TCP ICE `10000/tcp`, 내장 TURN `3478/tcp`. OME 시그널링·LL-HLS(`3333`/TLS `3334`)는 Caddy 443 뒤로 중계한다. 내장 TURN은 TCP만 지원하고 443 TLS TURN 옵션은 문서에 없다. 3478을 막는 통신망은 S6에서 판정한다.
+- **WHIP ICE (S6 실측)**: 송출 URL은 `.../app/<stream>?direction=whip&transport=all`로 쓰고, OvenLiveKit `connectionConfig`에 `iceTransportPolicy: 'all'`을 넣는다. OME는 `transport=all`일 때만 TURN 주소를 응답 `Link` 헤더로 알려 준다. 쿼리가 없으면 UDP와 직접 TCP 10000 후보만, `transport=tcp`면 직접 TCP 후보만 준다. 반대로 OvenLiveKit은 `Link` 헤더로 TURN을 받고 로컬 정책이 없으면 `relay`로 강제해, UDP가 되는 망에서도 TURN을 거친다. 내장 TURN 계정은 기본값 `ome`/`airen`이 `Link` 헤더에 그대로 나가므로 S5에서 바꿀지 판단한다.
 - **코덱**: 송출은 **H.264로 고정**한다. OME 서버에는 코덱 강제 설정이 없고 SDP 협상으로 정해지므로, 클라이언트가 고른다. OvenLiveKit-Web의 WHIP 송출은 기본값이 H.264다 (`preferredVideoFormat`). VP8이 들어오면 영상 bypass 상태의 LL-HLS에 영상이 나오지 않는다. 오디오는 OME 기본 `bypass_stream` 프로필이 Opus → AAC만 변환한다 (LL-HLS는 AAC만 지원, CPU 부담 낮음).
 
 #### 7.3 데이터 모델 (초안)
@@ -236,16 +237,16 @@ sequenceDiagram
 
 | # | 가정 / 질문 | 검증 방법·시점 |
 |---|---|---|
-| A1 | 서버 한 대(ARM 2 OCPU / 12GB)가 오디오 변환과 심사 기간 트래픽(동접 6명 미만)을 감당한다 (가정) | D2 스파이크에서 송출 1개 + 시청 3개 기준 CPU·대역폭 측정 |
+| A1 | 서버 한 대(ARM 2 OCPU / 12GB)가 오디오 변환과 심사 기간 트래픽(동접 6명 미만)을 감당한다. **실측 (2026-11-09 S6, E5.Flex 2 OCPU x86)**: 송출 1 + 시청 3에서 OME CPU 평균 5.1%·최대 6.5%(코어 1개 = 100%). 영상은 변환 없이 넘어가고 오디오만 Opus → AAC라서 CPU는 송출 수에 비례할 것으로 추정한다. ARM A1로 옮긴 뒤에는 다시 잰다 | S6 |
 | A2 | **확정**: 백엔드 NestJS(TypeScript) + **Prisma** + PostgreSQL, 프론트 React(TypeScript) + hls.js + OvenLiveKit-Web | — |
 | A3 | **확정**: 세션 쿠키, 세션 저장소는 PostgreSQL(`connect-pg-simple` 등). 재시작 후에도 로그인 유지, 로그아웃이 서버에서 실제로 무효화된다 | — |
-| A4 | **확정**: Oracle Cloud Always Free (Ampere A1 2 OCPU / 12GB) 한 대 + Docker Compose + Caddy + DuckDNS 도메인. **홈 리전은 서울** (가입 후 변경 불가, 춘천은 A1 생성 불가). 목표 비용 0원 | S1–S4 |
+| A4 | **확정**: Oracle Cloud Always Free (Ampere A1 2 OCPU / 12GB) 한 대 + Docker Compose + Caddy + DuckDNS 도메인. **홈 리전은 오사카(Japan Central, ap-osaka-1)** (가입 후 변경 불가). 2026-11-09 가입 때 무료 가입 홈 리전 목록에 서울이 없었고, 춘천은 A1 생성 불가. 오사카는 AD가 1개이고 서울까지 약 26ms라 LL-HLS 시청(2~5초 지연)에 영향이 없다. Always Free 자원은 홈 리전에서만 무료다. 목표 비용 0원. **2026-11-09 변경**: 오사카 A1이 재고 부족으로 생성되지 않아, 체험 크레딧($300, 30일 뒤 소멸하므로 실제 비용 0원)으로 **E5.Flex 2 OCPU / 16GB(x86)**를 임시로 쓴다. 체험이 끝나면(약 12/9) 유료 자원은 멈추므로, 심사 기간이 그 뒤까지 이어지면 그 전에 A1로 옮기거나 PAYG로 전환한다 | S1–S4 |
 | A5 | Oracle ARM 재고 부족("Out of host capacity")으로 2시간 안에 생성 못 하면 서울 리전 유료 VPS 2GB(시간 과금)로 대체한다 | S2 |
-| A6 | 종량제(PAYG)로 전환하고 무료 범위 안에서만 쓴다. **PAYG가 유휴 회수(7일간 CPU·네트워크·메모리 95퍼센타일 20% 미만)를 면제한다는 공식 출처는 없다 (미검증)**. 실제 대비책은 UptimeRobot 알림과 A5다 | S1 |
+| A6 | 종량제(PAYG) 전환은 **보류**한다. 쓰는 자원이 모두 Always Free 범위라 체험이 끝나도 계속 돌고, 전환하면 실수가 실제 청구로 이어진다. A1 생성이 재고 부족으로 30분~1시간 넘게 막히면 그때 전환한다. **PAYG가 유휴 회수(7일간 CPU·네트워크·메모리 95퍼센타일 20% 미만)를 면제한다는 공식 출처는 없다 (미검증)**. 심사 기간 유휴 회수 위험은 마감(11/19) 전에 다시 판단한다. 실제 대비책은 UptimeRobot 알림과 A5다 | S1 |
 | Q6 | **확인됨**: `v0.21.0`이 amd64·arm64 멀티 아키텍처 | — |
 | Q1 | **확인됨**: 서버 설정은 없고 클라이언트가 고른다. OvenLiveKit-Web WHIP 기본값이 H.264. C1에서 실제 코덱 확인 | C1 |
 | Q2 | **확인됨**: `DELETE .../streams/{stream}`. 재접속은 막지 않으므로 Webhook으로 거절 (7.4) | C1 |
-| Q3 | LTE/5G망 휴대폰에서 UDP가 막힐 때 TURN(TCP 3478)으로 송출되는가 | S6 (Android, Wi-Fi 끄고) |
+| Q3 | **확인됨 (2026-11-09 S6)**: Android LTE에서 `relay`를 강제하면 TURN(TCP 3478)으로 송출되고 PC에서 영상·소리가 나온다. 단 OME는 WHIP URL에 `transport=all`이 있을 때만 TURN을 알려 준다 (7.2) | — |
 | Q4 | 도네이션 PG: 토스페이먼츠 테스트 모드 사용 가능 여부와 웹훅 수신 조건 | P2 착수 전 |
 | Q5 | **확정**: 유예 30초 안 재접속 허용 (7.4 송출 허가 규칙) | — |
 
@@ -257,7 +258,7 @@ sequenceDiagram
 |---|---|---|
 | D1 (11/9) | 첫 커밋 전 비밀값 차단(T11), 저장소 기반(C0), **LiveKit Cloud 샘플을 대기 상태로 준비**(T1) | CI 통과 |
 | D2 (11/10) | **로컬 OME 스파이크**(C1: 기준 2·3·4), Oracle 서버 생성 **2시간 제한**(T2), 방화벽·Caddy HTTPS(S3–S4) | 로컬 기준 판정 |
-| D3 (11/11) | 서버에서 **기준 1: Android LTE 송출**(S6), 그동안 OME와 무관한 인증·방송 CRUD | **18:00에 스파이크 전체 판정** |
+| D3 (11/11) | 서버에서 **기준 1: Android LTE 송출**(S6), 그동안 OME와 무관한 인증·방송 CRUD | **18:00에 스파이크 전체 판정** → 2026-11-09에 앞당겨 판정: **OME 유지** |
 | D4 (11/12) | 상태 전이, 인가, Admission Webhook, 자동 재기동·UptimeRobot(S5, T6) | 7.5 매트릭스 자동 테스트 통과 |
 | D5 (11/13) | PC 송출(믹싱, AudioContext resume T7), **송출 사전 점검 화면(T4)**, 모바일 송출(Wake Lock T5) | PC·모바일 송출이 실제 기기에서 소리와 함께 나감 |
 | D6 (11/14) | 시청, 종료·비정상 종료, 좀비 방송 정리(T8), 시청자 종료 감지(T9), 실제 기기 LTE 재확인(Android + 빌린 iPhone) | 8.3 P0 시나리오 실제 기기 통과 |
