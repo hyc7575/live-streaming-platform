@@ -211,7 +211,7 @@ describe('auth behind the TLS proxy in production mode', () => {
     await app.close();
   });
 
-  it('marks the cookie Secure when the proxy says the request came over https', async () => {
+  it('issues a Secure, HttpOnly, SameSite=Lax cookie when the proxy says the request came over https', async () => {
     const user = await signUp(app);
     const res = await request(app.getHttpServer())
       .post('/api/auth/login')
@@ -219,6 +219,26 @@ describe('auth behind the TLS proxy in production mode', () => {
       .set('X-Forwarded-Proto', 'https')
       .send({ email: user.email, password: user.password });
     expect(res.status).toBe(200);
-    expect(sessionCookie(res)).toMatch(/; Secure/);
+    const cookie = sessionCookie(res);
+    expect(cookie).toMatch(/; Secure/);
+    expect(cookie).toMatch(/; HttpOnly/);
+    expect(cookie).toMatch(/; SameSite=Lax/);
+  });
+
+  it('refuses to log in over plain http instead of answering 200 without a cookie', async () => {
+    const user = await signUp(app);
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .set('X-Forwarded-For', newClientIp())
+      .send({ email: user.email, password: user.password });
+    expect(res.status).toBe(403);
+    expect((res.body as { message: string }).message).toContain('Caddy');
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('still answers requests that do not start a session over plain http', async () => {
+    const server = app.getHttpServer();
+    expect((await request(server).get('/api/health')).status).toBe(200);
+    expect((await request(server).get('/api/auth/me')).status).toBe(401);
   });
 });
