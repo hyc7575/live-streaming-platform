@@ -109,6 +109,9 @@ test('a shared screen with mic reaches a viewer, survives a reselect, and ends w
   await page.goto(`/studio/broadcasts/${id}`);
 
   await test.step('share the screen and go live', async () => {
+    // The tone tab opened last and holds focus; getDisplayMedia from an
+    // unfocused document rejects.
+    await page.bringToFront();
     await page.getByRole('button', { name: '화면 공유' }).click();
     // Chrome focuses the captured tab; a streamer comes back first.
     await expect(page.getByRole('button', { name: '방송 시작' })).toBeVisible();
@@ -207,9 +210,9 @@ test('a shared screen with mic reaches a viewer, survives a reselect, and ends w
   await test.step('stopping the share ends the broadcast', async () => {
     await tone.close();
     const stoppedAt = Date.now();
-    await expect(page.getByText('방송을 종료했습니다.')).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(
+      page.getByText('방송을 종료했습니다.', { exact: true }),
+    ).toBeVisible({ timeout: 10_000 });
     await expect(
       page.getByText('화면 공유를 중지해 방송을 종료했습니다.'),
     ).toBeVisible();
