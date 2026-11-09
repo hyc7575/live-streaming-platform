@@ -60,39 +60,37 @@ export type AdmissionRejection =
   | 'broadcast not ready'
   | 'streamer already live';
 
-// What OME reads from the webhook answer.
 export type AdmissionDecision =
   { allowed: true } | { allowed: false; reason: AdmissionRejection };
 
-// PRD §7.4: a publisher whose connection dropped may reconnect to the same
-// broadcast for this long. Past it the broadcast ends.
+// PRD §7.4
 export const RECONNECT_GRACE_MS = 30_000;
 
-// A connection that dropped after this instant is still within the grace
-// period, and one that dropped at or before it is past it. Every grace check,
-// in memory or in a query, compares against this one instant so the webhook
-// and the sweeper never disagree about a broadcast.
-export function graceCutoff(now: Date): Date {
-  return new Date(now.getTime() - RECONNECT_GRACE_MS);
+// Both sides of the grace boundary come from one cutoff, so the webhook and
+// the sweeper can never both act on the same broadcast.
+export function graceWindow(now: Date) {
+  const cutoff = new Date(now.getTime() - RECONNECT_GRACE_MS);
+  return {
+    within: { gt: cutoff },
+    past: { lte: cutoff },
+    contains: (disconnectedAt: Date) => disconnectedAt > cutoff,
+  };
 }
 
 export interface PublishState {
   status: BroadcastStatus;
-  // Read only on LIVE: when the publish connection dropped, or null while
-  // the publisher is connected.
   disconnectedAt: Date | null;
 }
 
-// Where a broadcast stands for a new publish connection. A LIVE broadcast
-// past the grace period is already `ended` here and only waits for the
-// sweeper to write ENDED.
 export type PublishPhase = 'ready' | 'connected' | 'reconnectable' | 'ended';
 
 export function publishPhaseOf(state: PublishState, now: Date): PublishPhase {
   if (state.status === 'READY') return 'ready';
   if (state.status === 'ENDED') return 'ended';
   if (state.disconnectedAt === null) return 'connected';
-  return state.disconnectedAt > graceCutoff(now) ? 'reconnectable' : 'ended';
+  return graceWindow(now).contains(state.disconnectedAt)
+    ? 'reconnectable'
+    : 'ended';
 }
 
 export type AdmissionPlan =

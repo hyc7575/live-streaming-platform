@@ -37,9 +37,6 @@ model Broadcast {
   status         BroadcastStatus @default(READY)
   startedAt      DateTime?
   endedAt        DateTime?
-  // Set while LIVE once the publish connection drops, cleared on reconnect.
-  // PRD §7.4: a reconnect within the grace period after it keeps the
-  // broadcast LIVE, and past it the sweeper ends the broadcast.
   disconnectedAt DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt

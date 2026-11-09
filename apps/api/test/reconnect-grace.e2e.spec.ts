@@ -24,9 +24,7 @@ import { fakeClockOf, type FakeClock } from './support/fake-clock.js';
 import { fakeOmeApiOf, type FakeOmeApi } from './support/fake-ome-api.js';
 import { closePublish, mintedToken, openPublish } from './support/webhook.js';
 
-// PRD §7.4 abnormal end: a dropped publish connection may reconnect to the
-// same broadcast within 30 s, and past that the sweeper ends the broadcast.
-// Driven through the real webhook and the sweep OME's stream list feeds.
+// PRD §7.4 abnormal end
 
 const GRACE_MS = 30_000;
 
@@ -57,7 +55,6 @@ describe('reconnect grace', () => {
     await app.close();
   });
 
-  // A fresh token, the way the publish screen gets one before connecting.
   async function tokenFor(id: string, as = owner): Promise<string> {
     const res = await as.agent.post(`/api/broadcasts/${id}/publish-token`);
     expect(res.status, JSON.stringify(res.body)).toBe(201);
@@ -77,7 +74,6 @@ describe('reconnect grace', () => {
     return id;
   }
 
-  // OME stops listing the stream when the publish connection drops.
   async function drop(id: string) {
     ome.streams = ome.streams.filter((s) => s !== id);
     expect((await closePublish(app, id)).body).toEqual({});

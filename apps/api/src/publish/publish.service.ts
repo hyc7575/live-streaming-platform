@@ -5,7 +5,7 @@ import { PrismaService } from '../database/database.module.js';
 import { Prisma } from '../generated/prisma/client.js';
 import {
   decideAdmission,
-  graceCutoff,
+  graceWindow,
   publishPath,
   publishPhaseOf,
   type AdmissionDecision,
@@ -94,10 +94,6 @@ export class PublishService {
     }
   }
 
-  // OME's `closing` for a publish connection: the grace period starts. The
-  // token is not checked, since it may have expired during a long publish
-  // and OME already signed the request. Only the first `closing` after a
-  // connection writes, so a repeated one keeps the first time.
   async disconnect(broadcastId: string): Promise<boolean> {
     if (!uuid.safeParse(broadcastId).success) return false;
     const { count } = await this.prisma.broadcast.updateMany({
@@ -130,12 +126,9 @@ export class PublishService {
     }
   }
 
-  // Conditional like goLive: of two reconnects, or a reconnect and the
-  // sweeper ending the broadcast, exactly one wins. The loser reads what the
-  // winner left.
   private async reconnect(id: string, now: Date): Promise<AdmissionDecision> {
     const { count } = await this.prisma.broadcast.updateMany({
-      where: { id, status: 'LIVE', disconnectedAt: { gt: graceCutoff(now) } },
+      where: { id, status: 'LIVE', disconnectedAt: graceWindow(now).within },
       data: { disconnectedAt: null },
     });
     if (count === 1) return { allowed: true };

@@ -14,7 +14,6 @@ export interface DropStreamCall {
 export class FakeOmeApi implements OmeApi {
   calls: DropStreamCall[] = [];
   failing = false;
-  // What listStreams answers: the broadcasts OME is receiving.
   streams: string[] = [];
   listFailing = false;
 

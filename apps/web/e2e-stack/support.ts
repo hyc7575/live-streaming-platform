@@ -60,8 +60,6 @@ export async function statusOf(request: APIRequestContext, id: string) {
   return (await detailOf(request, id)).status;
 }
 
-// From the publish screen of a broadcast that is READY, or LIVE with its
-// publisher gone.
 export async function startPublishing(page: Page, id: string) {
   await page.goto(`/studio/broadcasts/${id}`);
   await page.getByRole('button', { name: '카메라 켜기' }).click();

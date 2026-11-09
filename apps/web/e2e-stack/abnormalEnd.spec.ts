@@ -10,10 +10,14 @@ import {
 } from './support';
 
 // PRD §7.4 abnormal end against the real OME (README "비정상 종료와 재접속
-// 유예"). Worst case from tab close to the viewer's notice: about 1 s for
-// OME's closing, 30 s of grace, up to 30 s until the next sweep, and up to
-// 5 s until the viewer polls.
-const ENDED_NOTICE_TIMEOUT_MS = 75_000;
+// 유예").
+const GRACE_S = 30;
+const CLOSING_S = 1;
+const SWEEP_INTERVAL_S = 30;
+const VIEWER_POLL_S = 5;
+const SLACK_S = 9;
+const ENDED_NOTICE_TIMEOUT_MS =
+  (CLOSING_S + GRACE_S + SWEEP_INTERVAL_S + VIEWER_POLL_S + SLACK_S) * 1000;
 
 test('a closed publish tab ends the broadcast after the grace period', async ({
   page,
@@ -38,8 +42,7 @@ test('a closed publish tab ends the broadcast after the grace period', async ({
   });
   const seconds = (Date.now() - closedAt) / 1000;
   console.log(`tab closed → viewer saw the end in ${seconds.toFixed(1)} s`);
-  // Not before the grace period: a reconnect could still have come.
-  expect(seconds).toBeGreaterThanOrEqual(30);
+  expect(seconds).toBeGreaterThanOrEqual(GRACE_S);
   await screenshot(viewer, 'viewer-ended-after-grace');
   const detail = await detailOf(api, id);
   expect(detail.status).toBe('ENDED');
@@ -76,7 +79,7 @@ test('a reload within the grace period keeps the same broadcast LIVE', async ({
   });
   const seconds = (Date.now() - reloadedAt) / 1000;
   console.log(`reload → publishing again in ${seconds.toFixed(1)} s`);
-  expect(seconds).toBeLessThan(30);
+  expect(seconds).toBeLessThan(GRACE_S);
 
   for (let i = 0; i < 5; i += 1) {
     expect(await detailOf(api, id)).toMatchObject({

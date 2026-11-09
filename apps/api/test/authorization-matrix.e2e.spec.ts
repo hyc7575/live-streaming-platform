@@ -62,10 +62,7 @@ const MATRIX = {
 type Action = keyof typeof MATRIX;
 
 // The §7.5 row "OME 송출 연결 (Webhook 판정)". OME passes no cookie, only the
-// token in the publish URL, so the callers are told apart by token: none
-// (anonymous), one naming another user as the streamer (other), and the
-// owner's own. The owner's column follows the §7.4 admission rule, so it
-// splits LIVE by whether the publisher is connected and by the 30 s grace.
+// token in the publish URL, so the callers are told apart by token.
 type PublishState =
   'READY' | 'LIVE 연결 중' | 'LIVE 유예 중' | 'LIVE 유예 초과' | 'ENDED';
 type WebhookCell = '허용' | AdmissionRejection;
@@ -80,7 +77,6 @@ const WEBHOOK_MATRIX: Record<PublishState, [WebhookCell, WebhookCell, WebhookCel
   'ENDED':          ['missing token', 'invalid token', 'broadcast ended'],
 };
 
-// How long before `now` the publish connection dropped, per LIVE state.
 const DROPPED_AGO_MS: Partial<Record<PublishState, number>> = {
   'LIVE 유예 중': 10_000,
   'LIVE 유예 초과': 30_000,

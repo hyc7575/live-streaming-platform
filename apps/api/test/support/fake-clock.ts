@@ -1,7 +1,6 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { CLOCK, type Clock } from '../../src/clock.js';
 
-// Stands still until a test moves it, so grace-period boundaries are exact.
 export class FakeClock implements Clock {
   private current = new Date();
 

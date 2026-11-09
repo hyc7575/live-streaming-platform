@@ -8,8 +8,6 @@ import {
 } from '../../src/publish/publish-token.js';
 import { TEST_OME_WEBHOOK_SECRET, TEST_SESSION_SECRET } from './app.js';
 
-// Drives the OME Admission Webhook the way OME v0.21 calls it.
-
 export function whipUrl(id: string, token: string | null): string {
   const query = token ? `&token=${token}` : '';
   return `http://127.0.0.1:3333/app/${id}?direction=whip&transport=all${query}`;
@@ -53,7 +51,6 @@ export function postAdmission(
   ).send(body);
 }
 
-// A publish connection asking to open, as OME asks before admitting it.
 export function openPublish(
   app: NestExpressApplication,
   id: string,
@@ -62,7 +59,6 @@ export function openPublish(
   return postAdmission(app, admissionBody(whipUrl(id, token)));
 }
 
-// OME telling the API that an admitted publish connection closed.
 export function closePublish(
   app: NestExpressApplication,
   id: string,
@@ -74,8 +70,6 @@ export function closePublish(
   );
 }
 
-// A token signed with the test key, for grants or times the API would never
-// issue (another user, an ENDED broadcast, an expired token).
 export function mintedToken(grant: PublishGrant, now: Date): string {
   return mintPublishToken(publishTokenKey(TEST_SESSION_SECRET), grant, now)
     .token;

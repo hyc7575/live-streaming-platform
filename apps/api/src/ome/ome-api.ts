@@ -9,7 +9,6 @@ export interface OmeApi {
   // Cuts the publish connection of the broadcast's stream. A stream that
   // does not exist counts as already dropped.
   dropStream(broadcastId: string): Promise<void>;
-  // Names of the streams OME is receiving now, one per publishing broadcast.
   listStreams(): Promise<string[]>;
 }
 

@@ -9,9 +9,8 @@ import { z } from 'zod';
 import { CLOCK, type Clock } from '../clock.js';
 import { PrismaService } from '../database/database.module.js';
 import { OME_API, type OmeApi } from '../ome/ome-api.js';
-import { graceCutoff } from './admission.js';
+import { graceWindow } from './admission.js';
 
-// Milliseconds between sweeps, or null for none (tests call sweep()).
 export const SWEEP_INTERVAL_MS = Symbol('SWEEP_INTERVAL_MS');
 export const DEFAULT_SWEEP_INTERVAL_MS = 30_000;
 
@@ -24,8 +23,6 @@ const uuid = z.uuid();
 export class PublishSweeper implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PublishSweeper.name);
   private timer: NodeJS.Timeout | null = null;
-  // The sweep still running, if any. A tick that finds one skips, and
-  // shutdown waits for it so it does not outlive the database pool.
   private running: Promise<void> | null = null;
 
   constructor(
@@ -55,9 +52,6 @@ export class PublishSweeper implements OnModuleInit, OnModuleDestroy {
       });
   }
 
-  // Each step is one conditional write, so it is safe to repeat and resolves
-  // a race with the webhook to one outcome. `now` is read before OME lists
-  // its streams, so the list is at least as new as `now`.
   async sweep(now: Date): Promise<void> {
     let listed: string[];
     try {
@@ -66,39 +60,36 @@ export class PublishSweeper implements OnModuleInit, OnModuleDestroy {
         (name) => uuid.safeParse(name).success,
       );
     } catch (error) {
-      // Without the list, every LIVE broadcast would look dropped.
       this.logger.warn('Skipping the sweep: OME did not list streams', error);
       return;
     }
-    // A closing that arrived after the reconnect's opening. A drop at or
-    // after `now` may be newer than the list, so it is left for next time.
     const reconnected = await this.prisma.broadcast.updateMany({
       where: {
         status: 'LIVE',
         id: { in: listed },
+        // A drop at or after `now` may be newer than the list, which was
+        // fetched after `now` was read. The next sweep settles it.
         disconnectedAt: { lt: now },
       },
       data: { disconnectedAt: null },
     });
-    // No stream and no closing: the webhook went missing. Start the grace.
-    const lost = await this.prisma.broadcast.updateMany({
+    const lostWithoutClosing = await this.prisma.broadcast.updateMany({
       where: { status: 'LIVE', id: { notIn: listed }, disconnectedAt: null },
       data: { disconnectedAt: now },
     });
-    // No DELETE to OME: these broadcasts were absent from the list just
-    // fetched, so OME has no stream to drop, and a later reconnect is refused
-    // by the webhook because the database says ENDED first.
+    // No OME DELETE as in end(): these streams are absent from the list just
+    // fetched, and the webhook refuses a later reconnect once ENDED is saved.
     const ended = await this.prisma.broadcast.updateMany({
       where: {
         status: 'LIVE',
         id: { notIn: listed },
-        disconnectedAt: { lte: graceCutoff(now) },
+        disconnectedAt: graceWindow(now).past,
       },
       data: { status: 'ENDED', endedAt: now },
     });
-    if (reconnected.count + lost.count + ended.count > 0) {
+    if (reconnected.count + lostWithoutClosing.count + ended.count > 0) {
       this.logger.log(
-        `Swept: ${reconnected.count} reconnected, ${lost.count} lost without closing, ${ended.count} ended`,
+        `Swept: ${reconnected.count} reconnected, ${lostWithoutClosing.count} lost without closing, ${ended.count} ended`,
       );
     }
   }

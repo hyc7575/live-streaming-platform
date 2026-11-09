@@ -30,10 +30,6 @@ export const TEST_OME_WEBHOOK_SECRET = 'test-ome-webhook-secret';
 
 // Runs the real AppModule against DATABASE_URL (migrations already applied).
 // Test accounts stay off unless a test passes a config, whatever .env says.
-// OME's admin API is a FakeOmeApi; reach it with fakeOmeApiOf(app). Time
-// comes from a FakeClock; reach it with fakeClockOf(app). The sweeper runs
-// only when a test calls sweeperOf(app).sweep(), unless sweepIntervalMs is
-// given.
 export async function createTestApp(
   options: {
     cookieSecure?: boolean;
