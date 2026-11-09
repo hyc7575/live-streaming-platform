@@ -2,6 +2,9 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    // The API's own `message`, when it sent one meant for the user (a 409's
+    // Korean explanation, for example).
+    readonly serverMessage: string | null = null,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -25,10 +28,19 @@ export async function apiFetch<T>(
     throw new ApiError(
       res.status,
       `${init?.method ?? 'GET'} /api${path} failed with ${res.status}`,
+      await serverMessageOf(res),
     );
   }
   if (res.status === 204) {
     return undefined as T;
   }
   return (await res.json()) as T;
+}
+
+async function serverMessageOf(res: Response): Promise<string | null> {
+  const body: unknown = await res.json().catch(() => null);
+  if (typeof body !== 'object' || body === null || !('message' in body)) {
+    return null;
+  }
+  return typeof body.message === 'string' ? body.message : null;
 }

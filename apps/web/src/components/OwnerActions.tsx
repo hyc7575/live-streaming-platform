@@ -10,7 +10,7 @@ function deleteErrorMessage(err: unknown): string {
   return '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
-// Edit and delete for the broadcast's own streamer. The caller decides who
+// Publish, edit and delete for the broadcast's own streamer. The caller decides who
 // sees this; the API refuses everyone else regardless.
 export function OwnerActions({ broadcast }: { broadcast: Broadcast }) {
   const navigate = useNavigate();
@@ -51,6 +51,14 @@ export function OwnerActions({ broadcast }: { broadcast: Broadcast }) {
   return (
     <div className={styles.actions}>
       <div className={styles.row}>
+        {broadcast.status !== 'ENDED' && (
+          <Link
+            to={`/studio/broadcasts/${broadcast.id}`}
+            className={styles.primary}
+          >
+            송출 화면
+          </Link>
+        )}
         <Link
           to={`/studio/broadcasts/${broadcast.id}/edit`}
           className={styles.button}
