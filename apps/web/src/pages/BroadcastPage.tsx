@@ -84,7 +84,9 @@ export function BroadcastPage() {
     `/broadcasts/${encodeURIComponent(id)}`,
   );
 
-  if (broadcast.status === 'loading') return null;
+  // Until we know whether this is the owner, the player cannot know whether
+  // to start muted (T7).
+  if (broadcast.status === 'loading' || state.status === 'loading') return null;
   if (broadcast.status === 'failed') {
     const notFound =
       broadcast.error instanceof ApiError && broadcast.error.status === 404;
@@ -104,11 +106,21 @@ export function BroadcastPage() {
     <section className={styles.page}>
       <div className={styles.player}>
         {b.status === 'LIVE' ? (
-          <LivePlayer broadcastId={b.id} onPlaybackError={recheck} />
+          <LivePlayer
+            broadcastId={b.id}
+            startMuted={isOwner}
+            onPlaybackError={recheck}
+          />
         ) : (
           <p className={styles.notice}>{PLAYER_NOTICE[b.status]}</p>
         )}
       </div>
+      {b.status === 'LIVE' && isOwner && (
+        <p className={styles.howling}>
+          내 방송이라 소리를 끄고 재생합니다. 송출하는 기기에서 소리를 켜면
+          하울링이 생길 수 있습니다. 소리는 플레이어에서 켤 수 있습니다.
+        </p>
+      )}
       <div className={styles.info}>
         <StatusBadge status={b.status} />
         <h1 className={styles.title}>{b.title}</h1>

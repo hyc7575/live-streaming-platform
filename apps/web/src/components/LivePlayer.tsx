@@ -3,11 +3,29 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { llhlsPath, playbackPath, RETRY_DELAY_MS } from '../playback';
 import styles from './LivePlayer.module.css';
 
+// Browsers refuse to start a video with sound before the visitor has
+// interacted with the site. A muted video may always start, so that is the
+// fallback; the viewer can unmute from the controls.
+function play(video: HTMLVideoElement) {
+  video.play().catch((error: unknown) => {
+    if (
+      error instanceof DOMException &&
+      error.name === 'NotAllowedError' &&
+      !video.muted
+    ) {
+      video.muted = true;
+      video.play().catch(() => {});
+    }
+  });
+}
+
 export function LivePlayer({
   broadcastId,
+  startMuted,
   onPlaybackError,
 }: {
   broadcastId: string;
+  startMuted: boolean;
   // A playback failure can mean the broadcast ended, so the page rechecks
   // its status instead of waiting for the next poll (PRD §7.4 T9).
   onPlaybackError?: () => void;
@@ -35,6 +53,8 @@ export function LivePlayer({
     if (path === 'native') {
       const load = () => {
         video.src = src;
+        // iPhone Safari loads nothing for a video with sound until asked to play.
+        play(video);
       };
       const onError = () => {
         reportError();
@@ -81,9 +101,10 @@ export function LivePlayer({
         className={styles.video}
         aria-label="방송 화면"
         autoPlay
-        muted
+        muted={startMuted}
         playsInline
         controls
+        onLoadedMetadata={(event) => play(event.currentTarget)}
         onPlaying={() => setPlaying(true)}
       />
       {!playing && (

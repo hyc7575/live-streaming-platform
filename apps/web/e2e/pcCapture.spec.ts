@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { TONE_TAB_TITLE } from '../playwright.config';
+import { mockPublishApi, PUBLISH_PAGE } from './publishPage';
 
 const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR;
 
@@ -83,6 +84,7 @@ test('mixes screen and mic into one track and stops everything when sharing ends
   context,
   headless,
 }) => {
+  await mockPublishApi(context);
   await context.route('**/e2e-tone', (route) =>
     route.fulfill({ contentType: 'text/html', body: TONE_PAGE }),
   );
@@ -91,8 +93,8 @@ test('mixes screen and mic into one track and stops everything when sharing ends
 
   const page = await context.newPage();
   await page.addInitScript(recordAcquiredTracks);
-  await page.goto('/studio/pc');
-  await page.getByRole('button', { name: '화면 선택' }).click();
+  await page.goto(PUBLISH_PAGE);
+  await page.getByRole('button', { name: '화면 공유' }).click();
   // Chrome focuses the captured tab after getDisplayMedia. A streamer returns
   // to the studio tab before pressing anything, so do the same. Left in the
   // background, headless Chrome on Linux drops the studio page to a few
@@ -103,7 +105,7 @@ test('mixes screen and mic into one track and stops everything when sharing ends
   await page.bringToFront();
   await page.getByRole('button', { name: '방송 시작' }).click();
 
-  await expect(page.getByText('오디오 동작 중')).toBeVisible();
+  await expect(page.getByText('송출을 연결하는 중입니다.')).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   const before = await outputTracks(page);
   expect(before.audio).toBe(1);
@@ -111,6 +113,8 @@ test('mixes screen and mic into one track and stops everything when sharing ends
 
   await expect
     .poll(() => maxMeterOver(page, '마이크', 1500), {
+      // The meters read through the mixer's AudioContext, so this also
+      // proves "방송 시작" resumed it.
       message: 'fake mic beep reaches the mic meter',
     })
     .toBeGreaterThan(0.01);
@@ -138,7 +142,7 @@ test('mixes screen and mic into one track and stops everything when sharing ends
 
   if (SCREENSHOT_DIR) {
     await page.screenshot({
-      path: `${SCREENSHOT_DIR}/studio-pc-${headless ? 'headless' : 'headed'}.png`,
+      path: `${SCREENSHOT_DIR}/publish-screen-${headless ? 'headless' : 'headed'}.png`,
     });
   }
 
@@ -155,7 +159,9 @@ test('mixes screen and mic into one track and stops everything when sharing ends
     window.acquiredTracks.push(...stream.getTracks());
   });
   await tone.close();
-  await expect(page.getByText('화면 공유가 끝났습니다.')).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveText(
+    '화면 공유가 중지되었습니다.',
+  );
   const states = await page.evaluate(() =>
     window.acquiredTracks.map((t) => `${t.kind}:${t.label}:${t.readyState}`),
   );

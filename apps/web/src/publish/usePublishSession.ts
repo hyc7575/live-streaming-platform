@@ -24,6 +24,11 @@ export interface PublishSession {
   state: PublishSessionState;
   /** Publishes `stream`. The caller keeps owning its tracks. */
   start: (stream: MediaStream) => void;
+  /**
+   * Sends `track` in place of the sent track of its kind. Before the publish
+   * exists this does nothing: it sends whatever `stream` holds by then.
+   */
+  replaceTrack: (track: MediaStreamTrack) => void;
   /** Stops the publish, then ends the broadcast on the server. */
   end: () => void;
   /** Drops a publish that has not been ended, leaving the broadcast as it is. */
@@ -182,5 +187,9 @@ export function usePublishSession(broadcastId: string): PublishSession {
     setState({ kind: 'idle', error: null });
   }, [dropPublisher]);
 
-  return { state, start, end, cancel };
+  const replaceTrack = useCallback((track: MediaStreamTrack) => {
+    publisher.current?.replaceTrack(track);
+  }, []);
+
+  return { state, start, end, cancel, replaceTrack };
 }
