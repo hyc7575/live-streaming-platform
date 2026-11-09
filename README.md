@@ -168,6 +168,7 @@ curl -s -b old-jar.txt $API/auth/me -o /dev/null -w '%{http_code}\n'           #
 - `HttpOnly`, `SameSite=Lax`, 14일 유지. 이름은 `modak.sid`.
 - `Secure`는 `NODE_ENV=production`일 때만 붙인다. 브라우저는 http로 받은 `Secure` 쿠키를 저장하지 않아서, 로컬 http 개발에서 켜면 로그인이 안 된다.
 - API는 `trust proxy`를 1단(Caddy)으로 둔다. Caddy가 보낸 `X-Forwarded-Proto: https`로 https 요청임을 알고 `Secure` 쿠키를 발급하며, 요청 제한은 `X-Forwarded-For`의 클라이언트 IP로 센다. API 포트를 외부에 직접 열면 이 헤더를 위조할 수 있으니 Caddy 뒤에만 둔다.
+- Caddy는 API 앞 1단에 바로 붙어야 하고, `reverse_proxy`가 `X-Forwarded-Proto`를 기본으로 넘긴다. 운영 모드에서 Caddy를 거치지 않고 API 포트로 로그인하면 쿠키 없는 200 대신 403과 "HTTPS 프록시(Caddy)를 거쳐 호출하세요" 메시지를 받는다. API 포트는 외부에 열지 않는다.
 - 요청 제한: 로그인은 IP당 1분에 10번, 회원가입은 IP당 1시간에 20번. 넘으면 429. 서버 메모리에 세므로 API를 재시작하면 초기화된다.
 ### PC 화면 캡처·믹싱 (#21)
 

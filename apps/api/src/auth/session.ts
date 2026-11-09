@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import connectPgSimple from 'connect-pg-simple';
 import type { Request, RequestHandler } from 'express';
 import session from 'express-session';
@@ -57,6 +58,13 @@ export async function startSession(
   req: Request,
   userId: string,
 ): Promise<void> {
+  // express-session silently skips a Secure cookie on a request it sees as
+  // http, which would answer 200 to a login that never logged in.
+  if (req.session.cookie.secure && !req.secure) {
+    throw new ForbiddenException(
+      'HTTPS가 아닌 요청에는 로그인 쿠키를 발급할 수 없습니다. HTTPS 프록시(Caddy)를 거쳐 호출하세요.',
+    );
+  }
   await promisify((done) => req.session.regenerate(done));
   req.session.userId = userId;
   await promisify((done) => req.session.save(done));
