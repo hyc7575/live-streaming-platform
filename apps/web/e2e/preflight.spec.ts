@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { TONE_TAB_TITLE } from '../playwright.config';
+import { mockPublishApi, PUBLISH_PAGE } from './publishPage';
 
 const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR;
 
@@ -66,10 +67,11 @@ async function openToneTab(context: BrowserContext) {
 }
 
 async function openStudio(context: BrowserContext, plan: DisplayAudio[]) {
+  await mockPublishApi(context);
   await openToneTab(context);
   const page = await context.newPage();
   await page.addInitScript(controlDisplayAudio);
-  await page.goto('/studio/pc');
+  await page.goto(PUBLISH_PAGE);
   await page.evaluate((p) => (window.displayAudioPlan = p), plan);
   return page;
 }
@@ -105,7 +107,7 @@ test('warns when the screen has no audio and clears after reselecting a tab with
   context,
 }) => {
   const page = await openStudio(context, ['drop', 'tone']);
-  await pick(page, '화면 선택');
+  await pick(page, '화면 공유');
 
   await expect(page.getByRole('alert')).toContainText(NO_SCREEN_AUDIO);
   await expect(page.getByRole('alert')).toContainText('탭 오디오와 함께 공유');
@@ -137,7 +139,7 @@ test('hints softly when the shared screen audio stays silent', async ({
   context,
 }) => {
   const page = await openStudio(context, ['silent']);
-  await pick(page, '화면 선택');
+  await pick(page, '화면 공유');
   await page.getByRole('button', { name: '방송 시작' }).click();
 
   await expect(page.getByText(SILENT_SCREEN)).toBeVisible({ timeout: 6000 });
@@ -148,7 +150,7 @@ test('tells the streamer when the mic goes away and starts over on request', asy
   context,
 }) => {
   const page = await openStudio(context, ['tone', 'tone']);
-  await pick(page, '화면 선택');
+  await pick(page, '화면 공유');
 
   await page.evaluate(() =>
     window.micTracks[0].dispatchEvent(new Event('ended')),
@@ -184,8 +186,10 @@ for (const browser of OTHER_BROWSERS) {
     test.use({ userAgent: browser.userAgent });
 
     test(`warns that ${browser.name} cannot share screen audio`, async ({
+      context,
       page,
     }) => {
+      await mockPublishApi(context);
       // The user agent override leaves Chrome's userAgentData in place;
       // Firefox and Safari do not have it.
       await page.addInitScript(() =>
@@ -193,7 +197,7 @@ for (const browser of OTHER_BROWSERS) {
           get: () => undefined,
         }),
       );
-      await page.goto('/studio/pc');
+      await page.goto(PUBLISH_PAGE);
       await expect(page.getByRole('alert')).toContainText(
         '이 브라우저는 화면 소리를 공유하지 못합니다',
       );
@@ -202,8 +206,9 @@ for (const browser of OTHER_BROWSERS) {
   });
 }
 
-test('shows no browser warning in Chrome', async ({ page }) => {
-  await page.goto('/studio/pc');
-  await expect(page.getByRole('button', { name: '화면 선택' })).toBeVisible();
+test('shows no browser warning in Chrome', async ({ context, page }) => {
+  await mockPublishApi(context);
+  await page.goto(PUBLISH_PAGE);
+  await expect(page.getByRole('button', { name: '화면 공유' })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
