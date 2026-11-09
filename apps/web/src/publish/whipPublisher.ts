@@ -8,6 +8,11 @@ export type PublishEvent =
   | { kind: 'disconnected' };
 
 export interface WhipPublisher {
+  /**
+   * Sends a clone of `track` in place of the track of the same kind, as when
+   * the streamer picks another screen or camera.
+   */
+  replaceTrack: (track: MediaStreamTrack) => void;
   stop: () => void;
 }
 
@@ -34,14 +39,33 @@ export function startWhipPublish(
   publishPath: string,
   onEvent: (event: PublishEvent) => void,
 ): WhipPublisher {
-  const tracks = stream.getTracks().map((track) => track.clone());
+  // OvenLiveKit reads this stream when it builds the connection, so a
+  // replacement made before then must land here too.
+  const sent = new MediaStream(
+    stream.getTracks().map((track) => track.clone()),
+  );
   let done = false;
   const finish = () => {
     if (done) return;
     done = true;
     window.removeEventListener('pagehide', leave);
+    const tracks = sent.getTracks();
     kit.remove();
     for (const track of tracks) track.stop();
+  };
+  const replaceTrack = (track: MediaStreamTrack) => {
+    if (done) return;
+    const previous = sent.getTracks().find((t) => t.kind === track.kind);
+    if (!previous) return;
+    const next = track.clone();
+    sent.removeTrack(previous);
+    sent.addTrack(next);
+    const sender = kit.peerConnection
+      ?.getSenders()
+      .find((s) => s.track === previous);
+    // A closed connection is already reported through the callbacks.
+    sender?.replaceTrack(next).catch(() => {});
+    previous.stop();
   };
   // The browser cancels OvenLiveKit's own WHIP DELETE (a plain fetch) when
   // the page unloads, and OME then notices the drop only at its ICE timeout,
@@ -71,7 +95,7 @@ export function startWhipPublish(
       error: (error) => report({ kind: 'failed', status: statusOf(error) }),
     },
   });
-  kit.setMediaStream(new MediaStream(tracks)).then(
+  kit.setMediaStream(sent).then(
     () => {
       if (done) return;
       kit.startStreaming(
@@ -82,5 +106,5 @@ export function startWhipPublish(
     // Already reported through the `error` callback.
     () => {},
   );
-  return { stop: finish };
+  return { replaceTrack, stop: finish };
 }

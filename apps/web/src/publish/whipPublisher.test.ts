@@ -9,39 +9,90 @@ interface Callbacks {
 
 const RESOURCE_URL = 'http://localhost/app/b1/whip-resource';
 
-const kit = vi.hoisted(() => {
-  const callbacks: Callbacks = {};
-  return { callbacks, remove: vi.fn(), startStreaming: vi.fn() };
-});
-
-vi.mock('ovenlivekit', () => ({
-  default: {
-    create: (options: { callbacks: Callbacks }) => {
-      kit.callbacks = options.callbacks;
-      return {
-        setMediaStream: (stream: MediaStream) => Promise.resolve(stream),
-        startStreaming: kit.startStreaming,
-        remove: kit.remove,
-        resourceUrl: RESOURCE_URL,
-      };
-    },
-  },
-}));
-
 interface FakeTrack {
+  kind: 'audio' | 'video';
   readyState: 'live' | 'ended';
   stop: () => void;
   clone: () => FakeTrack;
 }
 
-function fakeTrack(clones: FakeTrack[]): FakeTrack {
+interface FakeSender {
+  track: FakeTrack | null;
+  replaceTrack: (track: FakeTrack) => Promise<void>;
+}
+
+class FakeMediaStream {
+  private tracks: FakeTrack[];
+  constructor(tracks: FakeTrack[]) {
+    this.tracks = [...tracks];
+  }
+  getTracks() {
+    return [...this.tracks];
+  }
+  addTrack(track: FakeTrack) {
+    this.tracks.push(track);
+  }
+  removeTrack(track: FakeTrack) {
+    this.tracks = this.tracks.filter((t) => t !== track);
+  }
+}
+
+const kit = vi.hoisted(() => {
+  const callbacks: Callbacks = {};
+  return {
+    callbacks,
+    remove: vi.fn(),
+    startStreaming: vi.fn(),
+    sent: null as FakeMediaStream | null,
+    senders: [] as FakeSender[],
+  };
+});
+
+// Like OvenLiveKit, the connection takes the stream's tracks as they are
+// when streaming starts.
+vi.mock('ovenlivekit', () => ({
+  default: {
+    create: (options: { callbacks: Callbacks }) => {
+      kit.callbacks = options.callbacks;
+      let peerConnection: { getSenders: () => FakeSender[] } | null = null;
+      return {
+        setMediaStream: (stream: FakeMediaStream) => {
+          kit.sent = stream;
+          return Promise.resolve(stream);
+        },
+        startStreaming: (...args: unknown[]) => {
+          kit.senders = (kit.sent?.getTracks() ?? []).map((track) => {
+            const sender: FakeSender = {
+              track,
+              replaceTrack: (next) => {
+                sender.track = next;
+                return Promise.resolve();
+              },
+            };
+            return sender;
+          });
+          peerConnection = { getSenders: () => kit.senders };
+          kit.startStreaming(...args);
+        },
+        remove: kit.remove,
+        resourceUrl: RESOURCE_URL,
+        get peerConnection() {
+          return peerConnection;
+        },
+      };
+    },
+  },
+}));
+
+function fakeTrack(kind: FakeTrack['kind'], clones: FakeTrack[]): FakeTrack {
   const track: FakeTrack = {
+    kind,
     readyState: 'live',
     stop: () => {
       track.readyState = 'ended';
     },
     clone: () => {
-      const copy = fakeTrack(clones);
+      const copy = fakeTrack(kind, clones);
       clones.push(copy);
       return copy;
     },
@@ -51,18 +102,21 @@ function fakeTrack(clones: FakeTrack[]): FakeTrack {
 
 function fakeStream() {
   const clones: FakeTrack[] = [];
-  const originals = [fakeTrack(clones), fakeTrack(clones)];
-  const stream = { getTracks: () => originals } as unknown as MediaStream;
+  const originals = [fakeTrack('video', clones), fakeTrack('audio', clones)];
+  const stream = new FakeMediaStream(originals) as unknown as MediaStream;
   return { stream, originals, clones };
 }
 
+const asTrack = (track: FakeTrack) => track as unknown as MediaStreamTrack;
+
+function videoSender() {
+  return kit.senders.find((sender) => sender.track?.kind === 'video');
+}
+
 beforeEach(() => {
-  vi.stubGlobal(
-    'MediaStream',
-    class {
-      constructor(readonly tracks: unknown[]) {}
-    },
-  );
+  kit.sent = null;
+  kit.senders = [];
+  vi.stubGlobal('MediaStream', FakeMediaStream);
   vi.stubGlobal(
     'fetch',
     vi.fn(() => Promise.resolve(new Response())),
@@ -136,4 +190,60 @@ it('sends nothing on pagehide after it was stopped', async () => {
   window.dispatchEvent(new Event('pagehide'));
   expect(fetch).not.toHaveBeenCalled();
   expect(kit.remove).toHaveBeenCalledTimes(1);
+});
+
+it('sends a clone of a replacement track and stops the clone it replaced', async () => {
+  const { stream, originals, clones } = fakeStream();
+  const publisher = startWhipPublish(stream, '/app/b1?direction=whip', vi.fn());
+  await vi.waitFor(() => expect(kit.startStreaming).toHaveBeenCalled());
+  kit.callbacks.connected?.();
+  const [firstVideo] = clones;
+  expect(videoSender()?.track).toBe(firstVideo);
+
+  const otherScreen = fakeTrack('video', clones);
+  publisher.replaceTrack(asTrack(otherScreen));
+  const sentNow = videoSender()?.track;
+  expect(sentNow).not.toBe(otherScreen);
+  expect(clones).toContain(sentNow);
+  expect(sentNow?.readyState).toBe('live');
+  expect(firstVideo?.readyState).toBe('ended');
+  expect(otherScreen.readyState).toBe('live');
+  expect(originals.map((t) => t.readyState)).toEqual(['live', 'live']);
+});
+
+it('stops replacement clones too when stopped', async () => {
+  const { stream, originals, clones } = fakeStream();
+  const publisher = startWhipPublish(stream, '/app/b1?direction=whip', vi.fn());
+  await vi.waitFor(() => expect(kit.startStreaming).toHaveBeenCalled());
+  const otherScreen = fakeTrack('video', clones);
+  publisher.replaceTrack(asTrack(otherScreen));
+  publisher.replaceTrack(asTrack(otherScreen));
+
+  publisher.stop();
+  expect(clones).toHaveLength(4);
+  expect(clones.map((t) => t.readyState)).toEqual([
+    'ended',
+    'ended',
+    'ended',
+    'ended',
+  ]);
+  expect(otherScreen.readyState).toBe('live');
+  expect(originals.map((t) => t.readyState)).toEqual(['live', 'live']);
+
+  publisher.replaceTrack(asTrack(otherScreen));
+  expect(clones).toHaveLength(4);
+});
+
+it('sends a track replaced before the connection is built', async () => {
+  const { stream, clones } = fakeStream();
+  const publisher = startWhipPublish(stream, '/app/b1?direction=whip', vi.fn());
+  const otherScreen = fakeTrack('video', clones);
+  publisher.replaceTrack(asTrack(otherScreen));
+  await vi.waitFor(() => expect(kit.startStreaming).toHaveBeenCalled());
+
+  const sentVideo = videoSender()?.track;
+  expect(sentVideo).toBe(clones[2]);
+  expect(sentVideo?.readyState).toBe('live');
+  expect(clones[0]?.readyState).toBe('ended');
+  expect(kit.senders).toHaveLength(2);
 });

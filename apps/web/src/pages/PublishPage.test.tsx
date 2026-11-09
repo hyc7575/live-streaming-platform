@@ -93,7 +93,7 @@ function fakeCapture() {
 }
 
 function fakePublisher() {
-  const publisher = { stop: vi.fn() };
+  const publisher = { stop: vi.fn(), replaceTrack: vi.fn() };
   let emit: (event: PublishEvent) => void = () => {};
   vi.mocked(startWhipPublish).mockImplementation((_stream, _url, onEvent) => {
     emit = onEvent;
