@@ -17,9 +17,6 @@ export function OwnerActions({ broadcast }: { broadcast: Broadcast }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Set when the server says the broadcast went LIVE after this page loaded.
-  const [wentLive, setWentLive] = useState(false);
-  const live = broadcast.status === 'LIVE' || wentLive;
 
   async function handleDelete() {
     setDeleting(true);
@@ -38,11 +35,7 @@ export function OwnerActions({ broadcast }: { broadcast: Broadcast }) {
         void navigate('/studio');
         return;
       }
-      if (err instanceof ApiError && err.status === 409) {
-        setWentLive(true);
-      } else {
-        setError(deleteErrorMessage(err));
-      }
+      setError(deleteErrorMessage(err));
       setDeleting(false);
       setConfirming(false);
     }
@@ -65,7 +58,7 @@ export function OwnerActions({ broadcast }: { broadcast: Broadcast }) {
         >
           수정
         </Link>
-        {!live && !confirming && (
+        {!confirming && (
           <button
             type="button"
             className={styles.button}
@@ -75,15 +68,12 @@ export function OwnerActions({ broadcast }: { broadcast: Broadcast }) {
           </button>
         )}
       </div>
-      {live && (
-        <p className={styles.hint}>
-          송출 중인 방송은 종료한 뒤 삭제할 수 있습니다.
-        </p>
-      )}
       {confirming && (
         <div className={styles.confirm} role="group" aria-label="삭제 확인">
           <p className={styles.confirmText}>
-            이 방송을 삭제할까요? 삭제하면 되돌릴 수 없습니다.
+            {broadcast.status === 'LIVE'
+              ? '송출 중인 방송입니다. 삭제하면 방송을 종료하고 되돌릴 수 없습니다.'
+              : '이 방송을 삭제할까요? 삭제하면 되돌릴 수 없습니다.'}
           </p>
           <div className={styles.row}>
             <button

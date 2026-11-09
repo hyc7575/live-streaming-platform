@@ -1,12 +1,21 @@
 import Hls from 'hls.js';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { llhlsPath, playbackPath, RETRY_DELAY_MS } from '../playback';
 import styles from './LivePlayer.module.css';
 
-export function LivePlayer({ broadcastId }: { broadcastId: string }) {
+export function LivePlayer({
+  broadcastId,
+  onPlaybackError,
+}: {
+  broadcastId: string;
+  // A playback failure can mean the broadcast ended, so the page rechecks
+  // its status instead of waiting for the next poll (PRD §7.4 T9).
+  onPlaybackError?: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
+  const reportError = useEffectEvent(() => onPlaybackError?.());
 
   useEffect(() => {
     const video = videoRef.current;
@@ -27,12 +36,18 @@ export function LivePlayer({ broadcastId }: { broadcastId: string }) {
       const load = () => {
         video.src = src;
       };
-      const onError = () => retry(load);
+      const onError = () => {
+        reportError();
+        retry(load);
+      };
+      const onStalled = () => reportError();
       video.addEventListener('error', onError);
+      video.addEventListener('stalled', onStalled);
       load();
       return () => {
         clearTimeout(timer);
         video.removeEventListener('error', onError);
+        video.removeEventListener('stalled', onStalled);
         video.removeAttribute('src');
         video.load();
       };
@@ -46,6 +61,7 @@ export function LivePlayer({ broadcastId }: { broadcastId: string }) {
         if (!data.fatal) return;
         instance.destroy();
         hls = null;
+        reportError();
         retry(load);
       });
       instance.loadSource(src);

@@ -1,36 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
-import { ApiError, apiFetch } from '../api';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router';
+import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import {
   CameraCaptureError,
   startCameraCapture,
   type CameraCapture,
+  type CameraCaptureEndReason,
   type CameraCaptureFailure,
 } from '../capture/cameraCapture';
 import {
-  startWhipPublish,
-  type PublishEvent,
-  type WhipPublisher,
-} from '../publish/whipPublisher';
+  usePublishSession,
+  type PublishSessionState,
+} from '../publish/usePublishSession';
 import { useApi } from '../use-api';
-import type { LoginPageState } from './LoginPage';
 import styles from './PublishPage.module.css';
 
-interface PublishTicket {
-  publishUrl: string;
-  expiresAt: string;
-}
-
-type Phase =
+type Camera =
   | { kind: 'off'; notice: string | null }
   | { kind: 'acquiring' }
-  | { kind: 'camera-failed'; reason: CameraCaptureFailure }
-  | { kind: 'preview'; capture: CameraCapture; error: string | null }
-  | { kind: 'requesting'; capture: CameraCapture }
-  | { kind: 'connecting'; capture: CameraCapture; publisher: WhipPublisher }
-  | { kind: 'live'; capture: CameraCapture; publisher: WhipPublisher };
+  | { kind: 'failed'; reason: CameraCaptureFailure }
+  | { kind: 'on'; capture: CameraCapture };
 
 const CAMERA_FAILURE: Record<CameraCaptureFailure, string> = {
   denied:
@@ -42,33 +33,6 @@ const CAMERA_FAILURE: Record<CameraCaptureFailure, string> = {
     '이 주소에서는 카메라를 쓸 수 없습니다. https:// 로 시작하는 주소로 여세요.',
   unknown: '카메라를 켜지 못했습니다. 다시 시도하세요.',
 };
-
-function tokenErrorMessage(error: unknown): string {
-  if (!(error instanceof ApiError)) {
-    return '송출을 시작하지 못했습니다. 잠시 후 다시 시도하세요.';
-  }
-  switch (error.status) {
-    case 403:
-      return '권한이 없습니다.';
-    case 404:
-      return '방송을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.';
-    case 409:
-      return error.serverMessage ?? '지금은 이 방송을 송출할 수 없습니다.';
-    default:
-      return '송출을 시작하지 못했습니다. 잠시 후 다시 시도하세요.';
-  }
-}
-
-function publishErrorMessage(
-  event: Exclude<PublishEvent, { kind: 'connected' }>,
-): string {
-  if (event.kind === 'disconnected') {
-    return '송출 연결이 끊겼습니다. 다시 시작하세요.';
-  }
-  return event.status === 401
-    ? '송출이 허가되지 않았습니다. 다시 시도하세요.'
-    : '송출 서버에 연결하지 못했습니다. 잠시 후 다시 시도하세요.';
-}
 
 export function PublishPage() {
   const { id = '' } = useParams();
@@ -99,34 +63,81 @@ export function PublishPage() {
       </section>
     );
   }
+  if (b.status === 'ENDED') {
+    return (
+      <section className={styles.page}>
+        <Heading broadcast={b} />
+        <div className={styles.ended}>
+          <p className={styles.endedText}>
+            종료된 방송입니다. 새 방송을 만드세요.
+          </p>
+          <div className={styles.actions}>
+            <Link to="/studio/new" className={styles.primary}>
+              방송 만들기
+            </Link>
+            <Link to="/studio" className={styles.secondary}>
+              내 방송
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
   return <PublishStudio broadcast={b} />;
 }
 
-function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
-  const navigate = useNavigate();
-  const [phase, setPhase] = useState<Phase>({ kind: 'off', notice: null });
-  const videoRef = useRef<HTMLVideoElement>(null);
-  // Bumped whenever a start attempt stops mattering (stop, unmount), so a
-  // token that arrives late never opens a connection nobody will close.
-  const attempt = useRef(0);
+function Heading({ broadcast }: { broadcast: Broadcast }) {
+  return (
+    <div className={styles.heading}>
+      <h1 className={styles.title}>{broadcast.title}</h1>
+      <Link to={`/broadcasts/${broadcast.id}`} target="_blank">
+        시청 화면 열기
+      </Link>
+    </div>
+  );
+}
 
-  const capture = 'capture' in phase ? phase.capture : null;
-  const publisher = 'publisher' in phase ? phase.publisher : null;
+function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
+  const session = usePublishSession(broadcast.id);
+  const [camera, setCamera] = useState<Camera>({ kind: 'off', notice: null });
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const ended = session.state.kind === 'ended';
+  // Once the broadcast has ended, the capture has no further use: dropping
+  // it here stops its tracks through the effect below.
+  const capture = camera.kind === 'on' && !ended ? camera.capture : null;
+
+  const onCaptureEnded = useEffectEvent(
+    (which: CameraCapture, reason: CameraCaptureEndReason) => {
+      const live = session.state.kind === 'live';
+      let notice: string | null = null;
+      if (reason === 'device-lost') {
+        notice = live
+          ? '카메라나 마이크가 꺼져 방송을 종료했습니다.'
+          : '카메라나 마이크가 꺼져 송출을 멈췄습니다.';
+      }
+      setCamera((c) =>
+        c.kind === 'on' && c.capture === which ? { kind: 'off', notice } : c,
+      );
+      if (live) {
+        session.end();
+      } else if (
+        session.state.kind === 'requesting' ||
+        session.state.kind === 'connecting' ||
+        session.state.kind === 'idle'
+      ) {
+        session.cancel();
+      }
+    },
+  );
 
   useEffect(() => {
     if (!capture) return;
     if (videoRef.current) videoRef.current.srcObject = capture.stream;
     const unsubscribe = capture.subscribe(() => {
       const captureState = capture.getState();
-      if (captureState.status !== 'ended') return;
-      attempt.current += 1;
-      const notice =
-        captureState.reason === 'device-lost'
-          ? '카메라나 마이크가 꺼져 송출을 멈췄습니다.'
-          : null;
-      setPhase((p) =>
-        'capture' in p && p.capture === capture ? { kind: 'off', notice } : p,
-      );
+      if (captureState.status === 'ended') {
+        onCaptureEnded(capture, captureState.reason);
+      }
     });
     return () => {
       unsubscribe();
@@ -134,84 +145,51 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
     };
   }, [capture]);
 
-  useEffect(() => {
-    if (!publisher) return;
-    return () => publisher.stop();
-  }, [publisher]);
-
-  useEffect(
-    () => () => {
-      attempt.current += 1;
-    },
-    [],
-  );
-
   async function turnOnCamera() {
-    setPhase({ kind: 'acquiring' });
+    setCamera({ kind: 'acquiring' });
     try {
       const next = await startCameraCapture();
-      setPhase({ kind: 'preview', capture: next, error: null });
+      setCamera({ kind: 'on', capture: next });
     } catch (error) {
       const reason =
         error instanceof CameraCaptureError ? error.reason : 'unknown';
-      setPhase({ kind: 'camera-failed', reason });
+      setCamera({ kind: 'failed', reason });
     }
   }
 
-  async function startPublishing(current: CameraCapture) {
-    const mine = ++attempt.current;
-    setPhase({ kind: 'requesting', capture: current });
-    let ticket: PublishTicket;
-    try {
-      ticket = await apiFetch<PublishTicket>(
-        `/broadcasts/${broadcast.id}/publish-token`,
-        { method: 'POST' },
-      );
-    } catch (error) {
-      if (mine !== attempt.current) return;
-      if (error instanceof ApiError && error.status === 401) {
-        const next: LoginPageState = {
-          from: `/studio/broadcasts/${broadcast.id}`,
-        };
-        void navigate('/login', { state: next });
-        return;
-      }
-      setPhase({
-        kind: 'preview',
-        capture: current,
-        error: tokenErrorMessage(error),
-      });
-      return;
-    }
-    if (mine !== attempt.current) return;
-    const next = startWhipPublish(
-      current.stream,
-      ticket.publishUrl,
-      (event) => {
-        setPhase((p) => {
-          if (!('publisher' in p) || p.publisher !== next) return p;
-          if (event.kind === 'connected') {
-            return { kind: 'live', capture: current, publisher: next };
-          }
-          return {
-            kind: 'preview',
-            capture: current,
-            error: publishErrorMessage(event),
-          };
-        });
-      },
+  if (session.state.kind === 'ended') {
+    const notice = camera.kind === 'off' ? camera.notice : null;
+    return (
+      <section className={styles.page}>
+        <Heading broadcast={broadcast} />
+        <div className={styles.ended}>
+          <p role="status" className={styles.endedText}>
+            {session.state.elsewhere
+              ? '방송이 종료되었습니다.'
+              : '방송을 종료했습니다.'}
+          </p>
+          {notice && <p className={styles.note}>{notice}</p>}
+          <div className={styles.actions}>
+            <Link to={`/broadcasts/${broadcast.id}`} className={styles.primary}>
+              시청 화면 보기
+            </Link>
+            <Link to="/studio" className={styles.secondary}>
+              내 방송
+            </Link>
+          </div>
+        </div>
+      </section>
     );
-    setPhase({ kind: 'connecting', capture: current, publisher: next });
   }
+
+  const publishing =
+    session.state.kind === 'live' ||
+    session.state.kind === 'ending' ||
+    session.state.kind === 'end-failed';
 
   return (
     <section className={styles.page}>
-      <div className={styles.heading}>
-        <h1 className={styles.title}>{broadcast.title}</h1>
-        <Link to={`/broadcasts/${broadcast.id}`} target="_blank">
-          시청 화면 열기
-        </Link>
-      </div>
+      <Heading broadcast={broadcast} />
       {capture ? (
         <video
           ref={videoRef}
@@ -226,39 +204,41 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
           <p className={styles.note}>카메라를 켜면 미리보기가 보입니다.</p>
         </div>
       )}
-      <PhaseStatus phase={phase} />
+      <StatusLine camera={camera} session={session.state} />
       <div className={styles.actions}>
-        {(phase.kind === 'off' ||
-          phase.kind === 'acquiring' ||
-          phase.kind === 'camera-failed') && (
+        {!capture && session.state.kind === 'idle' && (
           <button
             type="button"
             className={styles.primary}
-            disabled={phase.kind === 'acquiring'}
+            disabled={camera.kind === 'acquiring'}
             onClick={() => void turnOnCamera()}
           >
             카메라 켜기
           </button>
         )}
-        {(phase.kind === 'preview' ||
-          phase.kind === 'requesting' ||
-          phase.kind === 'connecting') && (
-          <button
-            type="button"
-            className={styles.primary}
-            disabled={phase.kind !== 'preview'}
-            onClick={() => void startPublishing(phase.capture)}
-          >
-            방송 시작
-          </button>
+        {capture && !publishing && (
+          <>
+            <button
+              type="button"
+              className={styles.primary}
+              disabled={session.state.kind !== 'idle'}
+              onClick={() => session.start(capture.stream)}
+            >
+              방송 시작
+            </button>
+            <button
+              type="button"
+              className={styles.secondary}
+              onClick={() => capture.stop()}
+            >
+              카메라 끄기
+            </button>
+          </>
         )}
-        {capture && (
-          <button
-            type="button"
-            className={styles.secondary}
-            onClick={() => capture.stop()}
-          >
-            {phase.kind === 'live' ? '송출 중지' : '카메라 끄기'}
+        {session.state.kind === 'live' && <EndControl onEnd={session.end} />}
+        {session.state.kind === 'end-failed' && (
+          <button type="button" className={styles.danger} onClick={session.end}>
+            다시 종료하기
           </button>
         )}
       </div>
@@ -266,32 +246,48 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
   );
 }
 
-function PhaseStatus({ phase }: { phase: Phase }) {
-  switch (phase.kind) {
-    case 'off':
-      return phase.notice ? (
-        <p role="alert" className={styles.warning}>
-          {phase.notice}
-        </p>
-      ) : null;
-    case 'acquiring':
-      return <p className={styles.note}>카메라를 켜는 중입니다.</p>;
-    case 'camera-failed':
-      return (
-        <p role="alert" className={styles.warning}>
-          {CAMERA_FAILURE[phase.reason]}
-        </p>
-      );
-    case 'preview':
-      return phase.error ? (
-        <p role="alert" className={styles.warning}>
-          {phase.error}
-        </p>
-      ) : (
-        <p className={styles.note}>
-          미리보기 소리는 꺼져 있습니다. 준비되면 방송을 시작하세요.
-        </p>
-      );
+function EndControl({ onEnd }: { onEnd: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        className={styles.secondary}
+        onClick={() => setConfirming(true)}
+      >
+        방송 종료
+      </button>
+    );
+  }
+  return (
+    <div className={styles.confirm} role="group" aria-label="종료 확인">
+      <p className={styles.confirmText}>
+        방송을 종료할까요? 종료하면 이 방송은 다시 시작할 수 없습니다.
+      </p>
+      <div className={styles.actions}>
+        <button type="button" className={styles.danger} onClick={onEnd}>
+          종료하기
+        </button>
+        <button
+          type="button"
+          className={styles.secondary}
+          onClick={() => setConfirming(false)}
+        >
+          취소
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StatusLine({
+  camera,
+  session,
+}: {
+  camera: Camera;
+  session: PublishSessionState;
+}) {
+  switch (session.kind) {
     case 'requesting':
     case 'connecting':
       return (
@@ -303,6 +299,48 @@ function PhaseStatus({ phase }: { phase: Phase }) {
       return (
         <p role="status" className={styles.live}>
           송출 중입니다. 시청자가 방송을 볼 수 있습니다.
+        </p>
+      );
+    case 'ending':
+      return (
+        <p role="status" className={styles.note}>
+          방송을 종료하는 중입니다.
+        </p>
+      );
+    case 'end-failed':
+      return (
+        <p role="alert" className={styles.warning}>
+          {session.error}
+        </p>
+      );
+    case 'ended':
+      return null;
+    case 'idle':
+      break;
+  }
+  switch (camera.kind) {
+    case 'off':
+      return camera.notice ? (
+        <p role="alert" className={styles.warning}>
+          {camera.notice}
+        </p>
+      ) : null;
+    case 'acquiring':
+      return <p className={styles.note}>카메라를 켜는 중입니다.</p>;
+    case 'failed':
+      return (
+        <p role="alert" className={styles.warning}>
+          {CAMERA_FAILURE[camera.reason]}
+        </p>
+      );
+    case 'on':
+      return session.error ? (
+        <p role="alert" className={styles.warning}>
+          {session.error}
+        </p>
+      ) : (
+        <p className={styles.note}>
+          미리보기 소리는 꺼져 있습니다. 준비되면 방송을 시작하세요.
         </p>
       );
   }
