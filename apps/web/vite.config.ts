@@ -13,6 +13,9 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': `http://localhost:${env.API_PORT || 3000}`,
+        // OME: WHIP publish and LL-HLS playback under the web origin, the way
+        // Caddy serves them in production.
+        '/app': `http://localhost:${env.OME_HTTP_PORT || 3333}`,
       },
     },
     test: {

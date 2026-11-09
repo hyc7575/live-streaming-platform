@@ -9,6 +9,7 @@ import { MobileStudioPage } from './pages/MobileStudioPage';
 import { NewBroadcastPage } from './pages/NewBroadcastPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { PcStudioPage } from './pages/PcStudioPage';
+import { PublishPage } from './pages/PublishPage';
 import { SignupPage } from './pages/SignupPage';
 import { StudioPage } from './pages/StudioPage';
 
@@ -25,6 +26,7 @@ export function AppRoutes() {
         <Route element={<RequireAuth />}>
           <Route path="studio" element={<StudioPage />} />
           <Route path="studio/new" element={<NewBroadcastPage />} />
+          <Route path="studio/broadcasts/:id" element={<PublishPage />} />
           <Route
             path="studio/broadcasts/:id/edit"
             element={<EditBroadcastPage />}

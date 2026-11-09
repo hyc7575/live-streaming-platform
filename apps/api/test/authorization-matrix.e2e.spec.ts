@@ -46,9 +46,11 @@ const MATRIX = {
   '방송 수정':      [401,      403,          200],
   '방송 삭제':      [401,      403,          { READY: 204, LIVE: 409, ENDED: 204 }],
   '내 방송 조회':   [401,      200,          200],
+  '송출 토큰 발급': [401,      403,          { READY: 201, LIVE: 201, ENDED: 409 }],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // The owner's LIVE delete is 409 until ending a broadcast exists (#11). PRD
-// §7.4 then wants it to end the broadcast and delete it.
+// §7.4 then wants it to end the broadcast and delete it. An ENDED broadcast
+// never goes LIVE again, so it gets no publish token.
 
 type Action = keyof typeof MATRIX;
 
@@ -161,6 +163,19 @@ describe('authorization matrix (PRD §7.5)', () => {
         expect(ids(list.body)).toEqual([w.othersId]);
       },
     },
+    '송출 토큰 발급': {
+      send: (client, w) =>
+        client.post(`/api/broadcasts/${w.targetId}/publish-token`),
+      // Issuing a token changes no state: the broadcast goes LIVE only when
+      // OME admits the connection.
+      verifyAllowed: async (res, w) => {
+        expect((res.body as { publishUrl: string }).publishUrl).toMatch(
+          new RegExp(`^/app/${w.targetId}\\?.*&token=`),
+        );
+        const detail = await anonymous().get(`/api/broadcasts/${w.targetId}`);
+        expect(detail.body).toMatchObject({ status: w.status });
+      },
+    },
     '내 방송 조회': {
       send: (client) => client.get('/api/me/broadcasts'),
       verifyAllowed: (res, w, actor) => {
@@ -191,8 +206,8 @@ describe('authorization matrix (PRD §7.5)', () => {
     await app.close();
   });
 
-  // LIVE and ENDED only come from the publish flow, which does not exist yet,
-  // so the broadcasts are written directly.
+  // Written directly so every status is one insert away, without driving the
+  // publish flow.
   async function seed(status: BroadcastStatus): Promise<void> {
     await prisma.broadcast.deleteMany();
     const now = new Date();
@@ -298,10 +313,10 @@ describe('authorization matrix (PRD §7.5)', () => {
   // §7.5 rows whose API does not exist yet. Each becomes a matrix row when
   // its issue lands, so a missing row stays visible here.
   describe('rows not built yet', () => {
-    it.todo('송출 토큰 발급: 비로그인 401, 타인 403, 소유자 허용 (#10)');
     it.todo('방송 종료: 비로그인 401, 타인 403, 소유자 허용 (#11)');
+    // The rest of the webhook rules are in publish.e2e.spec.ts.
     it.todo(
-      'OME 송출 연결 Webhook 판정: 비로그인·타인 거절, 소유자 READY 또는 LIVE 유예 중 허용 (#10, #12)',
+      'OME 송출 연결 Webhook 판정: 소유자 LIVE 유예 중 재접속 허용 (#12)',
     );
     it.todo('LIVE 방송 삭제: 소유자는 종료 처리 후 삭제 (#11, 지금은 409)');
     it.todo('스트림 키 조회·재발급: 비로그인 401, 타인 403, 소유자 허용 (P3)');

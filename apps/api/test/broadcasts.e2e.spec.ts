@@ -32,8 +32,8 @@ describe('broadcasts', () => {
     await app.close();
   });
 
-  // LIVE and ENDED only come from the publish admission flow, which does not
-  // exist yet, so tests write those rows directly.
+  // Written directly so every status is one insert away, without driving the
+  // publish flow.
   async function seed(
     streamer: TestUser,
     title: string,
@@ -113,12 +113,12 @@ describe('broadcasts', () => {
       await seed(a, 'A 준비', 'READY');
       await seed(b, 'B 준비', 'READY');
       await seed(a, 'A 종료', 'ENDED', new Date('2026-11-01T10:00:00Z'));
-      await seed(b, 'B 옛 LIVE', 'LIVE', new Date('2026-11-01T09:00:00Z'));
+      await seed(a, 'A 옛 LIVE', 'LIVE', new Date('2026-11-01T09:00:00Z'));
       await seed(b, 'B 새 LIVE', 'LIVE', new Date('2026-11-01T11:00:00Z'));
 
       const res = await request(app.getHttpServer()).get('/api/broadcasts');
       expect(res.status).toBe(200);
-      expect(titles(res.body)).toEqual(['B 새 LIVE', 'B 옛 LIVE', 'A 종료']);
+      expect(titles(res.body)).toEqual(['B 새 LIVE', 'A 옛 LIVE', 'A 종료']);
       expect((res.body as BroadcastView[])[0]?.streamer).toEqual({
         id: b.id,
         nickname: 'B',

@@ -284,3 +284,23 @@ it('tells a non-owner who opens the edit URL that they lack permission', async (
   ).toBeDefined();
   expect(screen.queryByLabelText('제목')).toBeNull();
 });
+
+it.each([
+  ['READY', true],
+  ['LIVE', true],
+  ['ENDED', false],
+] as const)(
+  'links the owner of a %s broadcast to the publish page: %s',
+  async (status, shown) => {
+    stubApi({
+      'GET /api/auth/me': streamer,
+      'GET /api/broadcasts/b1': broadcast({ status }),
+    });
+    renderAt('/broadcasts/b1');
+    await screen.findByRole('link', { name: '수정' });
+    const link = screen.queryByRole('link', { name: '송출 화면' });
+    expect(link?.getAttribute('href') ?? null).toBe(
+      shown ? '/studio/broadcasts/b1' : null,
+    );
+  },
+);
