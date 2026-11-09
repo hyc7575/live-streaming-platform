@@ -218,6 +218,34 @@ test('ending stops every track, tells the viewer, and refuses a republish', asyn
   expect(reissue.status()).toBe(409);
 });
 
+test('the streamer ends from the detail page while another tab publishes', async ({
+  page,
+}) => {
+  await signUpAndLogIn(page.request);
+  const id = await createBroadcast(page.request, '상세에서 종료');
+
+  await page.goto(`/studio/broadcasts/${id}`);
+  await page.getByRole('button', { name: '카메라 켜기' }).click();
+  await page.getByRole('button', { name: '방송 시작' }).click();
+  await expect(page.getByText('송출 중입니다.')).toBeVisible({
+    timeout: 30_000,
+  });
+
+  const detail = await page.context().newPage();
+  await detail.goto(`/broadcasts/${id}`);
+  await detail.getByRole('button', { name: '방송 종료' }).click();
+  await screenshot(detail, 'detail-end-confirm');
+  await detail.getByRole('button', { name: '종료하기' }).click();
+  await expect(detail.getByText('방송이 끝났습니다.')).toBeVisible();
+  expect(await statusOf(page.request, id)).toBe('ENDED');
+
+  await expect(page.getByText('방송이 종료되었습니다.')).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByLabel('미리보기')).toHaveCount(0);
+  await screenshot(page, 'publish-ended-elsewhere');
+});
+
 test('OME refuses a publish without a valid token', async ({ page }) => {
   await signUpAndLogIn(page.request);
   const id = await createBroadcast(page.request, '거절 확인');

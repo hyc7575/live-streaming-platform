@@ -281,6 +281,33 @@ it('says the connection dropped when the broadcast is still LIVE', async () => {
   );
   expect(page.capture.stop).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: '방송 시작' })).toBeDefined();
+  expect(screen.getByRole('button', { name: '방송 종료' })).toBeDefined();
+});
+
+it('lets the streamer end a LIVE broadcast this page is not publishing', async () => {
+  const page = renderPage({
+    'GET /api/broadcasts/b1': {
+      status: 200,
+      body: { ...broadcast, status: 'LIVE' },
+    },
+    'POST /api/broadcasts/b1/end': ENDED,
+  });
+  expect(
+    await screen.findByText(
+      '이 방송은 아직 LIVE입니다. 카메라를 켜서 송출을 이어 가거나 방송을 종료하세요.',
+    ),
+  ).toBeDefined();
+  fireEvent.click(screen.getByRole('button', { name: '방송 종료' }));
+  fireEvent.click(screen.getByRole('button', { name: '종료하기' }));
+  expect(await screen.findByText('방송을 종료했습니다.')).toBeDefined();
+  expect(page.calls).toContain('POST /api/broadcasts/b1/end');
+  expect(startWhipPublish).not.toHaveBeenCalled();
+});
+
+it('offers no end before the broadcast has started', async () => {
+  renderPage({});
+  await screen.findByRole('button', { name: '카메라 켜기' });
+  expect(screen.queryByRole('button', { name: '방송 종료' })).toBeNull();
 });
 
 it('shows the API’s 409 message and keeps the preview', async () => {

@@ -221,6 +221,57 @@ it('lets the streamer delete a LIVE broadcast after a warning that it ends', asy
   expect(calls).toContain('DELETE /api/broadcasts/b1');
 });
 
+it('lets the streamer end a LIVE broadcast from the detail page', async () => {
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    'POST /api/broadcasts/b1/end': broadcast({ status: 'ENDED' }),
+  };
+  const calls = stubApi(routes);
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '방송 종료' }));
+  expect(calls).not.toContain('POST /api/broadcasts/b1/end');
+  expect(
+    screen.getByText(
+      '방송을 종료할까요? 송출이 끊기고 이 방송은 다시 시작할 수 없습니다.',
+    ),
+  ).toBeDefined();
+
+  routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
+  fireEvent.click(screen.getByRole('button', { name: '종료하기' }));
+  expect(await screen.findByText('방송이 끝났습니다.')).toBeDefined();
+  expect(calls).toContain('POST /api/broadcasts/b1/end');
+  expect(screen.queryByRole('button', { name: '방송 종료' })).toBeNull();
+});
+
+it('says so when ending fails, and keeps the broadcast LIVE', async () => {
+  stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    'POST /api/broadcasts/b1/end': 502,
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '방송 종료' }));
+  fireEvent.click(screen.getByRole('button', { name: '종료하기' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '방송을 종료하지 못했습니다. 다시 시도하세요.',
+  );
+  expect(screen.getByRole('button', { name: '방송 종료' })).toBeDefined();
+});
+
+it.each(['READY', 'ENDED'] as const)(
+  'offers no 방송 종료 on a %s broadcast',
+  async (status) => {
+    stubApi({
+      'GET /api/auth/me': streamer,
+      'GET /api/broadcasts/b1': broadcast({ status }),
+    });
+    renderAt('/broadcasts/b1');
+    await screen.findByRole('button', { name: '삭제' });
+    expect(screen.queryByRole('button', { name: '방송 종료' })).toBeNull();
+  },
+);
+
 it('goes to 내 방송 when the broadcast was already deleted elsewhere', async () => {
   stubApi({
     'GET /api/auth/me': streamer,

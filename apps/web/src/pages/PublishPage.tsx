@@ -102,6 +102,11 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
   const [camera, setCamera] = useState<Camera>({ kind: 'off', notice: null });
   const videoRef = useRef<HTMLVideoElement>(null);
   const ended = session.state.kind === 'ended';
+  // The server keeps the broadcast LIVE after a publish drops, and a page
+  // opened on a LIVE broadcast has no publish of its own: either way the
+  // streamer still needs a way to end it.
+  const [onAir, setOnAir] = useState(broadcast.status === 'LIVE');
+  if (session.state.kind === 'live' && !onAir) setOnAir(true);
   // Once the broadcast has ended, the capture has no further use: dropping
   // it here stops its tracks through the effect below.
   const capture = camera.kind === 'on' && !ended ? camera.capture : null;
@@ -204,7 +209,7 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
           <p className={styles.note}>카메라를 켜면 미리보기가 보입니다.</p>
         </div>
       )}
-      <StatusLine camera={camera} session={session.state} />
+      <StatusLine camera={camera} session={session.state} onAir={onAir} />
       <div className={styles.actions}>
         {!capture && session.state.kind === 'idle' && (
           <button
@@ -235,7 +240,10 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
             </button>
           </>
         )}
-        {session.state.kind === 'live' && <EndControl onEnd={session.end} />}
+        {(session.state.kind === 'live' ||
+          (session.state.kind === 'idle' && onAir)) && (
+          <EndControl onEnd={session.end} />
+        )}
         {session.state.kind === 'end-failed' && (
           <button type="button" className={styles.danger} onClick={session.end}>
             다시 종료하기
@@ -283,9 +291,11 @@ function EndControl({ onEnd }: { onEnd: () => void }) {
 function StatusLine({
   camera,
   session,
+  onAir,
 }: {
   camera: Camera;
   session: PublishSessionState;
+  onAir: boolean;
 }) {
   switch (session.kind) {
     case 'requesting':
@@ -320,9 +330,17 @@ function StatusLine({
   }
   switch (camera.kind) {
     case 'off':
-      return camera.notice ? (
-        <p role="alert" className={styles.warning}>
-          {camera.notice}
+      if (camera.notice) {
+        return (
+          <p role="alert" className={styles.warning}>
+            {camera.notice}
+          </p>
+        );
+      }
+      return onAir ? (
+        <p className={styles.note}>
+          이 방송은 아직 LIVE입니다. 카메라를 켜서 송출을 이어 가거나 방송을
+          종료하세요.
         </p>
       ) : null;
     case 'acquiring':

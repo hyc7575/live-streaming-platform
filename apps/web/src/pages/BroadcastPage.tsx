@@ -114,7 +114,7 @@ export function BroadcastPage() {
         <h1 className={styles.title}>{b.title}</h1>
         <p className={styles.streamer}>{b.streamer.nickname}</p>
         {b.description && <p className={styles.description}>{b.description}</p>}
-        {isOwner && <OwnerActions broadcast={b} />}
+        {isOwner && <OwnerActions broadcast={b} onEnded={recheck} />}
       </div>
     </section>
   );
