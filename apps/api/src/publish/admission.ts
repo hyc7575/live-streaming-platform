@@ -60,23 +60,61 @@ export type AdmissionRejection =
   | 'broadcast not ready'
   | 'streamer already live';
 
+// What OME reads from the webhook answer.
 export type AdmissionDecision =
   { allowed: true } | { allowed: false; reason: AdmissionRejection };
 
-const STATUS_DECISION: Record<BroadcastStatus, AdmissionDecision> = {
-  READY: { allowed: true },
-  // Reconnecting within the grace period after a drop lands with #12.
-  LIVE: { allowed: false, reason: 'broadcast already live' },
-  ENDED: { allowed: false, reason: 'broadcast ended' },
+// PRD §7.4: a publisher whose connection dropped may reconnect to the same
+// broadcast for this long. Past it the broadcast ends.
+export const RECONNECT_GRACE_MS = 30_000;
+
+// A connection that dropped after this instant is still within the grace
+// period, and one that dropped at or before it is past it. Every grace check,
+// in memory or in a query, compares against this one instant so the webhook
+// and the sweeper never disagree about a broadcast.
+export function graceCutoff(now: Date): Date {
+  return new Date(now.getTime() - RECONNECT_GRACE_MS);
+}
+
+export interface PublishState {
+  status: BroadcastStatus;
+  // Set only on LIVE: when the publish connection dropped. null on LIVE
+  // means the publisher is connected.
+  disconnectedAt: Date | null;
+}
+
+// Where a broadcast stands for a new publish connection. A LIVE broadcast
+// past the grace period is already `ended` here and only waits for the
+// sweeper to write ENDED.
+export type PublishPhase = 'ready' | 'connected' | 'reconnectable' | 'ended';
+
+export function publishPhaseOf(state: PublishState, now: Date): PublishPhase {
+  if (state.status === 'READY') return 'ready';
+  if (state.status === 'ENDED') return 'ended';
+  if (state.disconnectedAt === null) return 'connected';
+  return state.disconnectedAt > graceCutoff(now) ? 'reconnectable' : 'ended';
+}
+
+export type AdmissionPlan =
+  | { kind: 'go-live' }
+  | { kind: 'reconnect' }
+  | { kind: 'reject'; reason: AdmissionRejection };
+
+const PHASE_PLAN: Record<PublishPhase, AdmissionPlan> = {
+  ready: { kind: 'go-live' },
+  connected: { kind: 'reject', reason: 'broadcast already live' },
+  reconnectable: { kind: 'reconnect' },
+  ended: { kind: 'reject', reason: 'broadcast ended' },
 };
 
-// PRD §7.4 publish admission rule, minus the reconnect grace (#12).
+// PRD §7.4 publish admission rule.
 export function decideAdmission(
-  broadcast: { status: BroadcastStatus } | null,
+  broadcast: PublishState | null,
   token: TokenCheck,
-): AdmissionDecision {
-  if (!broadcast) return { allowed: false, reason: 'unknown broadcast' };
-  if (token === 'missing') return { allowed: false, reason: 'missing token' };
-  if (token === 'invalid') return { allowed: false, reason: 'invalid token' };
-  return STATUS_DECISION[broadcast.status];
+  now: Date,
+): AdmissionPlan {
+  if (!broadcast) return { kind: 'reject', reason: 'unknown broadcast' };
+  if (token === 'missing') return { kind: 'reject', reason: 'missing token' };
+  if (token === 'invalid') return { kind: 'reject', reason: 'invalid token' };
+  return PHASE_PLAN[publishPhaseOf(broadcast, now)];
 }

@@ -4,7 +4,14 @@ import {
   decideAdmission,
   isValidOmeSignature,
   publishTargetOf,
+  type AdmissionRejection,
 } from '../src/publish/admission.js';
+
+function reject(reason: AdmissionRejection) {
+  return { kind: 'reject', reason } as const;
+}
+
+const endedPlan = reject('broadcast ended');
 
 describe('publishTargetOf', () => {
   it('reads the broadcast id and token from a WHIP URL', () => {
@@ -33,24 +40,35 @@ describe('publishTargetOf', () => {
 });
 
 describe('decideAdmission', () => {
-  it('admits only a READY broadcast with a valid token', () => {
-    expect(decideAdmission({ status: 'READY' }, 'valid')).toEqual({
-      allowed: true,
-    });
+  const now = new Date('2026-11-10T12:00:00.000Z');
+  const ago = (ms: number) => new Date(now.getTime() - ms);
+  const ready = { status: 'READY', disconnectedAt: null } as const;
+  const connected = { status: 'LIVE', disconnectedAt: null } as const;
+  const ended = { status: 'ENDED', disconnectedAt: null } as const;
+  const droppedAgo = (ms: number) =>
+    ({ status: 'LIVE', disconnectedAt: ago(ms) }) as const;
+
+  it.each([
+    ['READY', ready, { kind: 'go-live' }],
+    ['LIVE and connected', connected, reject('broadcast already live')],
+    ['LIVE, dropped just now', droppedAgo(0), { kind: 'reconnect' }],
+    ['LIVE, dropped 29.999 s ago', droppedAgo(29_999), { kind: 'reconnect' }],
+    ['LIVE, dropped exactly 30 s ago', droppedAgo(30_000), endedPlan],
+    ['LIVE, dropped 31 s ago', droppedAgo(31_000), endedPlan],
+    ['ENDED', ended, endedPlan],
+  ] as const)('with a valid token, %s → %j', (_case, broadcast, plan) => {
+    expect(decideAdmission(broadcast, 'valid', now)).toEqual(plan);
   });
 
   it.each([
     [null, 'valid', 'unknown broadcast'],
-    [{ status: 'READY' }, 'missing', 'missing token'],
-    [{ status: 'READY' }, 'invalid', 'invalid token'],
-    [{ status: 'LIVE' }, 'valid', 'broadcast already live'],
-    [{ status: 'ENDED' }, 'valid', 'broadcast ended'],
-    [{ status: 'ENDED' }, 'invalid', 'invalid token'],
+    [ready, 'missing', 'missing token'],
+    [ready, 'invalid', 'invalid token'],
+    [droppedAgo(1000), 'missing', 'missing token'],
+    [droppedAgo(1000), 'invalid', 'invalid token'],
+    [ended, 'invalid', 'invalid token'],
   ] as const)('refuses %j with a %s token: %s', (broadcast, token, reason) => {
-    expect(decideAdmission(broadcast, token)).toEqual({
-      allowed: false,
-      reason,
-    });
+    expect(decideAdmission(broadcast, token, now)).toEqual(reject(reason));
   });
 });
 

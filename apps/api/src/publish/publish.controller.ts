@@ -44,17 +44,27 @@ export class PublishController {
     @Body(new ZodBodyPipe(admissionRequestSchema)) body: AdmissionRequest,
   ): Promise<AdmissionDecision | Record<string, never>> {
     const { direction, status, url } = body.request;
-    // `closing` is a notification and OME ignores the reply. Ending a
-    // broadcast after a dropped connection lands with #12.
-    if (status === 'closing') return {};
-    if (direction !== 'incoming') return { allowed: true };
     const target = publishTargetOf(url);
+    // `closing` is a notification and OME ignores the reply. OME sends it
+    // only for connections it admitted.
+    if (status === 'closing') {
+      if (direction === 'incoming' && target) {
+        const started = await this.publish.disconnect(target.broadcastId);
+        this.logger.log(
+          `closing ${masked(url)} → ${started ? 'grace started' : 'no change'}`,
+        );
+      }
+      return {};
+    }
+    if (direction !== 'incoming') return { allowed: true };
     const decision: AdmissionDecision = target
       ? await this.publish.admit(target)
       : { allowed: false, reason: 'unknown broadcast' };
-    this.logger.log(
-      `${url.replace(/token=[^&]*/, 'token=***')} → ${JSON.stringify(decision)}`,
-    );
+    this.logger.log(`${masked(url)} → ${JSON.stringify(decision)}`);
     return decision;
   }
+}
+
+function masked(url: string): string {
+  return url.replace(/token=[^&]*/, 'token=***');
 }

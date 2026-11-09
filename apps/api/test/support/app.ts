@@ -6,6 +6,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { expect } from 'vitest';
 import { AppModule } from '../../src/app.module.js';
 import type { AuthUser } from '../../src/auth/auth-user.js';
+import { CLOCK } from '../../src/clock.js';
 import {
   TEST_ACCOUNTS_CONFIG,
   type TestAccountsConfig,
@@ -17,6 +18,7 @@ import {
   PUBLISH_CONFIG,
   publishConfig,
 } from '../../src/publish/publish-config.js';
+import { FakeClock } from './fake-clock.js';
 import { FakeOmeApi } from './fake-ome-api.js';
 
 export const TEST_SESSION_SECRET = 'test-session-secret';
@@ -24,7 +26,8 @@ export const TEST_OME_WEBHOOK_SECRET = 'test-ome-webhook-secret';
 
 // Runs the real AppModule against DATABASE_URL (migrations already applied).
 // Test accounts stay off unless a test passes a config, whatever .env says.
-// OME's admin API is a FakeOmeApi; reach it with fakeOmeApiOf(app).
+// OME's admin API is a FakeOmeApi; reach it with fakeOmeApiOf(app). Time
+// comes from a FakeClock; reach it with fakeClockOf(app).
 export async function createTestApp(
   options: { cookieSecure?: boolean; testAccounts?: TestAccountsConfig } = {},
 ): Promise<NestExpressApplication> {
@@ -45,6 +48,8 @@ export async function createTestApp(
       factory: (prisma: PrismaService) => new FakeOmeApi(prisma),
       inject: [PrismaService],
     })
+    .overrideProvider(CLOCK)
+    .useValue(new FakeClock())
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({
     rawBody: true,
