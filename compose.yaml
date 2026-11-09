@@ -32,6 +32,14 @@ services:
       OME_WEBRTC_CANDIDATE_PORT: ${OME_ICE_UDP_PORTS:-10000-10003}/udp
       OME_WEBRTC_TCP_ICE_PORT: ${OME_ICE_TCP_PORT:-10000}/tcp
       OME_WEBRTC_TCP_RELAY_PORT: ${OME_TURN_PORT:-3478}
+      # 송출 허가(Admission Webhook)는 호스트에서 도는 API에 묻는다.
+      OME_WEBHOOK_URL: ${OME_WEBHOOK_URL:-http://host.docker.internal:${API_PORT:-3000}/api/ome/admission}
+      OME_WEBHOOK_SECRET: ${OME_WEBHOOK_SECRET:-}
+      OME_API_ACCESS_TOKEN: ${OME_API_ACCESS_TOKEN:-}
+    volumes:
+      - ./ome/Server.xml:/opt/ovenmediaengine/bin/origin_conf/Server.xml:ro
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     ports:
       - '${OME_HTTP_PORT:-3333}:${OME_HTTP_PORT:-3333}/tcp'
       - '${OME_ICE_UDP_PORTS:-10000-10003}:${OME_ICE_UDP_PORTS:-10000-10003}/udp'
