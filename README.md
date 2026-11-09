@@ -18,7 +18,7 @@
 ```sh
 pnpm install
 git config core.hooksPath .githooks   # 커밋 전 비밀값 검사 훅
-cp .env.example .env                  # DATABASE_URL, SESSION_SECRET을 채운다
+cp .env.example .env                  # DATABASE_URL, SESSION_SECRET, OME_WEBHOOK_SECRET, OME_HOST_IP를 채운다
 docker compose up -d --wait           # PostgreSQL + OME
 pnpm --filter @lsp/api db:migrate     # Prisma 마이그레이션 적용
 pnpm dev                              # API :3000, 웹 :5173
@@ -29,6 +29,8 @@ pnpm dev                              # API :3000, 웹 :5173
 ```sh
 DATABASE_URL=postgresql://lsp:lsp@localhost:5432/lsp
 SESSION_SECRET=<openssl rand -base64 32 결과>
+OME_WEBHOOK_SECRET=<openssl rand -base64 32 결과>
+OME_HOST_IP=127.0.0.1
 ```
 
 `pnpm install`이 Prisma 클라이언트를 `apps/api/src/generated/`에 만든다(`postinstall`). 스키마를 바꾸면 `pnpm --filter @lsp/api db:migrate:dev --name <이름>`으로 마이그레이션 파일을 만들고 커밋한다.
@@ -84,11 +86,13 @@ CI도 같은 순서로 GitHub Actions의 Postgres 서비스에 마이그레이�
 | `TEST_ACCOUNT_A_NICKNAME` / `TEST_ACCOUNT_B_NICKNAME` | `스트리머 A` / `사용자 B` | 테스트 계정 닉네임 (시드만 읽는다) |
 | `TEST_ACCOUNT_A_PASSWORD` / `TEST_ACCOUNT_B_PASSWORD` | 없음 (시드에 필수) | 테스트 계정 비밀번호 (시드만 읽는다, 8자 이상) |
 | `API_PORT` / `WEB_PORT` | `3000` / `5173` | 개발 서버 포트 |
-| `OME_HOST_IP` | `*` | OME가 ICE 후보로 알리는 주소 |
+| `OME_HOST_IP` | `*` | OME가 ICE 후보로 알리는 주소. 로컬 송출은 `127.0.0.1` |
 | `OME_HTTP_PORT` | `3333` | OME WebRTC 시그널링 + LL-HLS |
 | `OME_ICE_UDP_PORTS` | `10000-10003` | OME WebRTC ICE (UDP 범위) |
 | `OME_ICE_TCP_PORT` | `10000` | OME WebRTC ICE (TCP) |
 | `OME_TURN_PORT` | `3478` | OME 내장 TURN (TCP) |
+| `OME_WEBHOOK_URL` | `http://host.docker.internal:${API_PORT}/api/ome/admission` | OME가 송출 허가를 묻는 API 주소 |
+| `OME_API_ACCESS_TOKEN` | 없음 | OME 관리 API 토큰. 방송 종료(#11)에서 쓴다 |
 
 ### 여러 worktree에서 동시에 띄우기
 
@@ -107,7 +111,7 @@ WEB_PORT=25173
 
 OME 포트는 호스트와 컨테이너가 **같은 번호**를 쓴다. OME가 ICE 후보에 자기가 듣는 포트 번호를 그대로 적어 브라우저에 알리기 때문에, `20000:10000`처럼 번호를 바꿔 연결하면 브라우저가 엉뚱한 포트로 접속한다. 그래서 compose는 위 변수로 OME 설정과 포트 연결을 함께 바꾼다.
 
-한계: `OME_HOST_IP`를 비우면 OME가 STUN으로 찾은 공인 IP와 컨테이너 내부 IP(172.x)를 ICE 후보로 알린다. 같은 Mac의 브라우저에서 WebRTC 송출을 하려면 `127.0.0.1`, 같은 Wi-Fi의 휴대폰에서 하려면 Mac의 LAN IP를 적어야 할 것으로 보인다. 이 부분은 아직 확인하지 않았고, OME 스파이크(#2)에서 확인한다.
+한계: `OME_HOST_IP`를 비우면 OME가 STUN으로 찾은 공인 IP와 컨테이너 내부 IP(172.x)를 ICE 후보로 알린다. 같은 Mac의 브라우저에서 WebRTC 송출을 하려면 `OME_HOST_IP=127.0.0.1`을 적는다. 비우면 ICE가 `checking`에서 멈춰 송출이 실패한다(#2 실측, #10에서 이 값으로 송출 확인). 같은 Wi-Fi의 휴대폰에서 하려면 Mac의 LAN IP를 적어야 할 것으로 보인다(미확인).
 
 ## 커밋 전 비밀값 검사
 
@@ -335,12 +339,13 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/auth/test-login \
 | 방송 수정 | `PATCH /api/broadcasts/:id` | 401 | 403 | 200 |
 | 방송 삭제 | `DELETE /api/broadcasts/:id` | 401 | 403 | 204 (LIVE면 409) |
 | 내 방송 조회 | `GET /api/me/broadcasts` | 401 | 200 (자기 것만) | 200 |
+| 송출 토큰 발급 | `POST /api/broadcasts/:id/publish-token` | 401 | 403 | 201 (ENDED면 409) |
 
-- 표의 칸마다 대상 방송이 `READY`·`LIVE`·`ENDED`일 때를 모두 돌린다(17칸 × 3 = 51건).
+- 표의 칸마다 대상 방송이 `READY`·`LIVE`·`ENDED`일 때를 모두 돌린다(20칸 × 3 = 60건).
 - 거절된 칸(401·403·409)은 요청 뒤 `Broadcast` 테이블 전체가 요청 전과 같은지 확인한다.
 - 허용된 칸은 효과를 API로 다시 읽어 확인한다. 수정 뒤 상세·내 방송·공개 목록에 새 제목이 보이고(`READY`는 원래 공개 목록에 없다), 본문에 함께 보낸 `status`는 무시된다. 삭제 뒤 상세는 404이고 내 방송과 공개 목록에서 사라진다.
 - 순서 확인: 없는 방송과 형식이 틀린 id에 비로그인 401, 로그인 404. 틀린 본문에 비로그인 401, 타인 403, 소유자 400. 로그아웃한 소유자는 401.
-- 아직 없는 행(송출 토큰, 종료, Webhook 판정, 스트림 키, 댓글, 후원)은 `it.todo`로 남겨 테스트 출력에 todo로 보인다.
+- 아직 없는 행(종료, Webhook의 유예 중 재접속, 스트림 키, 댓글, 후원)은 `it.todo`로 남겨 테스트 출력에 todo로 보인다.
 
 수정 규칙(`apps/api/test/broadcasts.e2e.spec.ts`): 보낸 필드만 바꾸고 생성과 같은 검증(제목 1~100자, 설명 2000자 이하, 앞뒤 공백 제거)을 한다. 빈 본문과 모르는 필드만 있는 본문은 400이다. `LIVE` 방송도 제목·설명은 고칠 수 있다.
 
@@ -379,6 +384,60 @@ curl -s -b a-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/
   -d '{"title":"고친 제목"}'                                                          # 200, 새 제목
 curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X DELETE $API/broadcasts/$ID    # 204
 curl -s -o /dev/null -w '%{http_code}\n' $API/broadcasts/$ID                        # 404
+```
+
+### 3. 송출에서 시청까지 (#10)
+
+인수 시나리오 1의 앞부분: 스트리머가 카메라·마이크를 송출하면 방송이 `LIVE`가 되고, 로그인하지 않은 시청자가 LL-HLS로 본다. 방송 종료(#11), 끊긴 송출의 유예·정리(#12), PC 화면 송출(#13)은 아직 없다.
+
+흐름 (PRD §7.6):
+
+1. 송출 화면(`/studio/broadcasts/:id`)이 `POST /api/broadcasts/:id/publish-token`을 부른다. 소유자만 받는다(비로그인 401, 타인 403). 같은 스트리머의 다른 방송이 `LIVE`면 409 `기존 방송을 종료하세요.`, 이 방송이 `ENDED`면 409다. 응답은 5분짜리 토큰이 붙은 같은 출처 경로 `/app/<방송 id>?direction=whip&transport=all&token=...`이다.
+2. 브라우저가 OvenLiveKit으로 이 경로에 WHIP 송출을 연다(H.264 고정). 개발 중에는 Vite가 `/app`을 OME(`OME_HTTP_PORT`)로 넘긴다.
+3. OME가 Admission Webhook으로 `POST /api/ome/admission`에 전체 URL을 보낸다. API는 `X-OME-Signature`(HMAC-SHA1, `OME_WEBHOOK_SECRET`)를 원본 바이트로 검증하고(틀리면 401), 토큰과 방송 상태를 보고 `READY`일 때만 `{"allowed":true}`를 돌려주며 조건부 update 한 번으로 `READY → LIVE`(`startedAt` 기록)로 바꾼다. 거절하면 OME가 WHIP에 401을 준다.
+4. 시청 화면(`/broadcasts/:id`)은 `LIVE`면 `/app/<방송 id>/llhls.m3u8`을 재생한다. 송출 직후 약 10초 동안은 OME가 플레이리스트를 404로 주므로 "방송을 불러오는 중입니다"를 띄우고 2초마다 다시 시도한다.
+
+한 스트리머의 `LIVE` 방송은 DB가 하나만 허용한다(`Broadcast_one_live_per_streamer` 부분 유니크 인덱스). 두 방송의 허가 요청이 동시에 와도 하나만 `LIVE`가 된다.
+
+자동 테스트:
+
+- `apps/api/test/publish.e2e.spec.ts` (실제 PostgreSQL, `pnpm test`): 토큰 발급 201·401·403·404·409(다른 방송 LIVE)·409(ENDED). Webhook은 서명 없음·위조·다른 키·본문을 바꾼 경우 401, 토큰 없음·변조·만료·다른 방송의 토큰 거절, `ENDED`·`LIVE` 거절, `READY` 허가 후 `LIVE`와 `startedAt`, 같은 스트리머의 두 번째 방송 거절, `closing`은 `{}`만 돌려주고 상태 그대로.
+- `apps/api/test/publish-token.spec.ts`, `admission.spec.ts`: 토큰·서명·판정 순수 함수.
+- `apps/web/e2e-stack/publishToWatch.spec.ts`: 실제 OME까지 이어서 확인한다(아래).
+
+실제 OME로 확인 (Google Chrome 필요, 가짜 카메라·마이크 사용). `.env`에 `OME_HOST_IP=127.0.0.1`과 `OME_WEBHOOK_SECRET`을 채운다.
+
+```sh
+docker compose up -d --wait            # PostgreSQL + OME (ome/Server.xml)
+pnpm --filter @lsp/api db:migrate
+pnpm --filter @lsp/api dev             # API :3000. OME가 host.docker.internal:3000으로 허가를 묻는다
+pnpm --filter @lsp/web e2e:stack       # 웹 dev 서버가 없으면 띄운다. WEB_PORT를 바꿨으면 같은 값을 앞에 붙인다
+```
+
+`e2e:stack`은 CI의 `e2e` 작업에 들어가지 않는다(CI에는 OME가 없다). 두 테스트를 돌린다.
+
+- 새 계정으로 방송을 만들고 송출 화면에서 "카메라 켜기" → "방송 시작"을 누른다. "송출 중입니다."가 뜨고 `GET /api/broadcasts/:id`가 `LIVE`가 된다. 로그인하지 않은 새 브라우저 컨텍스트가 시청 화면을 열면 hls.js(`blob:` 주소)로 재생되고, `currentTime`이 늘고 `videoWidth`가 0보다 크다. 같은 스트리머가 두 번째 방송의 송출 화면에서 "방송 시작"을 누르면 "기존 방송을 종료하세요."가 뜬다.
+- 토큰 없이, 엉터리 토큰으로, 다른 방송의 토큰으로 `/app/<id>?direction=whip...`에 WHIP을 보내면 모두 401이고 방송은 `READY` 그대로다.
+
+`SCREENSHOT_DIR=<폴더>`를 앞에 붙이면 송출 화면과 시청 화면을 `publish-live.png`, `viewer-playing.png`로 남긴다.
+
+화면에서 확인:
+
+1. 위 명령으로 PostgreSQL, OME, API를 띄우고 `pnpm --filter @lsp/web dev`로 웹을 띄운다.
+2. "스트리머 A"로 로그인해 방송을 만들고 상세로 간다. 설명 아래 "송출 화면"을 누른다.
+3. "카메라 켜기"를 누르고 카메라·마이크를 허용한다. 미리보기가 보인다. "방송 시작"을 누른다. 몇 초 안에 "송출 중입니다. 시청자가 방송을 볼 수 있습니다."가 뜬다.
+4. 시크릿 창(로그인 안 함)에서 "시청 화면 열기" 주소를 연다. "방송을 불러오는 중입니다"가 약 10초 보인 뒤 카메라 영상이 재생된다. 상태 배지는 LIVE다.
+5. API 로그에 `PublishController`의 `... token=*** → {"allowed":true}` 한 줄이 남는다(토큰은 가린다).
+6. A가 다른 방송을 하나 더 만들고 그 송출 화면에서 "방송 시작"을 누르면 "기존 방송을 종료하세요."가 뜬다.
+7. 송출 화면에서 "송출 중지"를 누르면 카메라 표시등이 꺼진다. 방송을 `ENDED`로 바꾸는 종료 기능은 #11에서 생기므로, 지금은 방송이 `LIVE`로 남는다.
+
+API로 거절 확인 (토큰이 없거나 틀리면 OME가 401을 준다):
+
+```sh
+ID=<READY 방송 id>
+curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/sdp' --data-binary $'v=0\r\n' \
+  "http://localhost:3333/app/$ID?direction=whip&transport=all&token=bad"   # 401
+curl -s http://localhost:3000/api/broadcasts/$ID                           # status "READY" 그대로
 ```
 
 ### 모바일 카메라 캡처 (#22)
@@ -435,4 +494,6 @@ macOS 시스템 소리를 직접 확인하는 절차: 시스템 설정 → 개�
 | [connect-pg-simple](https://github.com/voxpelli/node-connect-pg-simple) | 세션을 PostgreSQL에 저장 | MIT |
 | [@nestjs/throttler](https://github.com/nestjs/throttler) | 로그인·회원가입 요청 제한 | MIT |
 | [Zod](https://github.com/colinhacks/zod) | 요청 본문 검증 | MIT |
+| [OvenLiveKit-Web](https://github.com/AirenSoft/OvenLiveKit-Web) (`ovenlivekit`) | 브라우저 WHIP 송출 | MIT |
+| [hls.js](https://github.com/video-dev/hls.js) | LL-HLS 재생 | Apache-2.0 |
 | [Playwright](https://playwright.dev) | 웹 e2e 테스트 (개발용, `apps/web/e2e`) | Apache-2.0 |
