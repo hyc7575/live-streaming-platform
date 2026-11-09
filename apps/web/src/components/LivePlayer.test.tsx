@@ -67,7 +67,7 @@ const loading = () => screen.queryByText('방송을 불러오는 중입니다');
 it('plays through low-latency hls.js where MediaSource exists, even if HLS is native too', () => {
   vi.stubGlobal('MediaSource', class {});
   canPlayNativeHls('maybe');
-  render(<LivePlayer broadcastId="b1" />);
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
   expect(hls.instances).toHaveLength(1);
   const [player] = hls.instances;
   expect(player?.config).toMatchObject({ lowLatencyMode: true });
@@ -80,7 +80,7 @@ it('plays through low-latency hls.js where MediaSource exists, even if HLS is na
 
 it('retries after a fatal error, such as the playlist 404 before OME is ready', () => {
   vi.stubGlobal('MediaSource', class {});
-  render(<LivePlayer broadcastId="b1" />);
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
   const first = hls.instances[0];
   act(() => first?.fail(false));
   expect(first?.destroy).not.toHaveBeenCalled();
@@ -100,14 +100,16 @@ it('retries after a fatal error, such as the playlist 404 before OME is ready', 
 
 it('hides the loading notice once the video plays', () => {
   vi.stubGlobal('MediaSource', class {});
-  render(<LivePlayer broadcastId="b1" />);
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
   fireEvent.playing(screen.getByLabelText('방송 화면'));
   expect(loading()).toBeNull();
 });
 
 it('tears hls.js down and drops a pending retry on unmount', () => {
   vi.stubGlobal('MediaSource', class {});
-  const { unmount } = render(<LivePlayer broadcastId="b1" />);
+  const { unmount } = render(
+    <LivePlayer broadcastId="b1" startMuted={false} />,
+  );
   act(() => hls.instances[0]?.fail(true));
   unmount();
   act(() => {
@@ -115,7 +117,7 @@ it('tears hls.js down and drops a pending retry on unmount', () => {
   });
   expect(hls.instances).toHaveLength(1);
 
-  render(<LivePlayer broadcastId="b2" />);
+  render(<LivePlayer broadcastId="b2" startMuted={false} />);
   const live = hls.instances[1];
   cleanup();
   expect(live?.destroy).toHaveBeenCalled();
@@ -123,7 +125,7 @@ it('tears hls.js down and drops a pending retry on unmount', () => {
 
 it('uses native HLS where there is no MediaSource (iPhone Safari)', () => {
   canPlayNativeHls('maybe');
-  render(<LivePlayer broadcastId="b1" />);
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
   const video = screen.getByLabelText<HTMLVideoElement>('방송 화면');
   expect(hls.instances).toHaveLength(0);
   expect(video.getAttribute('src')).toBe('/app/b1/llhls.m3u8');
@@ -139,7 +141,7 @@ it('uses native HLS where there is no MediaSource (iPhone Safari)', () => {
 it('says so when the browser can play neither', () => {
   hls.supported.value = false;
   canPlayNativeHls('');
-  render(<LivePlayer broadcastId="b1" />);
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
   expect(
     screen.getByText('이 브라우저에서는 방송을 재생할 수 없습니다.'),
   ).toBeDefined();
@@ -148,7 +150,13 @@ it('says so when the browser can play neither', () => {
 it('reports a fatal hls.js error, not a recoverable one, and still retries', () => {
   vi.stubGlobal('MediaSource', class {});
   const onPlaybackError = vi.fn();
-  render(<LivePlayer broadcastId="b1" onPlaybackError={onPlaybackError} />);
+  render(
+    <LivePlayer
+      broadcastId="b1"
+      startMuted={false}
+      onPlaybackError={onPlaybackError}
+    />,
+  );
   act(() => hls.instances[0]?.fail(false));
   expect(onPlaybackError).not.toHaveBeenCalled();
 
@@ -163,10 +171,42 @@ it('reports a fatal hls.js error, not a recoverable one, and still retries', () 
 it('reports native HLS error and stalled events', () => {
   canPlayNativeHls('maybe');
   const onPlaybackError = vi.fn();
-  render(<LivePlayer broadcastId="b1" onPlaybackError={onPlaybackError} />);
+  render(
+    <LivePlayer
+      broadcastId="b1"
+      startMuted={false}
+      onPlaybackError={onPlaybackError}
+    />,
+  );
   const video = screen.getByLabelText<HTMLVideoElement>('방송 화면');
   fireEvent.error(video);
   expect(onPlaybackError).toHaveBeenCalledTimes(1);
   fireEvent.stalled(video);
   expect(onPlaybackError).toHaveBeenCalledTimes(2);
+});
+
+it('starts muted when asked to, and with sound otherwise', () => {
+  vi.stubGlobal('MediaSource', class {});
+  render(<LivePlayer broadcastId="b1" startMuted />);
+  expect(screen.getByLabelText<HTMLVideoElement>('방송 화면').muted).toBe(true);
+  cleanup();
+
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
+  expect(screen.getByLabelText<HTMLVideoElement>('방송 화면').muted).toBe(
+    false,
+  );
+});
+
+it('plays muted when the browser refuses to start with sound', async () => {
+  vi.stubGlobal('MediaSource', class {});
+  const play = vi
+    .spyOn(HTMLMediaElement.prototype, 'play')
+    .mockRejectedValueOnce(new DOMException('no gesture', 'NotAllowedError'))
+    .mockResolvedValue();
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
+  const video = screen.getByLabelText<HTMLVideoElement>('방송 화면');
+  fireEvent.loadedMetadata(video);
+  await act(() => Promise.resolve());
+  expect(play).toHaveBeenCalledTimes(2);
+  expect(video.muted).toBe(true);
 });

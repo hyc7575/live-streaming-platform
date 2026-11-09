@@ -401,3 +401,31 @@ it('rechecks the status right away when playback fails', async () => {
     vi.restoreAllMocks();
   }
 });
+
+const HOWLING = /하울링/;
+
+it('mutes the owner’s own broadcast and says why', async () => {
+  stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+  });
+  renderAt('/broadcasts/b1');
+  await screen.findByRole('link', { name: '수정' });
+  expect(screen.getByLabelText<HTMLVideoElement>('방송 화면').muted).toBe(true);
+  expect(screen.getByText(HOWLING)).toBeDefined();
+});
+
+it.each([
+  ['an anonymous viewer', 401],
+  ['another user', { ...streamer, id: 'u2' }],
+])('plays with sound and no howling notice for %s', async (_who, me) => {
+  stubApi({
+    'GET /api/auth/me': me,
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+  });
+  renderAt('/broadcasts/b1');
+  const video = await screen.findByLabelText<HTMLVideoElement>('방송 화면');
+  await act(() => Promise.resolve());
+  expect(video.muted).toBe(false);
+  expect(screen.queryByText(HOWLING)).toBeNull();
+});
