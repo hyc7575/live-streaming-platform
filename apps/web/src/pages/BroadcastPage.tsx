@@ -3,15 +3,14 @@ import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import type { BroadcastStatus } from '../components/StatusBadge';
+import { LivePlayer } from '../components/LivePlayer';
 import { OwnerActions } from '../components/OwnerActions';
 import { StatusBadge } from '../components/StatusBadge';
 import { useApi } from '../use-api';
 import styles from './BroadcastPage.module.css';
 
-// Stands in the player area until the player lands with the viewing issue.
-const PLAYER_NOTICE: Record<BroadcastStatus, string> = {
+const PLAYER_NOTICE: Record<Exclude<BroadcastStatus, 'LIVE'>, string> = {
   READY: '아직 시작하지 않은 방송입니다.',
-  LIVE: '플레이어를 준비하고 있습니다.',
   ENDED: '방송이 끝났습니다.',
 };
 
@@ -39,7 +38,11 @@ export function BroadcastPage() {
   return (
     <section className={styles.page}>
       <div className={styles.player}>
-        <p className={styles.notice}>{PLAYER_NOTICE[b.status]}</p>
+        {b.status === 'LIVE' ? (
+          <LivePlayer broadcastId={b.id} />
+        ) : (
+          <p className={styles.notice}>{PLAYER_NOTICE[b.status]}</p>
+        )}
       </div>
       <div className={styles.info}>
         <StatusBadge status={b.status} />
