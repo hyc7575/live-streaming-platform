@@ -6,13 +6,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { BroadcastView } from '../src/broadcasts/broadcasts.service.js';
 import { PrismaService } from '../src/database/database.module.js';
 import type { BroadcastStatus } from '../src/generated/prisma/client.js';
+import type { AdmissionRejection } from '../src/publish/admission.js';
 import {
   createTestApp,
   resetDatabase,
   signUpAndLogIn,
   type TestUser,
 } from './support/app.js';
+import { fakeClockOf } from './support/fake-clock.js';
 import { fakeOmeApiOf, type FakeOmeApi } from './support/fake-ome-api.js';
+import { mintedToken, openPublish } from './support/webhook.js';
 
 // PRD §7.5 authorization matrix (KR3), driven as one table. Every row that
 // exists in the API today runs for each caller against an owner's broadcast
@@ -57,6 +60,31 @@ const MATRIX = {
 // token.
 
 type Action = keyof typeof MATRIX;
+
+// The §7.5 row "OME 송출 연결 (Webhook 판정)". OME passes no cookie, only the
+// token in the publish URL, so the callers are told apart by token: none
+// (anonymous), one naming another user as the streamer (other), and the
+// owner's own. The owner's column follows the §7.4 admission rule, so it
+// splits LIVE by whether the publisher is connected and by the 30 s grace.
+type PublishState =
+  'READY' | 'LIVE 연결 중' | 'LIVE 유예 중' | 'LIVE 유예 초과' | 'ENDED';
+type WebhookCell = '허용' | AdmissionRejection;
+
+// prettier-ignore
+const WEBHOOK_MATRIX: Record<PublishState, [WebhookCell, WebhookCell, WebhookCell]> = {
+  //                 비로그인         로그인(타인)     소유자
+  'READY':          ['missing token', 'invalid token', '허용'],
+  'LIVE 연결 중':   ['missing token', 'invalid token', 'broadcast already live'],
+  'LIVE 유예 중':   ['missing token', 'invalid token', '허용'],
+  'LIVE 유예 초과': ['missing token', 'invalid token', 'broadcast ended'],
+  'ENDED':          ['missing token', 'invalid token', 'broadcast ended'],
+};
+
+// How long before `now` the publish connection dropped, per LIVE state.
+const DROPPED_AGO_MS: Partial<Record<PublishState, number>> = {
+  'LIVE 유예 중': 10_000,
+  'LIVE 유예 초과': 30_000,
+};
 
 interface ActionDriver {
   send: (client: TestAgent, world: World) => Promise<Response>;
@@ -353,13 +381,83 @@ describe('authorization matrix (PRD §7.5)', () => {
     });
   });
 
+  describe('OME 송출 연결 (Webhook 판정)', () => {
+    async function seedPublish(state: PublishState): Promise<void> {
+      await prisma.broadcast.deleteMany();
+      const now = fakeClockOf(app).now();
+      const status: BroadcastStatus = state.startsWith('LIVE')
+        ? 'LIVE'
+        : (state as BroadcastStatus);
+      const droppedAgo = DROPPED_AGO_MS[state];
+      const target = await prisma.broadcast.create({
+        data: {
+          streamerId: world.owner.id,
+          title: '원래 제목',
+          status,
+          startedAt:
+            status === 'READY' ? null : new Date(now.getTime() - 60_000),
+          endedAt: status === 'ENDED' ? now : null,
+          disconnectedAt:
+            droppedAgo === undefined
+              ? null
+              : new Date(now.getTime() - droppedAgo),
+        },
+      });
+      world = { ...world, targetId: target.id };
+    }
+
+    const tokenOf = (actor: Actor): string | null => {
+      if (actor === 'anonymous') return null;
+      const streamer = actor === 'owner' ? world.owner : world.other;
+      return mintedToken(
+        { broadcastId: world.targetId, streamerId: streamer.id },
+        fakeClockOf(app).now(),
+      );
+    };
+
+    const cases = (Object.keys(WEBHOOK_MATRIX) as PublishState[]).flatMap(
+      (state) =>
+        ACTORS.map((actor, column) => ({
+          state,
+          actor,
+          who: ACTOR_LABEL[actor],
+          expected: WEBHOOK_MATRIX[state][column] as WebhookCell,
+        })),
+    );
+
+    it.each(cases)(
+      '소유자 방송 $state | $who → $expected',
+      async ({ state, actor, expected }) => {
+        await seedPublish(state);
+        const before = await broadcastRows();
+        const res = await openPublish(app, world.targetId, tokenOf(actor));
+        expect(res.status).toBe(200);
+        if (expected !== '허용') {
+          expect(res.body).toEqual({ allowed: false, reason: expected });
+          expect(await broadcastRows()).toEqual(before);
+          return;
+        }
+        expect(res.body).toEqual({ allowed: true });
+        const detail = await anonymous().get(
+          `/api/broadcasts/${world.targetId}`,
+        );
+        const startedAt = before[0]?.startedAt ?? fakeClockOf(app).now();
+        expect(detail.body).toMatchObject({
+          status: 'LIVE',
+          startedAt: startedAt.toISOString(),
+          endedAt: null,
+        });
+        const row = await prisma.broadcast.findUniqueOrThrow({
+          where: { id: world.targetId },
+        });
+        expect(row.disconnectedAt).toBeNull();
+      },
+    );
+  });
+
   // §7.5 rows whose API does not exist yet. Each becomes a matrix row when
   // its issue lands, so a missing row stays visible here.
   describe('rows not built yet', () => {
-    // The rest of the webhook rules are in publish.e2e.spec.ts.
-    it.todo(
-      'OME 송출 연결 Webhook 판정: 소유자 LIVE 유예 중 재접속 허용 (#12)',
-    );
     it.todo('스트림 키 조회·재발급: 비로그인 401, 타인 403, 소유자 허용 (P3)');
     it.todo('댓글 작성: 비로그인 401, 타인·소유자 허용 (#18)');
     it.todo('댓글 수정·삭제: 비로그인 401, 작성자만 허용 (#18)');
