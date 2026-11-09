@@ -261,10 +261,12 @@ docker compose exec postgres psql -U lsp -d lsp -c \
   "UPDATE \"Broadcast\" SET status='LIVE', \"startedAt\"=now() WHERE title='<제목>'"
 ```
 
-API로 확인:
+API로 확인 (0절 마지막 명령이 `jar.txt`의 세션을 로그아웃으로 지웠으므로, 같은 계정으로 다시 로그인해 쿠키를 새로 받는다):
 
 ```sh
 API=http://localhost:3000/api
+curl -s -c jar.txt -X POST $API/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"a@example.com","password":"password123"}'   # 200, 0절에서 만든 계정
 curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts \
   -H 'Content-Type: application/json' -d '{"title":"첫 방송"}'          # 401
 curl -s -b jar.txt -X POST $API/broadcasts -H 'Content-Type: application/json' \
