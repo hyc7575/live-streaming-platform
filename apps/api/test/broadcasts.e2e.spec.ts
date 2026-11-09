@@ -3,7 +3,8 @@ import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../src/database/database.module.js';
 import {
-  DELETE_LIVE_MESSAGE,
+  DROP_STREAM_FAILED_MESSAGE,
+  END_READY_MESSAGE,
   type BroadcastView,
   type PublicStatus,
 } from '../src/broadcasts/broadcasts.service.js';
@@ -14,18 +15,22 @@ import {
   signUpAndLogIn,
   type TestUser,
 } from './support/app.js';
+import { fakeOmeApiOf, type FakeOmeApi } from './support/fake-ome-api.js';
 
 describe('broadcasts', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
+  let ome: FakeOmeApi;
 
   beforeAll(async () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
+    ome = fakeOmeApiOf(app);
   });
 
   beforeEach(async () => {
     await resetDatabase(app);
+    ome.reset();
   });
 
   afterAll(async () => {
@@ -257,16 +262,62 @@ describe('broadcasts', () => {
     });
   });
 
-  describe('DELETE /api/broadcasts/:id', () => {
-    it('refuses a LIVE broadcast with 409 and keeps it', async () => {
+  const row = (id: string) => prisma.broadcast.findUnique({ where: { id } });
+
+  describe('POST /api/broadcasts/:id/end', () => {
+    it('refuses a READY broadcast with 409 and keeps it READY', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '시작 전', 'READY');
+      const res = await agent.post(`/api/broadcasts/${id}/end`);
+      expect(res.status).toBe(409);
+      expect((res.body as { message: string }).message).toBe(END_READY_MESSAGE);
+      expect(await row(id)).toMatchObject({ status: 'READY', endedAt: null });
+      expect(ome.calls).toEqual([]);
+    });
+
+    it('keeps the broadcast ENDED when OME fails, and a retry drops the stream', async () => {
       const { user, agent } = await signUpAndLogIn(app);
       const id = await seed(user, '송출 중', 'LIVE');
-      const res = await agent.delete(`/api/broadcasts/${id}`);
-      expect(res.status).toBe(409);
-      expect((res.body as { message: string }).message).toBe(
-        DELETE_LIVE_MESSAGE,
+      ome.failing = true;
+      const failed = await agent.post(`/api/broadcasts/${id}/end`);
+      expect(failed.status).toBe(502);
+      expect((failed.body as { message: string }).message).toBe(
+        DROP_STREAM_FAILED_MESSAGE,
       );
-      expect(await prisma.broadcast.count({ where: { id } })).toBe(1);
+      const ended = await row(id);
+      expect(ended).toMatchObject({ status: 'ENDED' });
+      expect(ended?.endedAt).toBeInstanceOf(Date);
+
+      ome.failing = false;
+      const retried = await agent.post(`/api/broadcasts/${id}/end`);
+      expect(retried.status).toBe(200);
+      expect(retried.body).toMatchObject({
+        status: 'ENDED',
+        endedAt: ended?.endedAt?.toISOString(),
+      });
+      expect(ome.calls).toEqual([
+        { broadcastId: id, statusAtCall: 'ENDED' },
+        { broadcastId: id, statusAtCall: 'ENDED' },
+      ]);
+    });
+  });
+
+  describe('DELETE /api/broadcasts/:id', () => {
+    it('ends a LIVE broadcast first and keeps it when OME fails, then a retry deletes it', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '송출 중', 'LIVE');
+      ome.failing = true;
+      const failed = await agent.delete(`/api/broadcasts/${id}`);
+      expect(failed.status).toBe(502);
+      expect(await row(id)).toMatchObject({ status: 'ENDED' });
+
+      ome.failing = false;
+      expect((await agent.delete(`/api/broadcasts/${id}`)).status).toBe(204);
+      expect(await row(id)).toBeNull();
+      expect(ome.calls).toEqual([
+        { broadcastId: id, statusAtCall: 'ENDED' },
+        { broadcastId: id, statusAtCall: 'ENDED' },
+      ]);
     });
 
     it('answers 404 to a second delete of the same broadcast', async () => {

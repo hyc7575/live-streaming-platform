@@ -12,12 +12,14 @@ import {
   signUpAndLogIn,
   type TestUser,
 } from './support/app.js';
+import { fakeOmeApiOf, type FakeOmeApi } from './support/fake-ome-api.js';
 
 // PRD §7.5 authorization matrix (KR3), driven as one table. Every row that
 // exists in the API today runs for each caller against an owner's broadcast
 // in every status. A cell is the expected HTTP status. A rejected cell also
-// proves the database did not change, and an allowed cell proves its effect
-// through the API the way a user would see it.
+// proves the database did not change and OME was not asked to drop a stream,
+// and an allowed cell proves its effect through the API the way a user would
+// see it.
 
 type Actor = 'anonymous' | 'other' | 'owner';
 type Cell = number | Record<BroadcastStatus, number>;
@@ -28,6 +30,7 @@ interface World {
   other: TestUser;
   // The owner's broadcast that resource rows act on.
   targetId: string;
+  targetEndedAt: Date | null;
   // An ENDED broadcast of the other user, so lists have something to leave out.
   othersId: string;
   as: Record<Actor, TestAgent>;
@@ -44,13 +47,14 @@ const MATRIX = {
   '방송 상세 조회': [200,      200,          200],
   '방송 생성':      [401,      201,          '—'],
   '방송 수정':      [401,      403,          200],
-  '방송 삭제':      [401,      403,          { READY: 204, LIVE: 409, ENDED: 204 }],
+  '방송 삭제':      [401,      403,          204],
+  '방송 종료':      [401,      403,          { READY: 409, LIVE: 200, ENDED: 200 }],
   '내 방송 조회':   [401,      200,          200],
   '송출 토큰 발급': [401,      403,          { READY: 201, LIVE: 201, ENDED: 409 }],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
-// The owner's LIVE delete is 409 until ending a broadcast exists (#11). PRD
-// §7.4 then wants it to end the broadcast and delete it. An ENDED broadcast
-// never goes LIVE again, so it gets no publish token.
+// §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
+// deleted. An ENDED broadcast never goes LIVE again, so it gets no publish
+// token.
 
 type Action = keyof typeof MATRIX;
 
@@ -77,6 +81,7 @@ const EDITED = { title: '고친 제목', description: '고친 설명' };
 describe('authorization matrix (PRD §7.5)', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
+  let ome: FakeOmeApi;
   let world: World;
 
   const anonymous = () => request.agent(app.getHttpServer());
@@ -161,6 +166,28 @@ describe('authorization matrix (PRD §7.5)', () => {
         expect(mine.body).toEqual([]);
         const list = await anonymous().get('/api/broadcasts');
         expect(ids(list.body)).toEqual([w.othersId]);
+        expect(ome.calls).toEqual(
+          w.status === 'READY'
+            ? []
+            : [{ broadcastId: w.targetId, statusAtCall: 'ENDED' }],
+        );
+      },
+    },
+    '방송 종료': {
+      send: (client, w) => client.post(`/api/broadcasts/${w.targetId}/end`),
+      verifyAllowed: async (res, w) => {
+        const detail = await anonymous().get(`/api/broadcasts/${w.targetId}`);
+        expect(detail.body).toMatchObject({ status: 'ENDED' });
+        expect(res.body).toEqual(detail.body);
+        const endedAt = (detail.body as { endedAt: string }).endedAt;
+        if (w.targetEndedAt) {
+          expect(endedAt).toBe(w.targetEndedAt.toISOString());
+        } else {
+          expect(endedAt).toEqual(expect.any(String));
+        }
+        expect(ome.calls).toEqual([
+          { broadcastId: w.targetId, statusAtCall: 'ENDED' },
+        ]);
       },
     },
     '송출 토큰 발급': {
@@ -189,6 +216,7 @@ describe('authorization matrix (PRD §7.5)', () => {
   beforeAll(async () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
+    ome = fakeOmeApiOf(app);
     await resetDatabase(app);
     const owner = await signUpAndLogIn(app, { nickname: '소유자' });
     const other = await signUpAndLogIn(app, { nickname: '타인' });
@@ -197,6 +225,7 @@ describe('authorization matrix (PRD §7.5)', () => {
       owner: owner.user,
       other: other.user,
       targetId: '',
+      targetEndedAt: null,
       othersId: '',
       as: { anonymous: anonymous(), other: other.agent, owner: owner.agent },
     };
@@ -230,7 +259,14 @@ describe('authorization matrix (PRD §7.5)', () => {
         endedAt: now,
       },
     });
-    world = { ...world, status, targetId: target.id, othersId: others.id };
+    world = {
+      ...world,
+      status,
+      targetId: target.id,
+      targetEndedAt: target.endedAt,
+      othersId: others.id,
+    };
+    ome.reset();
   }
 
   describe.each(STATUSES)('owner’s broadcast is %s', (status) => {
@@ -256,6 +292,7 @@ describe('authorization matrix (PRD §7.5)', () => {
         expect(res.status, JSON.stringify(res.body)).toBe(expected);
         if (expected >= 400) {
           expect(await broadcastRows()).toEqual(before);
+          expect(ome.calls).toEqual([]);
         } else {
           await driver.verifyAllowed(res, world, actor);
         }
@@ -271,18 +308,24 @@ describe('authorization matrix (PRD §7.5)', () => {
       await seed('READY');
     });
 
-    it.each([
-      ['PATCH', unknownId],
-      ['DELETE', unknownId],
-      ['PATCH', 'not-a-uuid'],
-      ['DELETE', 'not-a-uuid'],
-    ])(
+    const SENDERS = {
+      PATCH: (client: TestAgent, id: string) =>
+        client.patch(`/api/broadcasts/${id}`).send(EDITED),
+      DELETE: (client: TestAgent, id: string) =>
+        client.delete(`/api/broadcasts/${id}`),
+      'POST end': (client: TestAgent, id: string) =>
+        client.post(`/api/broadcasts/${id}/end`),
+    };
+
+    it.each(
+      (Object.keys(SENDERS) as (keyof typeof SENDERS)[]).flatMap((method) => [
+        [method, unknownId] as const,
+        [method, 'not-a-uuid'] as const,
+      ]),
+    )(
       '%s on a missing broadcast %s is 401 when anonymous and 404 when logged in',
       async (method, id) => {
-        const send = (client: TestAgent) =>
-          method === 'PATCH'
-            ? client.patch(`/api/broadcasts/${id}`).send(EDITED)
-            : client.delete(`/api/broadcasts/${id}`);
+        const send = (client: TestAgent) => SENDERS[method](client, id);
         expect((await send(world.as.anonymous)).status).toBe(401);
         expect((await send(world.as.other)).status).toBe(404);
       },
@@ -313,12 +356,10 @@ describe('authorization matrix (PRD §7.5)', () => {
   // §7.5 rows whose API does not exist yet. Each becomes a matrix row when
   // its issue lands, so a missing row stays visible here.
   describe('rows not built yet', () => {
-    it.todo('방송 종료: 비로그인 401, 타인 403, 소유자 허용 (#11)');
     // The rest of the webhook rules are in publish.e2e.spec.ts.
     it.todo(
       'OME 송출 연결 Webhook 판정: 소유자 LIVE 유예 중 재접속 허용 (#12)',
     );
-    it.todo('LIVE 방송 삭제: 소유자는 종료 처리 후 삭제 (#11, 지금은 409)');
     it.todo('스트림 키 조회·재발급: 비로그인 401, 타인 403, 소유자 허용 (P3)');
     it.todo('댓글 작성: 비로그인 401, 타인·소유자 허용 (#18)');
     it.todo('댓글 수정·삭제: 비로그인 401, 작성자만 허용 (#18)');

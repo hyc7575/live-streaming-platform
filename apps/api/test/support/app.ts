@@ -12,16 +12,19 @@ import {
 } from '../../src/auth/test-accounts.js';
 import { configureApp } from '../../src/configure-app.js';
 import { PrismaService } from '../../src/database/database.module.js';
+import { OME_API } from '../../src/ome/ome-api.js';
 import {
   PUBLISH_CONFIG,
   publishConfig,
 } from '../../src/publish/publish-config.js';
+import { FakeOmeApi } from './fake-ome-api.js';
 
 export const TEST_SESSION_SECRET = 'test-session-secret';
 export const TEST_OME_WEBHOOK_SECRET = 'test-ome-webhook-secret';
 
 // Runs the real AppModule against DATABASE_URL (migrations already applied).
 // Test accounts stay off unless a test passes a config, whatever .env says.
+// OME's admin API is a FakeOmeApi; reach it with fakeOmeApiOf(app).
 export async function createTestApp(
   options: { cookieSecure?: boolean; testAccounts?: TestAccountsConfig } = {},
 ): Promise<NestExpressApplication> {
@@ -37,6 +40,11 @@ export async function createTestApp(
         omeWebhookSecret: TEST_OME_WEBHOOK_SECRET,
       }),
     )
+    .overrideProvider(OME_API)
+    .useFactory({
+      factory: (prisma: PrismaService) => new FakeOmeApi(prisma),
+      inject: [PrismaService],
+    })
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({
     rawBody: true,

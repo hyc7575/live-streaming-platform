@@ -35,7 +35,8 @@ services:
       # 송출 허가(Admission Webhook)는 호스트에서 도는 API에 묻는다.
       OME_WEBHOOK_URL: ${OME_WEBHOOK_URL:-http://host.docker.internal:${API_PORT:-3000}/api/ome/admission}
       OME_WEBHOOK_SECRET: ${OME_WEBHOOK_SECRET:-}
-      OME_API_ACCESS_TOKEN: ${OME_API_ACCESS_TOKEN:-}
+      # 방송 종료 때 API가 이 토큰으로 OME 관리 API를 불러 송출 연결을 끊는다.
+      OME_API_ACCESS_TOKEN: ${OME_API_ACCESS_TOKEN:?OME_API_ACCESS_TOKEN을 .env에 넣으세요}
     volumes:
       - ./ome/Server.xml:/opt/ovenmediaengine/bin/origin_conf/Server.xml:ro
     extra_hosts:
@@ -45,6 +46,8 @@ services:
       - '${OME_ICE_UDP_PORTS:-10000-10003}:${OME_ICE_UDP_PORTS:-10000-10003}/udp'
       - '${OME_ICE_TCP_PORT:-10000}:${OME_ICE_TCP_PORT:-10000}/tcp'
       - '${OME_TURN_PORT:-3478}:${OME_TURN_PORT:-3478}/tcp'
+      # 관리 API는 호스트의 API만 부르므로 루프백에만 연다.
+      - '127.0.0.1:${OME_API_PORT:-8081}:8081/tcp'
 
 volumes:
   postgres-data:
