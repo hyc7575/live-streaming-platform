@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>S6 mobile publish</title>
+    <script src="vendor/OvenLiveKit.min.js"></script>
+    <style>
+      body { font: 16px system-ui, sans-serif; margin: 12px; }
+      video { width: 100%; background: #000; }
+      label, button { display: block; margin: 8px 0; }
+      button { font-size: 20px; padding: 12px; width: 100%; }
+      dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; }
+      dt { font-weight: 600; }
+      #ice { font-size: 24px; font-weight: 700; }
+      pre { white-space: pre-wrap; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <video id="preview" autoplay muted playsinline></video>
+    <label>스트림 이름 <input id="stream" value="s6" /></label>
+    <label>카메라
+      <select id="facing">
+        <option value="environment">후면</option>
+        <option value="user">전면</option>
+      </select>
+    </label>
+    <label>ICE 정책
+      <select id="policy">
+        <option value="all">all (UDP·TCP·TURN 중 브라우저가 고름)</option>
+        <option value="tcp">tcp (직접 TCP 10000만)</option>
+        <option value="relay">relay (TURN 3478만)</option>
+      </select>
+    </label>
+    <button id="start">송출 시작</button>
+    <button id="stop" disabled>송출 중지</button>
+    <dl>
+      <dt>연결</dt><dd id="conn">-</dd>
+      <dt>ICE</dt><dd id="ice">-</dd>
+      <dt>후보</dt><dd id="pair">-</dd>
+      <dt>영상</dt><dd id="video">-</dd>
+      <dt>소리</dt><dd id="audio">-</dd>
+      <dt>시청</dt><dd><a id="watch" target="_blank"></a></dd>
+    </dl>
+    <pre id="log"></pre>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const log = (...a) =>
+        ($('log').textContent =
+          `[${new Date().toLocaleTimeString()}] ${a.join(' ')}\n` + $('log').textContent);
+      let olk, timer, wakeLock, prevBytes = {};
+
+      const iceLabel = (local) => {
+        if (!local) return '-';
+        if (local.candidateType === 'relay')
+          return `TURN (${local.relayProtocol ?? '?'})`;
+        return local.protocol === 'udp' ? 'UDP' : 'TCP';
+      };
+
+      async function poll() {
+        const pc = olk?.peerConnection;
+        if (!pc) return;
+        $('conn').textContent = `${pc.connectionState} / ice ${pc.iceConnectionState}`;
+        const stats = await pc.getStats();
+        const byId = new Map([...stats.values()].map((s) => [s.id, s]));
+        const transport = [...stats.values()].find((s) => s.type === 'transport');
+        const pair = byId.get(transport?.selectedCandidatePairId);
+        const local = pair && byId.get(pair.localCandidateId);
+        const remote = pair && byId.get(pair.remoteCandidateId);
+        $('ice').textContent = iceLabel(local);
+        $('pair').textContent = pair
+          ? `local ${local.candidateType}/${local.protocol} → remote ${remote.address}:${remote.port} ${remote.candidateType}/${remote.protocol}, rtt ${pair.currentRoundTripTime ?? '?'}s`
+          : '-';
+        for (const s of stats.values()) {
+          if (s.type !== 'outbound-rtp') continue;
+          const codec = byId.get(s.codecId)?.mimeType ?? '?';
+          const kbps = prevBytes[s.kind] != null
+            ? Math.round(((s.bytesSent - prevBytes[s.kind]) * 8) / 1000) : '?';
+          prevBytes[s.kind] = s.bytesSent;
+          if (s.kind === 'video')
+            $('video').textContent = `${codec} ${s.frameWidth}x${s.frameHeight} ${s.framesPerSecond ?? '?'}fps ${kbps}kbps ${s.encoderImplementation ?? ''} ${s.qualityLimitationReason ?? ''}`;
+          else
+            $('audio').textContent = `${codec} ${kbps}kbps`;
+        }
+      }
+
+      $('start').onclick = async () => {
+        const stream = $('stream').value.trim();
+        const policy = $('policy').value;
+        // OME sends its TURN server in the WHIP Link header only for transport=all; transport=tcp yields only the direct TCP candidate.
+        const transport = policy === 'tcp' ? 'tcp' : 'all';
+        const url = `${location.origin}/app/${encodeURIComponent(stream)}?direction=whip&transport=${transport}`;
+        $('watch').href = $('watch').textContent =
+          `${location.origin}/spike/watch.html?stream=${encodeURIComponent(stream)}`;
+        $('start').disabled = true;
+        for (const id of ['stream', 'facing', 'policy']) $(id).disabled = true;
+        log('start', url, 'policy', policy, 'facing', $('facing').value);
+        olk = OvenLiveKit.create({
+          callbacks: {
+            error: (e) => log('error', e?.message ?? e),
+            connected: () => log('connected'),
+            connectionClosed: (t) => log('connectionClosed', t),
+            iceStateChange: (s) => log('ice', s),
+          },
+        });
+        try {
+          await olk.getUserMedia({
+            audio: true,
+            video: {
+              facingMode: { exact: $('facing').value },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          });
+        } catch (e) {
+          log('getUserMedia failed', e?.name, e?.message);
+          return reset();
+        }
+        $('preview').srcObject = olk.inputStream;
+        olk.startStreaming(url, {
+          iceTransportPolicy: policy === 'relay' ? 'relay' : 'all',
+          preferredVideoFormat: 'H264',
+        });
+        try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (e) { log('wakeLock', e.message); }
+        timer = setInterval(poll, 1000);
+        $('stop').disabled = false;
+      };
+
+      function reset() {
+        clearInterval(timer);
+        wakeLock?.release();
+        olk?.remove();
+        olk = null;
+        prevBytes = {};
+        $('start').disabled = false;
+        $('stop').disabled = true;
+        for (const id of ['stream', 'facing', 'policy']) $(id).disabled = false;
+      }
+      $('stop').onclick = () => { log('stop'); reset(); };
+    </script>
+  </body>
+</html>

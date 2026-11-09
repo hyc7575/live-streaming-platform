@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>S6 watch</title>
+    <script src="vendor/hls.min.js"></script>
+    <style>
+      body { font: 16px system-ui, sans-serif; margin: 12px; }
+      video { width: 100%; max-width: 960px; background: #000; }
+      pre { white-space: pre-wrap; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <video id="v" autoplay muted playsinline controls></video>
+    <p><button id="unmute">소리 켜기</button> <span id="src"></span></p>
+    <pre id="info"></pre>
+    <pre id="log"></pre>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const log = (...a) =>
+        ($('log').textContent =
+          `[${new Date().toLocaleTimeString()}] ${a.join(' ')}\n` + $('log').textContent);
+      const stream = new URLSearchParams(location.search).get('stream') ?? 's6';
+      const src = `${location.origin}/app/${encodeURIComponent(stream)}/llhls.m3u8`;
+      $('src').textContent = src;
+      const video = $('v');
+      let hls, codecs = '-';
+
+      // The playlist 404s until the publisher connects, so keep retrying instead of giving up.
+      function load() {
+        hls?.destroy();
+        hls = new Hls({ lowLatencyMode: true });
+        hls.on(Hls.Events.MANIFEST_PARSED, (_, d) => {
+          codecs = d.levels.map((l) => `${l.videoCodec ?? '-'} + ${l.audioCodec ?? '-'}`).join(', ');
+          log('manifest', codecs);
+        });
+        hls.on(Hls.Events.ERROR, (_, d) => {
+          log(d.fatal ? 'FATAL' : 'error', d.type, d.details);
+          if (d.fatal) setTimeout(load, 2000);
+        });
+        hls.loadSource(src);
+        hls.attachMedia(video);
+      }
+      load();
+
+      $('unmute').onclick = () => { video.muted = false; video.play(); };
+
+      setInterval(() => {
+        const q = video.getVideoPlaybackQuality();
+        $('info').textContent = [
+          `codecs      ${codecs}`,
+          `resolution  ${video.videoWidth}x${video.videoHeight}`,
+          `latency     ${hls?.latency?.toFixed(2) ?? '-'}s (target ${hls?.targetLatency?.toFixed(2) ?? '-'}s)`,
+          `frames      ${q.totalVideoFrames} decoded, ${q.droppedVideoFrames} dropped`,
+          `audio bytes ${video.webkitAudioDecodedByteCount ?? '-'}`,
+          `state       ${video.paused ? 'paused' : 'playing'} muted=${video.muted}`,
+        ].join('\n');
+      }, 1000);
+    </script>
+  </body>
+</html>
