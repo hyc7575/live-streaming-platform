@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv } from 'vite';
 
@@ -5,12 +7,23 @@ const repoRoot = new URL('../..', import.meta.url).pathname;
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, repoRoot, '');
+  // A phone on the same Wi-Fi only gets the camera over https
+  // (scripts/lan-https.sh makes the certificate).
+  const https =
+    env.WEB_HTTPS_CERT && env.WEB_HTTPS_KEY
+      ? {
+          cert: readFileSync(resolve(repoRoot, env.WEB_HTTPS_CERT)),
+          key: readFileSync(resolve(repoRoot, env.WEB_HTTPS_KEY)),
+        }
+      : undefined;
   return {
     plugins: [react()],
     envDir: repoRoot,
     server: {
       port: Number(env.WEB_PORT || 5173),
       strictPort: true,
+      https,
+      host: https ? true : undefined,
       proxy: {
         '/api': `http://localhost:${env.API_PORT || 3000}`,
         // OME: WHIP publish and LL-HLS playback under the web origin, the way
