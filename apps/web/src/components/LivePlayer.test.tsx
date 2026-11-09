@@ -49,6 +49,8 @@ beforeEach(() => {
   hls.supported.value = true;
   vi.useFakeTimers();
   vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  // jsdom's play() returns nothing; a browser's returns a promise.
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
 });
 
 afterEach(() => {
@@ -209,4 +211,16 @@ it('plays muted when the browser refuses to start with sound', async () => {
   await act(() => Promise.resolve());
   expect(play).toHaveBeenCalledTimes(2);
   expect(video.muted).toBe(true);
+});
+
+it('asks native HLS to play right away, falling back to muted', async () => {
+  canPlayNativeHls('maybe');
+  const play = vi
+    .spyOn(HTMLMediaElement.prototype, 'play')
+    .mockRejectedValueOnce(new DOMException('no gesture', 'NotAllowedError'))
+    .mockResolvedValue();
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
+  await act(() => Promise.resolve());
+  expect(play).toHaveBeenCalledTimes(2);
+  expect(screen.getByLabelText<HTMLVideoElement>('방송 화면').muted).toBe(true);
 });

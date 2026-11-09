@@ -7,14 +7,20 @@ import {
   within,
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
 import type { Broadcast } from './broadcasts';
 
+beforeEach(() => {
+  // jsdom's play() returns nothing; a browser's returns a promise.
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+});
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const streamer = { id: 'u1', email: 'a@example.com', nickname: '불씨' };

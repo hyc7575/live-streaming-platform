@@ -84,7 +84,9 @@ export function BroadcastPage() {
     `/broadcasts/${encodeURIComponent(id)}`,
   );
 
-  if (broadcast.status === 'loading') return null;
+  // Until we know whether this is the owner, the player cannot know whether
+  // to start muted (T7).
+  if (broadcast.status === 'loading' || state.status === 'loading') return null;
   if (broadcast.status === 'failed') {
     const notFound =
       broadcast.error instanceof ApiError && broadcast.error.status === 404;

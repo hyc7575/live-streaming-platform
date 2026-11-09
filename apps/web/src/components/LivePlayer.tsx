@@ -53,6 +53,8 @@ export function LivePlayer({
     if (path === 'native') {
       const load = () => {
         video.src = src;
+        // iPhone Safari loads nothing for a video with sound until asked to play.
+        play(video);
       };
       const onError = () => {
         reportError();
@@ -98,6 +100,7 @@ export function LivePlayer({
         ref={videoRef}
         className={styles.video}
         aria-label="방송 화면"
+        autoPlay
         muted={startMuted}
         playsInline
         controls
