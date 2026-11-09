@@ -163,7 +163,7 @@ stateDiagram-v2
 - **좀비 방송 정리 (T8)**: Webhook이 누락되거나 순서가 바뀔 수 있으므로, 30초마다 OME 스트림 목록과 DB의 `LIVE` 방송을 대조해 송출이 없는 방송을 유예 후 `ENDED`로 바꾼다. Webhook 처리는 멱등하게 만든다 (같은 이벤트가 두 번 와도 결과가 같다).
 - **시청자 종료 감지 (T9)**: 시청 화면은 방송 상태를 5초마다 조회하고, hls.js 치명적 오류(네이티브 HLS 경로는 `<video>`의 `error`·`stalled`) 때도 즉시 다시 조회한다. `ENDED`면 재생을 정리하고 "방송 종료"를 표시한다.
 - **목록 노출**: 공개 목록에는 `LIVE`와 `ENDED`만 보인다. `READY`는 소유자의 "내 방송"에만 "방송 전"으로 보인다. `READY` 방송의 상세 URL로 직접 들어오면 "아직 시작하지 않은 방송"을 안내한다.
-- **재생 경로 분기**: `video.canPlayType('application/vnd.apple.mpegurl')`이 되는 브라우저(iOS Safari)는 `<video src>` 네이티브 HLS, 그 외는 hls.js. hls.js는 iOS에서 17.1+에서만 동작하므로 iOS는 네이티브로 보낸다.
+- **재생 경로 분기**: `window.MediaSource`가 있고 hls.js가 지원되는 브라우저는 hls.js, 없는 브라우저(iPhone Safari)는 `<video src>` 네이티브 HLS로 보낸다. hls.js는 iOS에서 17.1+에서만 동작하므로 iOS는 네이티브로 보낸다. `canPlayType('application/vnd.apple.mpegurl')`만으로는 나눌 수 없다. 데스크톱 Chrome 156도 `'maybe'`를 돌려주기 때문이다(#10 실측).
 
 #### 7.5 인가 규칙
 
