@@ -601,7 +601,9 @@ it('offers to start over when the mic is lost before going live, not while live'
   });
   await shareScreen();
   act(() => page.screen.patchLive({ micLost: true }));
-  expect(screen.getByRole('button', { name: '처음부터 다시' })).toBeDefined();
+  expect(
+    await screen.findByRole('button', { name: '처음부터 다시' }),
+  ).toBeDefined();
 
   fireEvent.click(screen.getByRole('button', { name: '방송 시작' }));
   await screen.findByText('송출을 연결하는 중입니다.');
@@ -617,7 +619,7 @@ it('starts over with a new screen capture when asked after the mic is lost', asy
   const page = renderDesktopPage({});
   await shareScreen();
   act(() => page.screen.patchLive({ micLost: true }));
-  fireEvent.click(screen.getByRole('button', { name: '처음부터 다시' }));
+  fireEvent.click(await screen.findByRole('button', { name: '처음부터 다시' }));
   expect(page.screen.capture.stop).toHaveBeenCalled();
   await vi.waitFor(() => expect(startPcCapture).toHaveBeenCalledTimes(2));
 });
