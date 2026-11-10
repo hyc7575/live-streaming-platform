@@ -7,6 +7,7 @@ export interface BroadcastView {
   status: 'READY' | 'LIVE' | 'ENDED';
   startedAt: string | null;
   endedAt: string | null;
+  thumbnailUrl: string | null;
 }
 
 let clientCounter = 0;
