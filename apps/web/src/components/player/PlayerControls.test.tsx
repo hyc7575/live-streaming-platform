@@ -247,6 +247,23 @@ it('offers a seek bar and the time for a recording, not for live', () => {
   expect(seek.getAttribute('aria-valuetext')).toBe('1:05 / 1:02:05');
 });
 
+it('cycles the speed of a recording from one button', async () => {
+  render(<Player />);
+  expect(screen.queryByRole('button', { name: /재생 속도/ })).toBeNull();
+  act(() => setDuration(video(), 60));
+
+  let label = '재생 속도 1배';
+  for (const rate of [1.25, 1.5, 2, 0.5, 1]) {
+    fireEvent.click(button(label));
+    label = `재생 속도 ${rate}배`;
+    expect(
+      (await screen.findByRole('button', { name: label })).textContent,
+    ).toBe(`${rate}x`);
+    expect(video().playbackRate).toBe(rate);
+    expect(video().defaultPlaybackRate).toBe(rate);
+  }
+});
+
 it('hides the seek bar while a live source has no end', () => {
   function Live() {
     const ref = useRef<HTMLVideoElement>(null);
@@ -259,6 +276,7 @@ it('hides the seek bar while a live source has no end', () => {
   render(<Live />);
   act(() => setDuration(video(), 100));
   expect(screen.queryByRole('slider', { name: '재생 위치' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /재생 속도/ })).toBeNull();
 });
 
 it('seeks a recording with the arrow keys, within its length', () => {

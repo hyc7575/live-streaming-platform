@@ -10,6 +10,7 @@ export type MediaState = {
   currentTime: number;
   // NaN before metadata, Infinity for a live source.
   duration: number;
+  playbackRate: number;
 };
 
 const VIDEO_EVENTS = [
@@ -21,6 +22,7 @@ const VIDEO_EVENTS = [
   'timeupdate',
   'durationchange',
   'seeked',
+  'ratechange',
 ] as const;
 
 const INITIAL: MediaState = {
@@ -31,6 +33,7 @@ const INITIAL: MediaState = {
   fullscreen: false,
   currentTime: 0,
   duration: NaN,
+  playbackRate: 1,
 };
 
 // useSyncExternalStore needs the same object back while nothing changed.
@@ -45,6 +48,7 @@ function read(video: HTMLVideoElement): MediaState {
     fullscreen: document.fullscreenElement?.contains(video) ?? false,
     currentTime: video.currentTime,
     duration: video.duration,
+    playbackRate: video.playbackRate,
   };
   const previous = snapshots.get(video);
   if (
