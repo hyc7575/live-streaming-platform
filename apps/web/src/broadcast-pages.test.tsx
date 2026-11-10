@@ -314,6 +314,40 @@ it('swaps the 방송 전 notice for the player once a status poll says LIVE', as
   }
 });
 
+it('re-reads the list every 30 s so a LIVE card shows the newest thumbnail', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  try {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts': [
+        broadcast({
+          title: '낚시',
+          thumbnailUrl: '/thumbnails/b1/live.jpg?v=1',
+        }),
+      ],
+    };
+    stubApi(routes);
+    renderAt('/');
+    const card = await screen.findByRole('link', { name: /낚시/ });
+    expect(card.querySelector('img')?.getAttribute('src')).toBe(
+      '/thumbnails/b1/live.jpg?v=1',
+    );
+
+    routes['GET /api/broadcasts'] = [
+      broadcast({
+        title: '낚시',
+        thumbnailUrl: '/thumbnails/b1/live.jpg?v=2',
+      }),
+    ];
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    expect(card.querySelector('img')?.getAttribute('src')).toBe(
+      '/thumbnails/b1/live.jpg?v=2',
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('draws each card from the title initial and shows how long a LIVE card has run', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
   vi.setSystemTime(new Date('2026-11-10T12:00:00.000Z'));
