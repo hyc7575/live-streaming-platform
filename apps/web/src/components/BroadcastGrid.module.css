@@ -12,20 +12,11 @@
 }
 
 .thumbnail {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  background: var(--color-surface-raised);
   border-radius: var(--radius-md);
 }
 
 .card:hover .thumbnail {
   outline: 2px solid var(--color-brand-strong);
-}
-
-.badge {
-  position: absolute;
-  top: var(--space-2);
-  left: var(--space-2);
 }
 
 .title {

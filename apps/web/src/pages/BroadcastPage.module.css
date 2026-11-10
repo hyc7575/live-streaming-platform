@@ -29,6 +29,13 @@
   border-radius: var(--radius-md);
 }
 
+.waiting {
+  padding: var(--space-4);
+  background: var(--color-video-bg);
+  text-align: center;
+  word-break: keep-all;
+}
+
 .notice {
   margin: 0;
   color: var(--color-text-muted);
@@ -44,6 +51,23 @@
 
 .info {
   padding: var(--space-4) 0;
+}
+
+.waiting .notice {
+  color: var(--color-on-video);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.elapsed {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .title {

@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import type { Broadcast } from '../broadcasts';
 import styles from './BroadcastGrid.module.css';
-import { StatusBadge } from './StatusBadge';
+import { BroadcastThumbnail } from './BroadcastThumbnail';
 
 export function BroadcastGrid({ broadcasts }: { broadcasts: Broadcast[] }) {
   return (
@@ -10,9 +10,7 @@ export function BroadcastGrid({ broadcasts }: { broadcasts: Broadcast[] }) {
         <li key={b.id}>
           <Link to={`/broadcasts/${b.id}`} className={styles.card}>
             <div className={styles.thumbnail}>
-              <span className={styles.badge}>
-                <StatusBadge status={b.status} />
-              </span>
+              <BroadcastThumbnail broadcast={b} />
             </div>
             <p className={styles.title}>{b.title}</p>
             <p className={styles.streamer}>{b.streamer.nickname}</p>

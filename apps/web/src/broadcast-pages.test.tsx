@@ -125,6 +125,89 @@ it('says so when there is nothing to replay', async () => {
   ).toBeDefined();
 });
 
+const searchable = [
+  broadcast({ id: 'b1', title: 'Minecraft 생존', status: 'LIVE' }),
+  broadcast({
+    id: 'b2',
+    title: '저녁 라디오',
+    status: 'LIVE',
+    streamer: { id: 'u2', nickname: 'MoonLight' },
+  }),
+  broadcast({ id: 'b3', title: '어제 minecraft 건축', status: 'ENDED' }),
+];
+
+function shownTitles() {
+  return screen
+    .queryAllByRole('listitem')
+    .map((item) => within(item).getAllByRole('paragraph')[0].textContent);
+}
+
+it('filters the list by title or streamer nickname, ignoring case and spaces', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': searchable });
+  renderAt('/');
+  await screen.findByText('저녁 라디오');
+  const search = screen.getByRole('searchbox', { name: '방송 검색' });
+
+  fireEvent.change(search, { target: { value: '  MINECRAFT ' } });
+  expect(shownTitles()).toEqual(['Minecraft 생존', '어제 minecraft 건축']);
+
+  fireEvent.change(search, { target: { value: 'moon' } });
+  expect(shownTitles()).toEqual(['저녁 라디오']);
+
+  fireEvent.change(search, { target: { value: '' } });
+  expect(shownTitles()).toHaveLength(3);
+});
+
+it('restores the search from ?q= and keeps it across status tabs', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts': searchable,
+    'GET /api/broadcasts?status=ENDED': [searchable[2]],
+  });
+  renderAt('/?q=minecraft');
+  await screen.findByText('Minecraft 생존');
+  expect(
+    screen.getByRole<HTMLInputElement>('searchbox', { name: '방송 검색' })
+      .value,
+  ).toBe('minecraft');
+  expect(shownTitles()).toEqual(['Minecraft 생존', '어제 minecraft 건축']);
+
+  const ended = screen.getByRole('link', { name: '방송 종료' });
+  expect(ended.getAttribute('href')).toBe('/?status=ENDED&q=minecraft');
+  fireEvent.click(ended);
+  await screen.findByText('어제 minecraft 건축');
+  expect(calls).toContain('GET /api/broadcasts?status=ENDED');
+  expect(shownTitles()).toEqual(['어제 minecraft 건축']);
+  expect(
+    screen.getByRole<HTMLInputElement>('searchbox', { name: '방송 검색' })
+      .value,
+  ).toBe('minecraft');
+});
+
+it('says nothing matched and clears the search on request', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': searchable });
+  renderAt('/?q=%20피아노%20');
+  expect(
+    await screen.findByText("'피아노'와 맞는 방송이 없습니다."),
+  ).toBeDefined();
+  expect(shownTitles()).toEqual([]);
+
+  fireEvent.click(screen.getByRole('button', { name: '검색어 지우기' }));
+  expect(shownTitles()).toHaveLength(3);
+  const search = screen.getByRole<HTMLInputElement>('searchbox', {
+    name: '방송 검색',
+  });
+  expect(search.value).toBe('');
+  expect(document.activeElement).toBe(search);
+});
+
+it('keeps the empty-list notice when there is nothing to search', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': [] });
+  renderAt('/?q=minecraft');
+  expect(await screen.findByText('아직 공개된 방송이 없습니다.')).toBeDefined();
+  expect(screen.queryByRole('button', { name: '검색어 지우기' })).toBeNull();
+});
+
 it('plays the recording of an ENDED broadcast under the ended notice', async () => {
   stubApi({
     'GET /api/auth/me': 401,
@@ -197,9 +280,153 @@ it('tells a visitor that a READY broadcast has not started', async () => {
   });
   renderAt('/broadcasts/b3');
   expect(
-    await screen.findByText('아직 시작하지 않은 방송입니다.'),
+    await screen.findByText(
+      '방송 전입니다. 스트리머가 방송을 시작하면 자동으로 재생합니다.',
+    ),
   ).toBeDefined();
   expect(screen.getByText('방송 전')).toBeDefined();
+});
+
+it('swaps the 방송 전 notice for the player once a status poll says LIVE', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  try {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ status: 'READY' }),
+    };
+    stubApi(routes);
+    renderAt('/broadcasts/b1');
+    const notice =
+      '방송 전입니다. 스트리머가 방송을 시작하면 자동으로 재생합니다.';
+    await screen.findByText(notice);
+    expect(screen.queryByLabelText('방송 화면')).toBeNull();
+
+    routes['GET /api/broadcasts/b1'] = broadcast({
+      status: 'LIVE',
+      startedAt: new Date().toISOString(),
+    });
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(screen.getByLabelText('방송 화면')).toBeDefined();
+    expect(screen.queryByText(notice)).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('draws each card from the title initial and shows how long a LIVE card has run', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+  vi.setSystemTime(new Date('2026-11-10T12:00:00.000Z'));
+  try {
+    stubApi({
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts': [
+        broadcast({
+          id: 'b1',
+          title: '지금 방송',
+          status: 'LIVE',
+          startedAt: '2026-11-10T11:58:30.000Z',
+        }),
+        broadcast({ id: 'b2', title: 'yesterday', status: 'ENDED' }),
+      ],
+    });
+    renderAt('/');
+    const live = await screen.findByRole('link', { name: /지금 방송/ });
+    expect(within(live).getByText('지')).toBeDefined();
+    const elapsed = within(live).getByText('1분');
+    expect(elapsed.tagName).toBe('TIME');
+    expect(elapsed.getAttribute('dateTime')).toBe('2026-11-10T11:58:30.000Z');
+
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(within(live).getByText('2분')).toBeDefined();
+
+    const ended = screen.getByRole('link', { name: /yesterday/ });
+    expect(within(ended).getByText('Y')).toBeDefined();
+    expect(ended.querySelector('time')).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('counts a LIVE broadcast’s running time up every second beside the badge', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+  vi.setSystemTime(new Date('2026-11-10T12:00:00.000Z'));
+  try {
+    stubApi({
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({
+        status: 'LIVE',
+        startedAt: '2026-11-10T10:59:58.000Z',
+      }),
+    });
+    renderAt('/broadcasts/b1');
+    const elapsed = await screen.findByText('1:00:02');
+    expect(elapsed.getAttribute('dateTime')).toBe('2026-11-10T10:59:58.000Z');
+    expect(elapsed.closest('[aria-live]')).toBeNull();
+    const info = screen.getByRole('heading', { level: 1 }).parentElement;
+    expect(within(info!).getByText('1:00:02')).toBe(elapsed);
+
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(elapsed.textContent).toBe('1:00:03');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+function stubClipboard(writeText: ((text: string) => Promise<void>) | null) {
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: writeText ? { writeText } : undefined,
+  });
+}
+
+it('copies the page link and says so for two seconds', async () => {
+  const writeText = vi.fn(() => Promise.resolve());
+  stubClipboard(writeText);
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+  });
+  renderAt('/broadcasts/b1');
+  const button = await screen.findByRole('button', { name: '링크 복사' });
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    fireEvent.click(button);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(writeText).toHaveBeenCalledWith(window.location.href);
+    expect(button.textContent).toBe('복사했습니다');
+
+    await act(() => vi.advanceTimersByTimeAsync(1999));
+    expect(button.textContent).toBe('복사했습니다');
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(button.textContent).toBe('링크 복사');
+    expect(screen.queryByRole('textbox')).toBeNull();
+  } finally {
+    vi.useRealTimers();
+    stubClipboard(null);
+  }
+});
+
+it.each([
+  ['permission is denied', () => Promise.reject(new Error('denied'))],
+  ['the origin is insecure', null],
+])('offers the address to select by hand when %s', async (_case, writeText) => {
+  stubClipboard(writeText);
+  try {
+    stubApi({
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+    });
+    renderAt('/broadcasts/b1');
+    fireEvent.click(await screen.findByRole('button', { name: '링크 복사' }));
+    const input = await screen.findByRole<HTMLInputElement>('textbox', {
+      name: /주소를 직접 복사하세요/,
+    });
+    expect(input.value).toBe(window.location.href);
+    expect(input.readOnly).toBe(true);
+    expect(screen.queryByText('복사했습니다')).toBeNull();
+  } finally {
+    stubClipboard(null);
+  }
 });
 
 it('says the broadcast does not exist on a 404', async () => {

@@ -1,0 +1,50 @@
+.thumbnail {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.live {
+  background: var(--color-live-soft);
+  color: var(--color-live);
+}
+
+.ready {
+  background: var(--color-ready-soft);
+  color: var(--color-ready);
+}
+
+.ended {
+  background: var(--color-ended-soft);
+  color: var(--color-ended);
+}
+
+.initial {
+  font-size: var(--font-size-display);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.badge {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+}
+
+.elapsed {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  padding: 2px var(--space-2);
+  background: var(--color-player-scrim);
+  border-radius: var(--radius-sm);
+  color: var(--color-on-video);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
