@@ -19,6 +19,17 @@
 		}
 	}
 
+	# Recordings (#19). OME writes tmp_* while recording and an info .xml
+	# next to each file; only finished .mp4 files are served. file_server
+	# answers Range requests, so the browser can seek and read the moov box
+	# that OME writes at the end of the file.
+	handle_path /recordings/* {
+		root * /recordings
+		file_server {
+			hide tmp_* *.xml
+		}
+	}
+
 	handle {
 		root * /srv
 		@hashed path /assets/*

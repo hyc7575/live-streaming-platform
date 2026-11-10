@@ -368,6 +368,19 @@
 					<Publishers>
 						<AppWorkerCount>1</AppWorkerCount>
 						<StreamWorkerCount>8</StreamWorkerCount>
+						<!--
+						Recording (#19). The API starts and stops a task per
+						broadcast through :startRecord / :stopRecord. The stream
+						name is the broadcast id, so each broadcast gets its own
+						folder. A reconnect within the grace period starts a new
+						file (sequence + 1) in the same transaction. The file is
+						written as tmp_* and renamed when finished.
+						-->
+						<FILE>
+							<RootPath>/opt/ovenmediaengine/records</RootPath>
+							<FilePath>/${Stream}/${TransactionId}_${Sequence}.mp4</FilePath>
+							<InfoPath>/${Stream}/${TransactionId}.xml</InfoPath>
+						</FILE>
 						<OVT />
 						<WebRTC>
 							<Timeout>30000</Timeout>

@@ -1,21 +1,21 @@
 # 운영 메모
 
-운영 서버 한 대에 `deploy/compose.yaml`로 서비스 전체를 띄운다. 이 문서는 첫 배포, 재배포, 장애 뒤 복구, 로그, 다운 감시 절차다. 서버 정보(도메인 `lsp-live.duckdns.org`, 공인 IP, 방화벽)는 `docs/NEXT-STEPS.md` S2–S4에 있다.
+운영 서버 한 대에 `deploy/compose.yaml`로 서비스 전체를 띄운다. 이 문서는 첫 배포, 재배포, 장애 뒤 복구, DB 덤프, 녹화 파일, 로그, 다운 감시 절차다. 서버 정보(도메인 `lsp-live.duckdns.org`, 공인 IP, 방화벽)는 `docs/NEXT-STEPS.md` S2–S4에 있다.
 
 ## 구성
 
 | 서비스 | 하는 일 | 밖으로 여는 포트 |
 |---|---|---|
-| `caddy` | TLS(Let's Encrypt), 웹 정적 파일, `/api/*` → `api`, `/app/*` → `ome` | 80/tcp, 443/tcp |
-| `api` | NestJS API. 시작할 때 `prisma migrate deploy`를 먼저 돌린다 | 없음 |
-| `ome` | OvenMediaEngine. WHIP 송출, LL-HLS | 10000-10003/udp, 10000/tcp, 3478/tcp |
+| `caddy` | TLS(Let's Encrypt), 웹 정적 파일, `/api/*` → `api`, `/app/*` → `ome`, `/recordings/*` → 녹화 파일 | 80/tcp, 443/tcp |
+| `api` | NestJS API. 시작할 때 `prisma migrate deploy`를 먼저 돌린다. 녹화 시작·중지와 녹화 용량 정리 | 없음 |
+| `ome` | OvenMediaEngine. WHIP 송출, LL-HLS, 녹화 | 10000-10003/udp, 10000/tcp, 3478/tcp |
 | `postgres` | PostgreSQL 18 | 없음 |
 | `db-backup` | 매일 04:00(KST) PostgreSQL 덤프, 오래된 덤프 삭제. 아래 "DB 덤프와 복원" | 없음 |
 
 - 모든 서비스가 `restart: unless-stopped`다. 컨테이너가 죽거나 서버가 재부팅되면 Docker가 다시 띄운다.
 - OME 시그널링·LL-HLS(3333)와 관리 API(8081)는 compose 네트워크 안에서만 쓴다. OME는 송출 허가를 `http://api:3000/api/ome/admission`에 묻고, API는 `http://ome:8081`로 송출을 끊는다.
 - 값은 `deploy/.env`에서 읽는다. 항목과 설명은 `deploy/.env.example`에 있다. 저장소 루트의 `.env`(로컬 개발용)와 다른 파일이다.
-- 데이터는 named volume에 남는다: `lsp-prod_postgres-data`(DB), `lsp-prod_caddy-data`(인증서). `docker compose down -v`는 이 둘을 지우므로 운영에서는 쓰지 않는다. DB 덤프는 volume이 아니라 호스트 폴더 `deploy/backups/`에 있어 `down -v`로 지워지지 않는다.
+- 데이터는 named volume에 남는다: `lsp-prod_postgres-data`(DB), `lsp-prod_caddy-data`(인증서). `docker compose down -v`는 이 둘을 지우므로 운영에서는 쓰지 않는다. DB 덤프와 녹화 파일은 volume이 아니라 호스트 폴더 `deploy/backups/`, `deploy/recordings/`에 있어 `down -v`로 지워지지 않는다.
 - 컨테이너 로그는 서비스마다 10MB × 3개까지만 남는다.
 - 공인 IP `129.225.169.22`는 Ephemeral이다. OCI 문서상 인스턴스를 Stop/Start하거나 재부팅해도 유지되지만, **Terminate하면 사라지고 같은 주소로 되돌릴 수 없다.** 콘솔에서 이 인스턴스를 Terminate하지 않는다. 다른 인스턴스(A1 등)로 옮길 때는 Reserved IP를 만들어 붙이고 DuckDNS와 `OME_HOST_IP`를 새 주소로 바꾼다.
 
@@ -139,6 +139,41 @@ docker compose -f deploy/compose.yaml exec db-backup sh -c '
   psql -d lsp_restore_check -tAc "select count(*) from \"User\"; select count(*) from \"Broadcast\""'
 docker compose -f deploy/compose.yaml exec db-backup dropdb lsp_restore_check
 ```
+
+## 녹화 파일
+
+`LIVE`가 된 방송은 OME가 녹화한다(#19). 끝난 방송의 녹화는 다시보기로 `https://<도메인>/recordings/...`에서 재생된다.
+
+- 위치: `deploy/recordings/<방송 id>/<녹화 id>_<순번>.mp4`. `deploy/.env`의 `RECORDINGS_DIR`로 바꿀 수 있다(상대 경로는 `deploy/` 기준). OME가 쓰고, API가 용량을 재고 지우고, Caddy가 읽기 전용으로 내준다.
+- 녹화 중인 파일은 `tmp_…` 이름이고, 송출이 끊기거나 방송이 끝나면 `.mp4`로 바뀐다. 유예 시간 안에 다시 송출하면 순번이 하나 늘어난 새 파일이 생긴다.
+- 상한: API가 30초마다 폴더 전체 크기를 잰다. `RECORDINGS_MAX_GB`(기본 10)를 넘으면 오래 전에 끝난 방송의 녹화부터 지운다. 지우기 전에 DB의 녹화 목록을 먼저 비우므로, 다시보기 목록에 지워진 파일이 남지 않는다. 송출 중인 방송의 녹화는 지우지 않는다. 송출 중인 녹화만으로 상한을 넘으면 API 로그에 경고만 남긴다.
+- 방송을 삭제하면 다음 정리(최대 30초)에서 그 방송의 녹화 폴더도 지운다.
+- DB 덤프와 달리 녹화는 백업하지 않는다. 서버를 잃으면 녹화도 잃는다.
+
+상한은 서버 디스크 여유를 보고 정한다. 녹화는 송출 비트레이트 그대로 저장되므로, 1시간 방송이 대략 1~2GB다(추정, 브라우저 송출 비트레이트에 따라 다르다).
+
+```sh
+df -h /                                                       # 디스크 여유
+du -sh deploy/recordings                                      # 녹화가 쓰는 용량
+docker compose -f deploy/compose.yaml logs --tail=50 api | grep Recording
+```
+
+### 녹화 기능 처음 반영 (#19)
+
+이 변경은 OME 설정(`ome/Server.xml`), Caddy 설정, compose의 볼륨, DB 스키마를 함께 바꾼다. **OME를 다시 만들면 송출 중인 방송이 끊기므로** 아무도 송출하지 않을 때 한다.
+
+```sh
+cd ~/live-streaming-platform
+docker compose -f deploy/compose.yaml exec db-backup sh /db-backup.sh   # 반영 전 덤프
+git pull
+# deploy/.env에 RECORDINGS_MAX_GB를 정해 넣는다(비우면 10). df -h / 로 여유를 먼저 본다
+docker compose -f deploy/compose.yaml up -d --build --wait
+docker compose -f deploy/compose.yaml ps                                  # 5개 모두 Up
+ls -ld deploy/recordings                                                   # 폴더가 생겼다
+```
+
+- `--build`가 API(마이그레이션 포함)와 Caddy(Caddyfile이 이미지에 들어 있다) 이미지를 다시 만든다. OME는 볼륨이 바뀌었으므로 다시 만들어진다.
+- 반영 뒤 짧은 방송을 하나 송출하고 종료한다. 1분 안에 `deploy/recordings/<방송 id>/`에 `.mp4`가 생기고, 방송 목록의 "다시보기"에 나타나 재생되면 끝이다.
 
 ## 로그
 
