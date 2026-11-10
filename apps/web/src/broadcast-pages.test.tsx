@@ -237,6 +237,100 @@ it('says the broadcast ended when it has no recording', async () => {
   expect(screen.queryByLabelText('다시보기 화면')).toBeNull();
 });
 
+const PREPARING = '다시보기를 준비하는 중입니다.';
+
+it('swaps in the replay once the recording shows up after the broadcast ended', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+  try {
+    vi.setSystemTime(new Date('2026-11-11T10:00:00.000Z'));
+    const ended = {
+      status: 'ENDED' as const,
+      endedAt: '2026-11-11T10:00:00.000Z',
+    };
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ ...ended, recordingFiles: [] }),
+    };
+    const calls = stubApi(routes);
+    renderAt('/broadcasts/b1');
+    expect(await screen.findByText('방송이 끝났습니다.')).toBeDefined();
+    expect(screen.getByText(PREPARING)).toBeDefined();
+
+    routes['GET /api/broadcasts/b1'] = broadcast({
+      ...ended,
+      recordingFiles: ['b1/1_0.mp4'],
+    });
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    const replay = screen.getByLabelText('다시보기 화면');
+    expect(replay.getAttribute('src')).toBe('/recordings/b1/1_0.mp4');
+    expect(screen.queryByText(PREPARING)).toBeNull();
+
+    const reads = () =>
+      calls.filter((call) => call === 'GET /api/broadcasts/b1').length;
+    const settled = reads();
+    await act(() => vi.advanceTimersByTimeAsync(20_000));
+    expect(reads()).toBe(settled);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('stops waiting for a replay 90 s after the broadcast ended', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+  try {
+    vi.setSystemTime(new Date('2026-11-11T10:00:00.000Z'));
+    const calls = stubApi({
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({
+        status: 'ENDED',
+        endedAt: '2026-11-11T10:00:00.000Z',
+      }),
+    });
+    renderAt('/broadcasts/b1');
+    expect(await screen.findByText(PREPARING)).toBeDefined();
+    const reads = () =>
+      calls.filter((call) => call === 'GET /api/broadcasts/b1').length;
+
+    // Reads at 5 s … 85 s still fall inside the window.
+    await act(() => vi.advanceTimersByTimeAsync(85_000));
+    expect(reads()).toBe(18);
+    expect(screen.getByText(PREPARING)).toBeDefined();
+
+    // The read at 90 s finds the window closed: no replay, no more reads.
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(reads()).toBe(19);
+    expect(screen.queryByText(PREPARING)).toBeNull();
+    expect(screen.getByText('방송이 끝났습니다.')).toBeDefined();
+    await act(() => vi.advanceTimersByTimeAsync(20_000));
+    expect(reads()).toBe(19);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('reads an ENDED broadcast once when it ended more than 90 s ago', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+  try {
+    vi.setSystemTime(new Date('2026-11-11T10:01:31.000Z'));
+    const calls = stubApi({
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({
+        status: 'ENDED',
+        endedAt: '2026-11-11T10:00:00.000Z',
+      }),
+    });
+    renderAt('/broadcasts/b1');
+    expect(await screen.findByText('방송이 끝났습니다.')).toBeDefined();
+    expect(screen.queryByText(PREPARING)).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(20_000));
+    expect(
+      calls.filter((call) => call === 'GET /api/broadcasts/b1'),
+    ).toHaveLength(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('sends an anonymous visitor who clicks 방송 만들기 to the login page', async () => {
   stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': [] });
   renderAt('/');

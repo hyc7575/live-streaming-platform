@@ -28,22 +28,48 @@ const REPLAY_NOTICE = '방송이 끝났습니다. 녹화된 방송을 다시 볼
 // is polled at half that.
 const STATUS_POLL_MS = 5000;
 
-// Keeps re-reading the broadcast until it is ENDED or gone. A re-read that
-// fails for another reason keeps the last answer.
+// The API's recording reconciler fills recordingFiles some time after the
+// broadcast ends: it runs every 30 s, and OME first has to close the file.
+// Until this long after endedAt an ENDED broadcast with no files may still
+// get a replay, so the page keeps polling; after it, there is none.
+const REPLAY_WAIT_MS = 90_000;
+
+const REPLAY_PREPARING_NOTICE = '다시보기를 준비하는 중입니다.';
+
+// True while an ENDED broadcast has no recording yet but may still get one.
+// `readAt` is when this answer arrived, so the check stays pure in render.
+function isWaitingForReplay(b: Broadcast, readAt: number): boolean {
+  if (b.status !== 'ENDED' || b.recordingFiles.length > 0) return false;
+  if (b.endedAt === null) return false;
+  return readAt - Date.parse(b.endedAt) < REPLAY_WAIT_MS;
+}
+
+// Keeps re-reading the broadcast until it is gone, or ENDED with nothing
+// more to wait for (see isWaitingForReplay). A re-read that fails for
+// another reason keeps the last answer.
 function useWatchedBroadcast(path: string): {
   broadcast: Loadable<Broadcast>;
+  waitingForReplay: boolean;
   recheck: () => void;
 } {
   const [result, setResult] = useState<{
     path: string;
     loadable: Loadable<Broadcast>;
+    readAt: number;
   } | null>(null);
   const recheckRef = useRef<() => void>(() => {});
-  const broadcast: Loadable<Broadcast> =
-    result?.path === path ? result.loadable : { status: 'loading' };
+  const current = result?.path === path ? result : null;
+  const broadcast: Loadable<Broadcast> = current
+    ? current.loadable
+    : { status: 'loading' };
+  const waitingForReplay =
+    current?.loadable.status === 'loaded' &&
+    isWaitingForReplay(current.loadable.data, current.readAt);
   const settled =
     broadcast.status === 'failed' ||
-    (broadcast.status === 'loaded' && broadcast.data.status === 'ENDED');
+    (broadcast.status === 'loaded' &&
+      broadcast.data.status === 'ENDED' &&
+      !waitingForReplay);
 
   useEffect(() => {
     if (settled) return;
@@ -56,7 +82,11 @@ function useWatchedBroadcast(path: string): {
         .then(
           (data) => {
             if (!cancelled)
-              setResult({ path, loadable: { status: 'loaded', data } });
+              setResult({
+                path,
+                loadable: { status: 'loaded', data },
+                readAt: Date.now(),
+              });
           },
           (error: unknown) => {
             if (cancelled) return;
@@ -64,7 +94,11 @@ function useWatchedBroadcast(path: string): {
             setResult((prev) =>
               !gone && prev?.path === path && prev.loadable.status === 'loaded'
                 ? prev
-                : { path, loadable: { status: 'failed', error } },
+                : {
+                    path,
+                    loadable: { status: 'failed', error },
+                    readAt: Date.now(),
+                  },
             );
           },
         )
@@ -83,13 +117,13 @@ function useWatchedBroadcast(path: string): {
   }, [path, settled]);
 
   const recheck = useCallback(() => recheckRef.current(), []);
-  return { broadcast, recheck };
+  return { broadcast, waitingForReplay, recheck };
 }
 
 export function BroadcastPage() {
   const { id = '' } = useParams();
   const { state } = useAuth();
-  const { broadcast, recheck } = useWatchedBroadcast(
+  const { broadcast, waitingForReplay, recheck } = useWatchedBroadcast(
     `/broadcasts/${encodeURIComponent(id)}`,
   );
 
@@ -141,6 +175,11 @@ export function BroadcastPage() {
                 >
                   {PLAYER_NOTICE[b.status]}
                 </p>
+                {waitingForReplay && (
+                  <p className={styles.preparing} role="status">
+                    {REPLAY_PREPARING_NOTICE}
+                  </p>
+                )}
               </>
             )}
           </div>
