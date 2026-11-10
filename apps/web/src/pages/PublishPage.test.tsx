@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
@@ -214,7 +215,7 @@ it('ends the broadcast after the streamer confirms, stopping publish and camera'
   const done = await screen.findByText('방송을 종료했습니다.');
   expect(page.calls).toContain('POST /api/broadcasts/b1/end');
   expect(page.publisher.stop).toHaveBeenCalled();
-  expect(page.capture.stop).toHaveBeenCalled();
+  await waitFor(() => expect(page.capture.stop).toHaveBeenCalled());
   const endedScreen = within(done.parentElement as HTMLElement);
   expect(
     endedScreen
@@ -259,7 +260,7 @@ it('offers a retry when ending fails, and ends on the retry', async () => {
   expect(
     page.calls.filter((call) => call === 'POST /api/broadcasts/b1/end'),
   ).toHaveLength(2);
-  expect(page.capture.stop).toHaveBeenCalled();
+  await waitFor(() => expect(page.capture.stop).toHaveBeenCalled());
 });
 
 it('ends the broadcast when the camera is taken away while live', async () => {
@@ -285,7 +286,7 @@ it('shows the ended screen when the server ended the broadcast meanwhile', async
   page.routes['GET /api/broadcasts/b1'] = ENDED;
   page.emit({ kind: 'disconnected' });
   expect(await screen.findByText('방송이 종료되었습니다.')).toBeDefined();
-  expect(page.capture.stop).toHaveBeenCalled();
+  await waitFor(() => expect(page.capture.stop).toHaveBeenCalled());
   expect(page.calls).not.toContain('POST /api/broadcasts/b1/end');
 });
 
@@ -297,7 +298,7 @@ it('shows the ended screen when the broadcast was deleted while live', async () 
   page.routes['GET /api/broadcasts/b1'] = { status: 404, body: {} };
   page.emit({ kind: 'disconnected' });
   expect(await screen.findByText('방송이 종료되었습니다.')).toBeDefined();
-  expect(page.capture.stop).toHaveBeenCalled();
+  await waitFor(() => expect(page.capture.stop).toHaveBeenCalled());
 });
 
 it('says the connection dropped when the broadcast is still LIVE', async () => {
@@ -390,7 +391,7 @@ it('drops a connecting publish when the camera is taken away', async () => {
   await turnOnCameraAndStart();
   await screen.findByText('송출을 연결하는 중입니다.');
   act(() => page.setState({ status: 'ended', reason: 'device-lost' }));
-  expect(screen.getByRole('alert').textContent).toBe(
+  expect((await screen.findByRole('alert')).textContent).toBe(
     '카메라나 마이크가 꺼져 송출을 멈췄습니다.',
   );
   expect(page.publisher.stop).toHaveBeenCalled();
@@ -545,6 +546,16 @@ it('ends the broadcast when the screen share is stopped while live', async () =>
   ).toBeDefined();
 });
 
+it('notices a screen share that stopped before the page listened', async () => {
+  const page = renderDesktopPage({});
+  page.screen.setState({ status: 'ended', reason: 'share-stopped' });
+  fireEvent.click(await screen.findByRole('button', { name: '화면 공유' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '화면 공유가 중지되었습니다.',
+  );
+  expect(screen.getByRole('button', { name: '화면 공유' })).toBeDefined();
+});
+
 it('drops a connecting publish, without ending, when the screen share is stopped', async () => {
   const page = renderDesktopPage({
     'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
@@ -553,7 +564,7 @@ it('drops a connecting publish, without ending, when the screen share is stopped
   fireEvent.click(screen.getByRole('button', { name: '방송 시작' }));
   await screen.findByText('송출을 연결하는 중입니다.');
   act(() => page.screen.setState({ status: 'ended', reason: 'share-stopped' }));
-  expect(screen.getByText('화면 공유가 중지되었습니다.')).toBeDefined();
+  expect(await screen.findByText('화면 공유가 중지되었습니다.')).toBeDefined();
   expect(page.publisher.stop).toHaveBeenCalled();
   expect(page.calls).not.toContain('POST /api/broadcasts/b1/end');
   expect(screen.getByRole('button', { name: '화면 공유' })).toBeDefined();
@@ -563,7 +574,7 @@ it('says the share stopped before going live, without ending', async () => {
   const page = renderDesktopPage({});
   await shareScreen();
   act(() => page.screen.setState({ status: 'ended', reason: 'share-stopped' }));
-  expect(screen.getByRole('alert').textContent).toBe(
+  expect((await screen.findByRole('alert')).textContent).toBe(
     '화면 공유가 중지되었습니다.',
   );
   expect(page.calls).not.toContain('POST /api/broadcasts/b1/end');
@@ -632,7 +643,7 @@ it('starts over with a new screen capture when asked after the mic is lost', asy
   await shareScreen();
   act(() => page.screen.patchLive({ micLost: true }));
   fireEvent.click(await screen.findByRole('button', { name: '처음부터 다시' }));
-  expect(page.screen.capture.stop).toHaveBeenCalled();
+  await waitFor(() => expect(page.screen.capture.stop).toHaveBeenCalled());
   await vi.waitFor(() => expect(startPcCapture).toHaveBeenCalledTimes(2));
 });
 
@@ -735,9 +746,13 @@ it('holds 방송 시작 while the camera is switching', async () => {
       switching: true,
     } as CameraCaptureState),
   );
-  expect(
-    screen.getByRole('button', { name: '방송 시작' }).hasAttribute('disabled'),
-  ).toBe(true);
+  await waitFor(() =>
+    expect(
+      screen
+        .getByRole('button', { name: '방송 시작' })
+        .hasAttribute('disabled'),
+    ).toBe(true),
+  );
 });
 
 it('shows how to allow the camera again when permission is denied', async () => {
