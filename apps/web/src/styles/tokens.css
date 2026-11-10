@@ -45,7 +45,9 @@
   --header-height: 56px;
   --content-max-width: 1440px;
   --form-card-width: 400px;
+  --donate-card-width: 560px;
   --player-max-width: 1080px;
   --comment-column-width: 340px;
   --comment-list-max-height: 60vh;
+  --donation-list-max-height: 320px;
 }

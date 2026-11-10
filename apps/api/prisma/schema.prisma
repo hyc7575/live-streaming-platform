@@ -19,6 +19,7 @@ model User {
 
   broadcasts Broadcast[]
   comments   Comment[]
+  donations  Donation[]
 }
 
 enum BroadcastStatus {
@@ -45,7 +46,8 @@ model Broadcast {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  comments Comment[]
+  comments  Comment[]
+  donations Donation[]
 
   // PRD §7.4 one LIVE broadcast per streamer, held by the database so two
   // admissions racing for different broadcasts cannot both win.
@@ -67,6 +69,32 @@ model Comment {
   updatedAt   DateTime  @updatedAt
 
   @@index([broadcastId, createdAt])
+}
+
+enum DonationStatus {
+  PENDING
+  PAID
+}
+
+// An order becomes a donation when Toss approves it, and only PAID rows count
+// toward a broadcast's total. A PENDING row is an order the donor has not paid
+// for yet, or whose confirm failed and may still be retried.
+model Donation {
+  id          String         @id @default(uuid()) @db.Uuid
+  // Sent to Toss as its orderId, which allows 6-64 of [A-Za-z0-9-_=].
+  orderId     String         @unique
+  broadcastId String         @db.Uuid
+  broadcast   Broadcast      @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  donorId     String         @db.Uuid
+  donor       User           @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  amount      Int
+  message     String         @default("")
+  status      DonationStatus @default(PENDING)
+  paymentKey  String?        @unique
+  approvedAt  DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([broadcastId, status, approvedAt])
 }
 
 // connect-pg-simple reads and writes this table. Its shape follows the

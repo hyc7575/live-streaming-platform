@@ -5,6 +5,7 @@ import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import type { BroadcastStatus } from '../components/StatusBadge';
 import { CommentPanel } from '../components/CommentPanel';
+import { DonationPanel } from '../components/DonationPanel';
 import { LivePlayer } from '../components/LivePlayer';
 import { OwnerActions } from '../components/OwnerActions';
 import { ReplayPlayer } from '../components/ReplayPlayer';
@@ -144,6 +145,7 @@ export function BroadcastPage() {
           )}
           {isOwner && <OwnerActions broadcast={b} onEnded={recheck} />}
         </div>
+        <DonationPanel broadcast={b} />
       </div>
       <CommentPanel broadcastId={b.id} />
     </section>

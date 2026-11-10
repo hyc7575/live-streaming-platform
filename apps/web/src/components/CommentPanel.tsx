@@ -1,17 +1,10 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from 'react';
+import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
 import { COMMENT_MAX_LENGTH, isEdited, type Comment } from '../comments';
 import type { LoginPageState } from '../pages/LoginPage';
-import type { Loadable } from '../use-api';
+import { usePolledApi } from '../use-api';
 import styles from './CommentPanel.module.css';
 
 // PRD §8.2: no realtime push. Comments are re-read on the same 5 s cadence
@@ -28,58 +21,6 @@ const timeFormat = new Intl.DateTimeFormat('ko-KR', {
   minute: '2-digit',
 });
 
-// A failed re-read keeps the last list on screen.
-function useComments(path: string): {
-  comments: Loadable<Comment[]>;
-  reload: () => void;
-} {
-  const [result, setResult] = useState<{
-    path: string;
-    loadable: Loadable<Comment[]>;
-  } | null>(null);
-  const reloadRef = useRef<() => void>(() => {});
-  const comments: Loadable<Comment[]> =
-    result?.path === path ? result.loadable : { status: 'loading' };
-
-  useEffect(() => {
-    let cancelled = false;
-    let inFlight = false;
-    const load = () => {
-      if (inFlight) return;
-      inFlight = true;
-      apiFetch<Comment[]>(path)
-        .then(
-          (data) => {
-            if (!cancelled)
-              setResult({ path, loadable: { status: 'loaded', data } });
-          },
-          (error: unknown) => {
-            if (cancelled) return;
-            setResult((prev) =>
-              prev?.path === path && prev.loadable.status === 'loaded'
-                ? prev
-                : { path, loadable: { status: 'failed', error } },
-            );
-          },
-        )
-        .finally(() => {
-          inFlight = false;
-        });
-    };
-    load();
-    const timer = setInterval(load, COMMENT_POLL_MS);
-    reloadRef.current = load;
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-      reloadRef.current = () => {};
-    };
-  }, [path]);
-
-  const reload = useCallback(() => reloadRef.current(), []);
-  return { comments, reload };
-}
-
 // Sends the viewer to log in and back here when the session ran out.
 function useLoginRedirect(broadcastId: string) {
   const navigate = useNavigate();
@@ -93,8 +34,9 @@ function useLoginRedirect(broadcastId: string) {
 
 export function CommentPanel({ broadcastId }: { broadcastId: string }) {
   const { state } = useAuth();
-  const { comments, reload } = useComments(
+  const { data: comments, reload } = usePolledApi<Comment[]>(
     `/broadcasts/${encodeURIComponent(broadcastId)}/comments`,
+    COMMENT_POLL_MS,
   );
   const listRef = useRef<HTMLOListElement>(null);
   const stickRef = useRef(true);

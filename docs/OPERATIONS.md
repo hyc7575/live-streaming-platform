@@ -1,6 +1,6 @@
 # 운영 메모
 
-운영 서버 한 대에 `deploy/compose.yaml`로 서비스 전체를 띄운다. 이 문서는 첫 배포, 재배포, 장애 뒤 복구, DB 덤프, 녹화 파일, 로그, 다운 감시 절차다. 서버 정보(도메인 `lsp-live.duckdns.org`, 공인 IP, 방화벽)는 `docs/NEXT-STEPS.md` S2–S4에 있다.
+운영 서버 한 대에 `deploy/compose.yaml`로 서비스 전체를 띄운다. 이 문서는 첫 배포, 재배포, 장애 뒤 복구, DB 덤프, 녹화 파일, 도네이션 키, 로그, 다운 감시 절차다. 서버 정보(도메인 `lsp-live.duckdns.org`, 공인 IP, 방화벽)는 `docs/NEXT-STEPS.md` S2–S4에 있다.
 
 ## 구성
 
@@ -174,6 +174,33 @@ ls -ld deploy/recordings                                                   # 폴
 
 - `--build`가 API(마이그레이션 포함)와 Caddy(Caddyfile이 이미지에 들어 있다) 이미지를 다시 만든다. OME는 볼륨이 바뀌었으므로 다시 만들어진다.
 - 반영 뒤 짧은 방송을 하나 송출하고 종료한다. 1분 안에 `deploy/recordings/<방송 id>/`에 `.mp4`가 생기고, 방송 목록의 "다시보기"에 나타나 재생되면 끝이다.
+
+## 도네이션 (토스페이먼츠 테스트 모드)
+
+후원은 토스페이먼츠 결제위젯의 **테스트 키**로만 동작한다(#20). 테스트 결제는 실제로 돈이 나가지 않는다. 웹훅은 쓰지 않으므로 개발자센터에 등록할 것이 없다.
+
+- 키: `deploy/.env`의 `TOSS_CLIENT_KEY`(결제위젯 클라이언트 키 `test_gck_…`)와 `TOSS_SECRET_KEY`(시크릿 키 `test_gsk_…`). 시크릿 키는 API 컨테이너의 환경변수로만 들어간다. 웹 이미지에는 키가 없고, 클라이언트 키는 주문을 만들 때 API가 브라우저에 넘긴다.
+- 가입 없이 쓰는 문서용 테스트 키는 [토스페이먼츠 공식 샘플 저장소](https://github.com/tosspayments/tosspayments-sample)의 `express-react/server.js`(`widgetSecretKey`)와 `express-react/src/pages/widget/WidgetCheckoutWindow.jsx`(`clientKey`)에 있다. 결제창용 키(`test_ck_…`)는 결제위젯에서 쓸 수 없다.
+- 둘 중 하나라도 비어 있으면 `docker compose`가 시작하지 않는다. 라이브 키(`live_…`)는 넣지 않는다.
+- 승인 결과는 DB의 `Donation` 테이블에만 남는다. 문서용 키는 우리 상점이 아니라서 토스 개발자센터의 테스트 결제내역에서는 볼 수 없다.
+
+### 도네이션 처음 반영 (#20)
+
+DB 스키마(`Donation` 테이블)와 API 환경변수가 바뀐다. 송출은 끊기지 않는다(API만 다시 만든다).
+
+```sh
+cd ~/live-streaming-platform
+docker compose -f deploy/compose.yaml exec db-backup sh /db-backup.sh   # 반영 전 덤프
+git pull
+# deploy/.env에 TOSS_CLIENT_KEY, TOSS_SECRET_KEY를 넣는다(값은 위 샘플 저장소의 문서용 테스트 키)
+grep -c '^TOSS_' deploy/.env                                               # 2
+docker compose -f deploy/compose.yaml up -d --build --wait
+docker compose -f deploy/compose.yaml ps                                  # 5개 모두 Up
+docker compose -f deploy/compose.yaml exec api printenv TOSS_CLIENT_KEY | cut -c1-14   # test_gck_docs_
+```
+
+- `--build`가 API(마이그레이션 포함)와 웹(Caddy 이미지) 이미지를 다시 만든다. OME와 PostgreSQL은 그대로다.
+- 확인: README "8. 도네이션"의 화면 확인 1~4번을 운영 도메인에서 한다. 스트리머 A로 방송을 송출하고, 다른 창에서 사용자 B로 "후원하기" → 테스트 결제를 하면 시청 화면의 후원 합계가 늘어난다. 카드 결제는 테스트 모드에서도 카드사 인증(앱카드 등)을 실제로 거친다.
 
 ## 로그
 
