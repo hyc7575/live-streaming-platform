@@ -14,6 +14,9 @@ export interface Broadcast {
   // The streamer's latest captured frame under /thumbnails, or null when the
   // broadcast never uploaded one.
   thumbnailUrl: string | null;
+  // The streamer's standby image under /thumbnails, shared by all their
+  // broadcasts, or null when they never uploaded one.
+  standbyImageUrl: string | null;
   streamer: { id: string; nickname: string };
 }
 

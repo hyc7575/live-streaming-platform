@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { PrismaService } from '../database/database.module.js';
-import { authUserSelect, type AuthUser } from './auth-user.js';
+import { authUserSelect, toAuthUser, type AuthUser } from './auth-user.js';
 import { emailSchema, newPasswordSchema, nicknameSchema } from './fields.js';
 import { hashPassword } from './password.js';
 
@@ -83,7 +83,7 @@ export async function seedTestAccounts(
         update: { nickname, passwordHash },
         select: authUserSelect,
       });
-      return [key, user] as const;
+      return [key, toAuthUser(user)] as const;
     }),
   );
   return Object.fromEntries(seeded) as Record<TestAccountKey, AuthUser>;

@@ -378,6 +378,48 @@ U=<위 thumbnailUrl>
 curl -s -o /dev/null -D - "http://localhost:5173$U" | grep -i -E '^HTTP|content-type|nosniff'   # 200 image/jpeg, nosniff
 ```
 
+### 기본 대기 이미지 (#63)
+
+스트리머가 "내 채널" 화면(`/studio/channel`)에서 기본 대기 이미지 한 장을 올린다. 그 스트리머의 모든 방송 전(`READY`) 카드와 시청 화면에 이 이미지가 보이고, 송출을 시작하면 캡처 썸네일(#62)로 바뀐다. 방송은 송출할 때마다 새로 만들므로 이미지는 방송이 아니라 사용자에 둔다.
+
+이 기능은 `User.standbyImageExt`·`User.standbyImageUpdatedAt` 열을 새로 쓴다. 이 변경을 받은 뒤에는 `pnpm --filter @lsp/api db:migrate`를 한 번 한다. 저장과 서빙은 썸네일과 같은 폴더·정적 서버를 쓰므로 따로 띄울 것은 없다.
+
+흐름:
+
+1. `PUT /api/me/standby-image`(multipart, 필드 `image`)가 받고 `DELETE /api/me/standby-image`가 지운다. 로그인한 본인 것만 바꾸므로 비로그인 401 말고는 403 경우가 없다. 지우기는 이미지가 없어도 204다.
+2. 2MB 이하 JPEG·PNG·WebP만 받는다. 형식은 파일 이름이나 `Content-Type`이 아니라 매직 바이트로 판정하고, 위반은 400이다. 썸네일(JPEG·512KB)과 대기 이미지의 형식·크기 상한은 `apps/api/src/images/image-rules.ts` 표 한 곳에 있다.
+3. API는 `THUMBNAILS_DIR/users/<사용자 id>/standby.<jpg|png|webp>`에 임시 파일을 쓴 뒤 rename으로 바꾸고, 형식이 바뀌면 이전 파일을 지운다. 한 사용자의 올리기·지우기는 한 번에 하나씩 처리한다.
+4. 방송 응답(목록·다시보기·상세·내 방송)과 `GET /api/auth/me`에 `standbyImageUrl`(`/thumbnails/users/<id>/standby.<확장자>?v=<올린 시각>`, 없으면 `null`)이 있다. 이미지를 바꾸면 `?v=`가 바뀌어 이전 그림이 캐시로 남지 않는다.
+5. 카드 표시 순서: `READY`는 대기 이미지 → 제목 첫 글자. `LIVE`·`ENDED`는 캡처 썸네일 → 대기 이미지 → 제목 첫 글자. 대기 이미지는 잘리지 않게 검은 바탕에 `contain`으로 그린다.
+6. 방송을 지워도 대기 이미지는 남는다.
+
+자동 테스트:
+
+- `apps/api/test/standby-image.e2e.spec.ts`: JPEG·PNG·WebP 업로드와 내주는 파일 비교, 정확히 2MB 통과, 확장자만 바꾼 GIF·텍스트·WEBP가 아닌 RIFF·2MB+1바이트·필드 없음·multipart 아님의 400, 401, 형식을 바꾸면 이전 파일 삭제와 `?v=` 변경, 동시 업로드 수렴, 업로드 뒤 만든 방송에도 같은 URL, 지우기 204(두 번째도 204), 방송을 지워도 이미지가 남는다.
+- `apps/api/test/authorization-matrix.e2e.spec.ts`: "대기 이미지 등록·삭제" 행과 검사 순서(401 → 400 형식·400 크기).
+- `apps/web/src/components/BroadcastThumbnail.test.tsx`, `channel-page.test.tsx`, `broadcast-pages.test.tsx`: 상태별 표시 순서와 로드 실패 때 다음 그림, 내 채널 화면의 업로드·브라우저 검사·400 문구·삭제, 시청 화면 방송 전 대기 이미지.
+- `apps/web/e2e-stack/standbyImage.spec.ts` (실제 OME, `e2e:stack`): 내 채널에서 PNG를 올린 뒤 WebP로 바꾸면 `?v=`가 바뀌고 이전 PNG는 404, 그 뒤 만든 방송의 카드와 시청 화면에 바로 보이고, 송출을 시작하면 카드가 캡처 썸네일로 바뀌며, 방송을 지워도 이미지가 남고, 지우면 `null`이 된다.
+
+```sh
+pnpm --filter @lsp/web e2e:stack standbyImage --workers=1
+```
+
+화면에서 확인:
+
+1. 로그인하고 상단 "내 방송" → "내 채널" 탭을 연다. 미리보기 자리에 닉네임 첫 글자가 보인다.
+2. "이미지 선택"으로 PNG·WebP·JPEG 중 하나를 고른다. 미리보기가 바뀌고 "삭제" 버튼이 생긴다. 2MB가 넘거나 다른 형식이면 올리지 않고 안내 문구를 띄운다.
+3. "내 방송" 탭에서 방송을 만든다. 방송 전 카드에 대기 이미지가 보인다. 시크릿 창에서 그 방송의 시청 화면을 열면 플레이어 자리에 대기 이미지가 깔리고 그 위에 안내 문구가 반투명 띠와 함께 보인다.
+4. 송출을 시작한다. 시청 화면은 플레이어로 바뀌고, 방송 목록 카드는 캡처 썸네일로 바뀐다.
+5. 내 채널에서 다른 이미지를 올리면 카드도 새 그림으로 바뀐다. "삭제" → "삭제하기"를 누르면 첫 글자 그림으로 돌아간다.
+
+API로 확인:
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' -X PUT http://localhost:3000/api/me/standby-image   # 401
+curl -s -b <쿠키> -F image=@banner.png http://localhost:3000/api/me/standby-image -X PUT   # 200, standbyImageUrl
+curl -s -b <쿠키> -F image=@note.txt\;filename=fake.png http://localhost:3000/api/me/standby-image -X PUT   # 400
+```
+
 ### 테스트 계정 원클릭 로그인
 
 심사자가 계정을 만들지 않고 버튼 하나로 **스트리머 A** 또는 **사용자 B**가 된다. A는 방송을 만드는 스트리머, B는 A의 방송에 대한 수정·종료가 거절(403)되는지 확인하는 다른 사용자다.

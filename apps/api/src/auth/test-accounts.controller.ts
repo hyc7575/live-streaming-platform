@@ -14,7 +14,7 @@ import type { Request } from 'express';
 import { z } from 'zod';
 import { PrismaService } from '../database/database.module.js';
 import { ZodBodyPipe } from '../zod-body.pipe.js';
-import { authUserSelect, type AuthUser } from './auth-user.js';
+import { authUserSelect, toAuthUser, type AuthUser } from './auth-user.js';
 import { LOGIN_RATE_LIMIT } from './auth.controller.js';
 import { startSession } from './session.js';
 import {
@@ -69,6 +69,6 @@ export class TestAccountsController {
       throw new NotFoundException(`Test account ${body.account} is not seeded`);
     }
     await startSession(req, user.id);
-    return user;
+    return toAuthUser(user);
   }
 }

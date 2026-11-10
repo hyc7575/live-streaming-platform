@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Broadcast } from '../broadcasts';
 import styles from './BroadcastThumbnail.module.css';
 import { ElapsedTime } from './ElapsedTime';
@@ -10,33 +10,104 @@ const TINT: Record<BroadcastStatus, string> = {
   ENDED: styles.ended,
 };
 
-// The streamer's captured frame when there is one, otherwise the title's
-// first letter. An image that fails to load falls back to the letter until
-// the URL changes.
-export function BroadcastThumbnail({
-  broadcast,
-}: {
-  broadcast: Pick<Broadcast, 'title' | 'status' | 'startedAt' | 'thumbnailUrl'>;
+type ImageKind = 'thumbnail' | 'standby';
+
+// The images a card tries, in order, before it draws the title's first
+// letter. A READY broadcast has no captured frame yet.
+const IMAGE_ORDER: Record<BroadcastStatus, readonly ImageKind[]> = {
+  READY: ['standby'],
+  LIVE: ['thumbnail', 'standby'],
+  ENDED: ['thumbnail', 'standby'],
+};
+
+// A captured frame fills the card. The standby image is the streamer's own
+// picture, so all of it shows on the video background, as in the studio.
+const FIT: Record<ImageKind, string> = {
+  thumbnail: styles.cover,
+  standby: styles.contain,
+};
+
+interface PictureSource {
+  url: string;
+  className: string;
+}
+
+interface PictureImages {
+  thumbnailUrl?: string | null;
+  standbyImageUrl?: string | null;
+}
+
+function sourcesOf(
+  status: BroadcastStatus,
+  images: PictureImages,
+): PictureSource[] {
+  const urls: Record<ImageKind, string | null | undefined> = {
+    thumbnail: images.thumbnailUrl,
+    standby: images.standbyImageUrl,
+  };
+  return IMAGE_ORDER[status].flatMap((kind) => {
+    const url = urls[kind];
+    return url ? [{ url, className: FIT[kind] }] : [];
+  });
+}
+
+// A 16:9 picture: the first image in IMAGE_ORDER that has not failed to
+// load, otherwise `text`'s first letter on the status tint. A URL that
+// changes is tried again.
+export function ThumbnailPicture({
+  status,
+  text,
+  children,
+  ...images
+}: PictureImages & {
+  status: BroadcastStatus;
+  text: string;
+  children?: ReactNode;
 }) {
-  const { title, status, startedAt, thumbnailUrl } = broadcast;
-  const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const initial = (Array.from(title.trim())[0] ?? '').toUpperCase();
+  const [failed, setFailed] = useState<readonly string[]>([]);
+  const source = sourcesOf(status, images).find((s) => !failed.includes(s.url));
+  const initial = (Array.from(text.trim())[0] ?? '').toUpperCase();
   return (
     <div className={`${styles.thumbnail} ${TINT[status]}`}>
-      {thumbnailUrl && thumbnailUrl !== failedUrl ? (
-        // The title sits right under the card image, so alt stays empty.
+      {source ? (
+        // The title or heading sits right next to the picture, so alt stays
+        // empty.
         <img
-          className={styles.image}
-          src={thumbnailUrl}
+          key={source.url}
+          className={`${styles.image} ${source.className}`}
+          src={source.url}
           alt=""
           loading="lazy"
-          onError={() => setFailedUrl(thumbnailUrl)}
+          onError={() => setFailed((list) => [...list, source.url])}
         />
       ) : (
         <span className={styles.initial} aria-hidden="true">
           {initial}
         </span>
       )}
+      {children}
+    </div>
+  );
+}
+
+type ThumbnailBroadcast = Pick<
+  Broadcast,
+  'title' | 'status' | 'startedAt' | 'thumbnailUrl' | 'standbyImageUrl'
+>;
+
+export function BroadcastThumbnail({
+  broadcast,
+}: {
+  broadcast: ThumbnailBroadcast;
+}) {
+  const { title, status, startedAt, thumbnailUrl, standbyImageUrl } = broadcast;
+  return (
+    <ThumbnailPicture
+      status={status}
+      text={title}
+      thumbnailUrl={thumbnailUrl}
+      standbyImageUrl={standbyImageUrl}
+    >
       <span className={styles.badge}>
         <StatusBadge status={status} />
       </span>
@@ -47,6 +118,6 @@ export function BroadcastThumbnail({
           className={styles.elapsed}
         />
       )}
-    </div>
+    </ThumbnailPicture>
   );
 }

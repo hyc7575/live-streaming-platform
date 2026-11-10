@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
 import { BroadcastsModule } from './broadcasts/broadcasts.module.js';
+import { ChannelModule } from './channel/channel.module.js';
 import { CommentsModule } from './comments/comments.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DonationsModule } from './donations/donations.module.js';
@@ -14,6 +15,7 @@ import { RecordingsModule } from './recording/recordings.module.js';
     DatabaseModule,
     AuthModule,
     BroadcastsModule,
+    ChannelModule,
     CommentsModule,
     DonationsModule,
     FollowsModule,

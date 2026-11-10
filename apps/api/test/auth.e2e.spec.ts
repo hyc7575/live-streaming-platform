@@ -51,6 +51,7 @@ describe('auth', () => {
       id: expect.any(String) as string,
       email: 'streamer@example.com',
       nickname: '불씨',
+      standbyImageUrl: null,
       password: expect.any(String) as string,
     });
 
@@ -61,6 +62,7 @@ describe('auth', () => {
       id: user.id,
       email: user.email,
       nickname: '불씨',
+      standbyImageUrl: null,
     });
 
     expect((await agent.post('/api/auth/logout')).status).toBe(204);

@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import type { Broadcast } from '../broadcasts';
 import { BroadcastGrid } from '../components/BroadcastGrid';
+import { StudioTabs } from '../components/StudioTabs';
 import { useApi } from '../use-api';
 import styles from './ListPage.module.css';
 
@@ -9,6 +10,7 @@ export function StudioPage() {
 
   return (
     <section>
+      <StudioTabs />
       <div className={styles.heading}>
         <h1 className={styles.title}>내 방송</h1>
         <Link to="/studio/new" className={styles.create}>

@@ -9,7 +9,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { expect } from 'vitest';
 import { AppModule } from '../../src/app.module.js';
 import type { AuthUser } from '../../src/auth/auth-user.js';
-import { THUMBNAILS_DIR } from '../../src/broadcasts/thumbnail-store.js';
+import { THUMBNAILS_DIR } from '../../src/images/image-store.js';
 import { CLOCK } from '../../src/clock.js';
 import {
   TEST_ACCOUNTS_CONFIG,

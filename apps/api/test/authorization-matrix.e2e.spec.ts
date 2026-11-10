@@ -10,6 +10,7 @@ import type { CommentView } from '../src/comments/comments.service.js';
 import { PrismaService } from '../src/database/database.module.js';
 import type { DonationOrder } from '../src/donations/donations.service.js';
 import type { BroadcastStatus } from '../src/generated/prisma/client.js';
+import type { AuthUser } from '../src/auth/auth-user.js';
 import type { AdmissionRejection } from '../src/publish/admission.js';
 import {
   createTestApp,
@@ -80,6 +81,8 @@ const MATRIX = {
   '팔로우':         [401,      204,          400],
   '언팔로우':       [401,      204,          400],
   '내 팔로우 목록': [401,      200,          '—'],
+  '대기 이미지 등록': [401,    200,          200],
+  '대기 이미지 삭제': [401,    204,          204],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
 // deleted. An ENDED broadcast never goes LIVE again, so it gets no publish
@@ -90,7 +93,9 @@ const MATRIX = {
 // A confirm ignores the status: the donor already paid by then.
 // The PRD's one row "팔로우·언팔로우" is two rows here, one per request. The
 // owner column is the owner following themselves, and "내 팔로우 목록" has no
-// such cell: it is only ever the caller's own list.
+// such cell: it is only ever the caller's own list. The standby image is
+// the caller's own channel, so 'other' and the owner each act on their own
+// and the broadcast's status does not matter.
 
 type Action = keyof typeof MATRIX;
 
@@ -137,6 +142,7 @@ const EDITED = { title: '고친 제목', description: '고친 설명' };
 const ORIGINAL_COMMENT = '원래 댓글';
 const PAID_AMOUNT = 1000;
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
 
 describe('authorization matrix (PRD §7.5)', () => {
   let app: NestExpressApplication;
@@ -163,6 +169,10 @@ describe('authorization matrix (PRD §7.5)', () => {
     donations: await prisma.donation.findMany({ orderBy: { id: 'asc' } }),
     follows: await prisma.follow.findMany({
       orderBy: [{ followerId: 'asc' }, { streamerId: 'asc' }],
+    }),
+    standbyImages: await prisma.user.findMany({
+      orderBy: { id: 'asc' },
+      select: { id: true, standbyImageExt: true, standbyImageUpdatedAt: true },
     }),
   });
 
@@ -195,6 +205,12 @@ describe('authorization matrix (PRD §7.5)', () => {
           : null,
     },
   ];
+
+  const standbyUrl = async (w: World, actor: 'owner' | 'other') =>
+    ((await w.as[actor].get('/api/auth/me')).body as AuthUser).standbyImageUrl;
+
+  const uploadStandby = (client: TestAgent) =>
+    client.put('/api/me/standby-image').attach('image', PNG, 'a.png');
 
   // What the owner's seeded follow of the other user looks like to the owner.
   const ownerFollowsOther = (w: World) => [
@@ -457,6 +473,49 @@ describe('authorization matrix (PRD §7.5)', () => {
         expect(res.body).toEqual([]);
       },
     },
+    '대기 이미지 등록': {
+      send: uploadStandby,
+      verifyAllowed: async (res, w, actor) => {
+        const [self, peer] =
+          actor === 'owner'
+            ? (['owner', 'other'] as const)
+            : (['other', 'owner'] as const);
+        const caller = w[self];
+        const url = (res.body as AuthUser).standbyImageUrl;
+        expect(url).toMatch(
+          new RegExp(`^/thumbnails/users/${caller.id}/standby\\.png\\?v=\\d+$`),
+        );
+        expect(await standbyUrl(w, self)).toBe(url);
+        expect(await standbyUrl(w, peer)).toBeNull();
+        const target = await anonymous().get(`/api/broadcasts/${w.targetId}`);
+        expect((target.body as BroadcastView).standbyImageUrl).toBe(
+          actor === 'owner' ? url : null,
+        );
+        const file = join(
+          thumbnailsDirOf(app),
+          'users',
+          caller.id,
+          'standby.png',
+        );
+        expect(await readFile(file)).toEqual(PNG);
+      },
+    },
+    '대기 이미지 삭제': {
+      send: (client) => client.delete('/api/me/standby-image'),
+      // Nothing was uploaded, so the call alone shows no change. Uploading
+      // first through the API proves the delete removes a real image.
+      verifyAllowed: async (_res, w, actor) => {
+        const self = actor === 'owner' ? 'owner' : 'other';
+        expect(await standbyUrl(w, self)).toBeNull();
+        expect((await uploadStandby(w.as[self])).status).toBe(200);
+        expect(await standbyUrl(w, self)).not.toBeNull();
+        const del = await w.as[self].delete('/api/me/standby-image');
+        expect(del.status).toBe(204);
+        expect(await standbyUrl(w, self)).toBeNull();
+        const target = await anonymous().get(`/api/broadcasts/${w.targetId}`);
+        expect((target.body as BroadcastView).standbyImageUrl).toBeNull();
+      },
+    },
     '내 방송 조회': {
       send: (client) => client.get('/api/me/broadcasts'),
       verifyAllowed: (res, w, actor) => {
@@ -497,6 +556,9 @@ describe('authorization matrix (PRD §7.5)', () => {
   async function seed(status: BroadcastStatus): Promise<void> {
     await prisma.broadcast.deleteMany();
     await prisma.follow.deleteMany();
+    await prisma.user.updateMany({
+      data: { standbyImageExt: null, standbyImageUpdatedAt: null },
+    });
     // The other user's follow list must leave this one out.
     await prisma.follow.create({
       data: { followerId: world.owner.id, streamerId: world.other.id },
@@ -676,6 +738,26 @@ describe('authorization matrix (PRD §7.5)', () => {
       expect((await send('owner', JPEG)).status).toBe(429);
       fakeClockOf(app).advance(10_000);
       expect((await send('owner', JPEG)).status).toBe(409);
+    });
+
+    // The standby image is checked for login before the image, and its 400s
+    // carry the same message for a wrong format and an oversized file.
+    it('checks a standby image’s login before the image', async () => {
+      const send = (actor: Actor, image: Buffer, filename: string) =>
+        world.as[actor]
+          .put('/api/me/standby-image')
+          .attach('image', image, filename);
+      const gif = Buffer.from('GIF89a');
+      const oversized = Buffer.alloc(2 * 1024 * 1024 + 1);
+      PNG.copy(oversized);
+      const before = await rows();
+      expect((await send('anonymous', gif, 'a.png')).status).toBe(401);
+      const format = await send('owner', gif, 'a.png');
+      expect(format.status).toBe(400);
+      const size = await send('owner', oversized, 'a.png');
+      expect(size.status).toBe(400);
+      expect(size.body).toEqual(format.body);
+      expect(await rows()).toEqual(before);
     });
 
     // PRD §7.5 gives comment edits to the author alone, so owning the

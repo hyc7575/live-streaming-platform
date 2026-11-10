@@ -111,6 +111,7 @@ export function BroadcastPage() {
   const b = broadcast.data;
   const isOwner =
     state.status === 'authenticated' && state.user.id === b.streamer.id;
+  const standbyImageUrl = b.status === 'READY' ? b.standbyImageUrl : null;
   return (
     <section className={styles.page}>
       <div className={styles.main}>
@@ -127,7 +128,20 @@ export function BroadcastPage() {
                 onPlaybackError={recheck}
               />
             ) : (
-              <p className={styles.notice}>{PLAYER_NOTICE[b.status]}</p>
+              <>
+                {standbyImageUrl && (
+                  <img
+                    className={styles.standby}
+                    src={standbyImageUrl}
+                    alt=""
+                  />
+                )}
+                <p
+                  className={`${styles.notice} ${standbyImageUrl ? styles.onStandby : ''}`}
+                >
+                  {PLAYER_NOTICE[b.status]}
+                </p>
+              </>
             )}
           </div>
         )}

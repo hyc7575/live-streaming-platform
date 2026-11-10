@@ -37,6 +37,7 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
     createdAt: '2026-11-09T00:00:00.000Z',
     recordingFiles: [],
     thumbnailUrl: null,
+    standbyImageUrl: null,
     streamer: { id: streamer.id, nickname: streamer.nickname },
     ...overrides,
   };
@@ -65,7 +66,7 @@ function stubApi(routes: Record<string, unknown>) {
 }
 
 function renderAt(path: string) {
-  render(
+  return render(
     <MemoryRouter initialEntries={[path]}>
       <AuthProvider>
         <AppRoutes />
@@ -286,6 +287,24 @@ it('tells a visitor that a READY broadcast has not started', async () => {
     ),
   ).toBeDefined();
   expect(screen.getByText('방송 전')).toBeDefined();
+});
+
+it('lays the 방송 전 notice over the streamer’s standby image', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b3': broadcast({
+      id: 'b3',
+      status: 'READY',
+      standbyImageUrl: '/thumbnails/users/u1/standby.png?v=1',
+    }),
+  });
+  const { container } = renderAt('/broadcasts/b3');
+  await screen.findByText(
+    '방송 전입니다. 스트리머가 방송을 시작하면 자동으로 재생합니다.',
+  );
+  const img = container.querySelector('img');
+  expect(img?.getAttribute('src')).toBe('/thumbnails/users/u1/standby.png?v=1');
+  expect(img?.getAttribute('alt')).toBe('');
 });
 
 it('swaps the 방송 전 notice for the player once a status poll says LIVE', async () => {

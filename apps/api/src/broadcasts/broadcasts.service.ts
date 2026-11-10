@@ -10,8 +10,12 @@ import { z } from 'zod';
 import { CLOCK, type Clock } from '../clock.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma, type BroadcastStatus } from '../generated/prisma/client.js';
+import {
+  ImageStore,
+  standbyImageUrl,
+  thumbnailUrl,
+} from '../images/image-store.js';
 import { OME_API, type OmeApi } from '../ome/ome-api.js';
-import { ThumbnailStore, thumbnailUrl } from './thumbnail-store.js';
 
 export interface CreateBroadcastInput {
   title: string;
@@ -44,20 +48,46 @@ const broadcastSelect = {
   createdAt: true,
   recordingFiles: true,
   thumbnailUpdatedAt: true,
-  streamer: { select: { id: true, nickname: true } },
+  streamer: {
+    select: {
+      id: true,
+      nickname: true,
+      standbyImageExt: true,
+      standbyImageUpdatedAt: true,
+    },
+  },
 } as const satisfies Prisma.BroadcastSelect;
 
 type BroadcastRow = Prisma.BroadcastGetPayload<{
   select: typeof broadcastSelect;
 }>;
 
-// The upload time only exists to build the URL, so clients get the URL.
-export type BroadcastView = Omit<BroadcastRow, 'thumbnailUpdatedAt'> & {
+// Upload times and extensions only exist to build URLs, so clients get the
+// URLs. The standby image is the streamer's, shared by all their broadcasts.
+export type BroadcastView = Omit<
+  BroadcastRow,
+  'thumbnailUpdatedAt' | 'streamer'
+> & {
+  streamer: { id: string; nickname: string };
   thumbnailUrl: string | null;
+  standbyImageUrl: string | null;
 };
 
-function toView({ thumbnailUpdatedAt, ...row }: BroadcastRow): BroadcastView {
-  return { ...row, thumbnailUrl: thumbnailUrl(row.id, thumbnailUpdatedAt) };
+function toView({
+  thumbnailUpdatedAt,
+  streamer: { standbyImageExt, standbyImageUpdatedAt, ...streamer },
+  ...row
+}: BroadcastRow): BroadcastView {
+  return {
+    ...row,
+    streamer,
+    thumbnailUrl: thumbnailUrl(row.id, thumbnailUpdatedAt),
+    standbyImageUrl: standbyImageUrl(
+      streamer.id,
+      standbyImageExt,
+      standbyImageUpdatedAt,
+    ),
+  };
 }
 
 // No pagination: one contest-scale deployment holds tens of broadcasts, so a
@@ -76,7 +106,7 @@ export class BroadcastsService {
     private readonly prisma: PrismaService,
     @Inject(OME_API) private readonly ome: OmeApi,
     @Inject(CLOCK) private readonly clock: Clock,
-    private readonly thumbnails: ThumbnailStore,
+    private readonly images: ImageStore,
   ) {}
 
   async create(
@@ -216,7 +246,7 @@ export class BroadcastsService {
     // The broadcast is already gone, so a leftover folder is only disk space
     // and not worth failing the delete over.
     try {
-      await this.thumbnails.remove(id);
+      await this.images.removeThumbnail(id);
     } catch (error) {
       this.logger.error(`Removing the thumbnail of ${id} failed`, error);
     }
@@ -230,7 +260,7 @@ export class BroadcastsService {
     if (status !== 'LIVE') {
       throw new ConflictException(THUMBNAIL_NOT_LIVE_MESSAGE);
     }
-    await this.thumbnails.write(id, bytes);
+    await this.images.writeThumbnail(id, bytes);
     await this.prisma.broadcast.updateMany({
       where: { id, status: 'LIVE' },
       data: { thumbnailUpdatedAt: this.clock.now() },
