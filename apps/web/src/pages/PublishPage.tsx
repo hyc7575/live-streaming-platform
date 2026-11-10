@@ -151,12 +151,16 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
   useEffect(() => {
     if (!capture) return;
     if (videoRef.current) videoRef.current.srcObject = capture.stream;
-    const unsubscribe = capture.subscribe(() => {
+    const check = () => {
       const captureState = capture.getState();
       if (captureState.status === 'ended') {
         onCaptureEnded(capture, captureState.reason);
       }
-    });
+    };
+    const unsubscribe = capture.subscribe(check);
+    // The capture may end between the render that shows it and this effect,
+    // and that change was announced before anyone listened.
+    check();
     return () => {
       unsubscribe();
       capture.stop();
