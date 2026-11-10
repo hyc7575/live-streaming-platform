@@ -47,6 +47,7 @@
   color: var(--color-brand-strong);
   font-size: var(--font-size-sm);
   font-weight: 700;
+  word-break: keep-all;
 }
 
 /* Folded to avatars: only the list stays. */
