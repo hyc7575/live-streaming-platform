@@ -21,6 +21,7 @@ caddy_data/
 caddy_config/
 *.dump
 *.sql.gz
+deploy/backups/
 
 # 로그·OS·에디터
 *.log

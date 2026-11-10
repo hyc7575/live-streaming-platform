@@ -10,11 +10,12 @@
 | `api` | NestJS API. 시작할 때 `prisma migrate deploy`를 먼저 돌린다 | 없음 |
 | `ome` | OvenMediaEngine. WHIP 송출, LL-HLS | 10000-10003/udp, 10000/tcp, 3478/tcp |
 | `postgres` | PostgreSQL 18 | 없음 |
+| `db-backup` | 매일 04:00(KST) PostgreSQL 덤프, 오래된 덤프 삭제. 아래 "DB 덤프와 복원" | 없음 |
 
 - 모든 서비스가 `restart: unless-stopped`다. 컨테이너가 죽거나 서버가 재부팅되면 Docker가 다시 띄운다.
 - OME 시그널링·LL-HLS(3333)와 관리 API(8081)는 compose 네트워크 안에서만 쓴다. OME는 송출 허가를 `http://api:3000/api/ome/admission`에 묻고, API는 `http://ome:8081`로 송출을 끊는다.
 - 값은 `deploy/.env`에서 읽는다. 항목과 설명은 `deploy/.env.example`에 있다. 저장소 루트의 `.env`(로컬 개발용)와 다른 파일이다.
-- 데이터는 named volume에 남는다: `lsp-prod_postgres-data`(DB), `lsp-prod_caddy-data`(인증서). `docker compose down -v`는 이 둘을 지우므로 운영에서는 쓰지 않는다.
+- 데이터는 named volume에 남는다: `lsp-prod_postgres-data`(DB), `lsp-prod_caddy-data`(인증서). `docker compose down -v`는 이 둘을 지우므로 운영에서는 쓰지 않는다. DB 덤프는 volume이 아니라 호스트 폴더 `deploy/backups/`에 있어 `down -v`로 지워지지 않는다.
 - 컨테이너 로그는 서비스마다 10MB × 3개까지만 남는다.
 - 공인 IP `129.225.169.22`는 Ephemeral이다. OCI 문서상 인스턴스를 Stop/Start하거나 재부팅해도 유지되지만, **Terminate하면 사라지고 같은 주소로 되돌릴 수 없다.** 콘솔에서 이 인스턴스를 Terminate하지 않는다. 다른 인스턴스(A1 등)로 옮길 때는 Reserved IP를 만들어 붙이고 DuckDNS와 `OME_HOST_IP`를 새 주소로 바꾼다.
 
@@ -62,7 +63,7 @@
 
    ```sh
    curl -fsS https://lsp-live.duckdns.org/api/health   # {"status":"ok"}
-   docker compose -f deploy/compose.yaml ps            # 4개 모두 Up
+   docker compose -f deploy/compose.yaml ps            # 5개 모두 Up
    ```
 
 ## 재배포
@@ -89,6 +90,55 @@ curl -fsS https://lsp-live.duckdns.org/api/health
 - 서버 공인 IP가 바뀌었으면 DuckDNS 레코드와 `deploy/.env`의 `OME_HOST_IP`를 함께 고치고 두 번째 줄을 다시 실행한다.
 
 재부팅 복구를 직접 확인하려면 `sudo reboot` 뒤 2분쯤 기다렸다가 SSH 없이 브라우저나 `curl`로 `https://lsp-live.duckdns.org/api/health`와 방송 목록을 연다.
+
+## DB 덤프와 복원
+
+`db-backup` 서비스가 매일 04:00(KST)에 `pg_dump -Fc`로 덤프를 하나 만든다. 스크립트는 `deploy/db-backup.sh`다.
+
+- 위치: `deploy/backups/lsp-YYYYmmdd-HHMMSS.dump`. `deploy/.env`의 `BACKUP_DIR`로 바꿀 수 있다(상대 경로는 `deploy/` 기준).
+- 보관: 덤프를 만든 뒤 `BACKUP_RETENTION_DAYS`(기본 7)일보다 오래된 덤프를 지운다. 덤프가 실패하면 아무것도 지우지 않는다.
+- 덤프는 임시 이름(`.lsp-….dump.partial`)으로 쓴 뒤 이름을 바꾼다. 실패하면 임시 파일을 지우고 로그에 `db-backup: FAILED`를 남긴다.
+- **서버 밖 사본은 아직 없다.** 디스크나 인스턴스를 잃으면 덤프도 함께 잃는다.
+
+최근 덤프와 결과를 확인한다.
+
+```sh
+ls -lt deploy/backups | head
+docker compose -f deploy/compose.yaml logs --tail=20 db-backup   # db-backup: wrote lsp-….dump
+```
+
+지금 바로 덤프를 하나 만든다. 배포 전이나 위험한 작업 전에 쓴다.
+
+```sh
+docker compose -f deploy/compose.yaml exec db-backup sh /db-backup.sh
+```
+
+### 복원
+
+덤프로 운영 DB를 되돌린다. 덤프 시각 이후의 데이터는 사라진다.
+
+```sh
+docker compose -f deploy/compose.yaml stop api caddy
+docker compose -f deploy/compose.yaml up -d --wait postgres db-backup   # DB 볼륨을 잃었다면 빈 DB로 새로 뜬다
+ls -lt deploy/backups | head                                             # 되돌릴 파일 이름을 고른다
+docker compose -f deploy/compose.yaml exec db-backup \
+  sh -c 'pg_restore --clean --if-exists --no-owner -d "$PGDATABASE" /backups/lsp-YYYYmmdd-HHMMSS.dump'
+docker compose -f deploy/compose.yaml up -d --wait
+curl -fsS https://lsp-live.duckdns.org/api/broadcasts
+```
+
+- `--clean --if-exists`는 있는 테이블을 지우고 다시 만든다. 빈 DB에도, 데이터가 있는 DB에도 같은 명령을 쓴다.
+- API는 시작할 때 `prisma migrate deploy`를 돌린다. 덤프에 마이그레이션 기록(`_prisma_migrations`)이 들어 있어서, 덤프 뒤에 추가된 마이그레이션만 적용한다.
+
+운영 데이터를 건드리지 않고 덤프가 살아나는지만 보려면 별도 DB에 복원한다.
+
+```sh
+docker compose -f deploy/compose.yaml exec db-backup sh -c '
+  createdb lsp_restore_check &&
+  pg_restore --no-owner -d lsp_restore_check /backups/lsp-YYYYmmdd-HHMMSS.dump &&
+  psql -d lsp_restore_check -tAc "select count(*) from \"User\"; select count(*) from \"Broadcast\""'
+docker compose -f deploy/compose.yaml exec db-backup dropdb lsp_restore_check
+```
 
 ## 로그
 

@@ -25,6 +25,29 @@ services:
       timeout: 3s
       retries: 10
 
+  db-backup:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Seoul
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-lsp}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-lsp}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    # 덤프는 named volume이 아니라 호스트 폴더에 둔다. DB 볼륨이 지워져도 남고, 서버 밖으로 복사하기 쉽다.
+    volumes:
+      - ./db-backup.sh:/db-backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    command:
+      - sh
+      - -c
+      - echo '0 4 * * * sh /db-backup.sh >/proc/1/fd/1 2>/proc/1/fd/2' > /etc/crontabs/root && exec crond -f -d 8
+
   api:
     build:
       context: ..
