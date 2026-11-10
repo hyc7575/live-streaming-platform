@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { startWhipPublish } from './whipPublisher';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CONNECT_TIMEOUT_MS, startWhipPublish } from './whipPublisher';
 
 interface Callbacks {
   connected?: () => void;
   connectionClosed?: (type: string) => void;
+  iceStateChange?: (state: RTCIceConnectionState) => void;
   error?: (error: unknown) => void;
 }
 
@@ -286,4 +287,74 @@ it('releases the sent camera before a switch and sends the next one after it', a
 
   publisher.stop();
   expect(sentNow?.readyState).toBe('ended');
+});
+
+it('reports ICE failed as a failed publish with no status, and cleans up', async () => {
+  const { stream, clones } = fakeStream();
+  const onEvent = vi.fn();
+  startWhipPublish(stream, '/app/b1?direction=whip', onEvent);
+  await vi.waitFor(() => expect(kit.startStreaming).toHaveBeenCalled());
+
+  kit.callbacks.iceStateChange?.('checking');
+  expect(onEvent).not.toHaveBeenCalled();
+  kit.callbacks.iceStateChange?.('failed');
+  expect(onEvent.mock.calls).toEqual([[{ kind: 'failed', status: null }]]);
+  expect(kit.remove).toHaveBeenCalledTimes(1);
+  expect(clones.map((t) => t.readyState)).toEqual(['ended', 'ended']);
+});
+
+describe('when ICE never connects', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it(`gives up ${CONNECT_TIMEOUT_MS / 1000} s after it started streaming`, async () => {
+    const { stream, clones } = fakeStream();
+    const onEvent = vi.fn();
+    startWhipPublish(stream, '/app/b1?direction=whip', onEvent);
+    // vi.waitFor would move the fake clock while it polls.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(kit.startStreaming).toHaveBeenCalled();
+
+    vi.advanceTimersByTime(CONNECT_TIMEOUT_MS - 1);
+    expect(onEvent).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(onEvent.mock.calls).toEqual([[{ kind: 'failed', status: null }]]);
+    expect(kit.remove).toHaveBeenCalledTimes(1);
+    expect(clones.map((t) => t.readyState)).toEqual(['ended', 'ended']);
+  });
+
+  it('keeps a connection that connected in time', async () => {
+    const { stream } = fakeStream();
+    const onEvent = vi.fn();
+    startWhipPublish(stream, '/app/b1?direction=whip', onEvent);
+    // vi.waitFor would move the fake clock while it polls.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(kit.startStreaming).toHaveBeenCalled();
+
+    kit.callbacks.connected?.();
+    vi.advanceTimersByTime(CONNECT_TIMEOUT_MS * 2);
+    expect(onEvent.mock.calls).toEqual([[{ kind: 'connected' }]]);
+    expect(kit.remove).not.toHaveBeenCalled();
+  });
+
+  it('sets no timer for a publish stopped before it connected', async () => {
+    const { stream } = fakeStream();
+    const onEvent = vi.fn();
+    const publisher = startWhipPublish(
+      stream,
+      '/app/b1?direction=whip',
+      onEvent,
+    );
+    // vi.waitFor would move the fake clock while it polls.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(kit.startStreaming).toHaveBeenCalled();
+
+    publisher.stop();
+    vi.advanceTimersByTime(CONNECT_TIMEOUT_MS * 2);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
 });

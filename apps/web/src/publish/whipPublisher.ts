@@ -3,7 +3,8 @@ import OvenLiveKit from 'ovenlivekit';
 export type PublishEvent =
   | { kind: 'connected' }
   // `status` is OME's HTTP answer to the WHIP offer when there was one. A 401
-  // is the Admission Webhook saying no.
+  // is the Admission Webhook saying no. `null` with no answer at all, as when
+  // ICE fails or never connects on a network that blocks both UDP and TURN.
   | { kind: 'failed'; status: number | null }
   | { kind: 'disconnected' };
 
@@ -32,6 +33,9 @@ const CONNECTION_CONFIG = {
   preferredVideoFormat: 'H264',
 } as const;
 
+/** How long a started connection may take to reach ICE `connected`. */
+export const CONNECT_TIMEOUT_MS = 15_000;
+
 function statusOf(error: unknown): number | null {
   const match =
     typeof error === 'string' ? /Failed to fetch (\d{3})/.exec(error) : null;
@@ -53,9 +57,11 @@ export function startWhipPublish(
     stream.getTracks().map((track) => track.clone()),
   );
   let done = false;
+  let connectTimer: ReturnType<typeof setTimeout> | undefined;
   const finish = () => {
     if (done) return;
     done = true;
+    clearTimeout(connectTimer);
     window.removeEventListener('pagehide', leave);
     const tracks = sent.getTracks();
     kit.remove();
@@ -102,10 +108,17 @@ export function startWhipPublish(
   const kit = OvenLiveKit.create({
     callbacks: {
       connected: () => {
+        clearTimeout(connectTimer);
         if (!done) onEvent({ kind: 'connected' });
       },
       connectionClosed: (type) => {
         if (type !== 'user') report({ kind: 'disconnected' });
+      },
+      // OvenLiveKit 1.5.8 reports ICE `failed` by calling an `errorHandler`
+      // callback it never defines, so the TypeError is all it does. This
+      // callback runs just before that.
+      iceStateChange: (state) => {
+        if (state === 'failed') report({ kind: 'failed', status: null });
       },
       error: (error) => report({ kind: 'failed', status: statusOf(error) }),
     },
@@ -113,6 +126,11 @@ export function startWhipPublish(
   kit.setMediaStream(sent).then(
     () => {
       if (done) return;
+      // ICE may sit in `checking` for good, with no event at all.
+      connectTimer = setTimeout(
+        () => report({ kind: 'failed', status: null }),
+        CONNECT_TIMEOUT_MS,
+      );
       kit.startStreaming(
         new URL(publishPath, window.location.origin).toString(),
         CONNECTION_CONFIG,

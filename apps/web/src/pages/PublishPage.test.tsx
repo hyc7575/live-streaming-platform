@@ -2,12 +2,10 @@ import {
   act,
   cleanup,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
 } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from '../AppRoutes';
 import { AuthProvider } from '../auth/AuthProvider';
@@ -28,6 +26,7 @@ import type {
 import { PcCaptureError, startPcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
 import { startWhipPublish, type PublishEvent } from '../publish/whipPublisher';
+import { renderInDataRouter } from '../testing/renderInDataRouter';
 
 vi.mock('../capture/cameraCapture', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../capture/cameraCapture')>()),
@@ -140,7 +139,7 @@ function fakePublisher() {
 // differently.
 function renderPage(
   api: Record<string, Reply>,
-  { canSwitchCamera = false } = {},
+  { canSwitchCamera = false, entries = ['/studio/broadcasts/b1'] } = {},
 ) {
   const routes: Record<string, Reply> = {
     'GET /api/auth/me': { status: 200, body: me },
@@ -151,14 +150,14 @@ function renderPage(
   const fake = fakeCapture({ canSwitchCamera });
   vi.mocked(startCameraCapture).mockResolvedValue(fake.capture);
   const whip = fakePublisher();
-  render(
-    <MemoryRouter initialEntries={['/studio/broadcasts/b1']}>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </MemoryRouter>,
+  // The page uses useBlocker, which needs a data router.
+  const { router } = renderInDataRouter(
+    entries,
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>,
   );
-  return { calls, routes, ...fake, ...whip };
+  return { calls, routes, router, ...fake, ...whip };
 }
 
 async function turnOnCameraAndStart() {
@@ -386,6 +385,32 @@ it('tells the streamer when OME refuses the publish', async () => {
   expect(page.capture.stop).not.toHaveBeenCalled();
 });
 
+it('offers a retry when the publish never connects, and retries with a new token', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+  });
+  await turnOnCameraAndStart();
+  await screen.findByText('송출을 연결하는 중입니다.');
+  // ICE failed, or no ICE connected within the timeout (whipPublisher).
+  page.emit({ kind: 'failed', status: null });
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '송출 서버에 연결하지 못했습니다. 네트워크를 바꾸거나 다시 시도하세요.',
+  );
+  expect(screen.queryByRole('button', { name: '방송 시작' })).toBeNull();
+  expect(page.capture.stop).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+  expect(await screen.findByText('송출을 연결하는 중입니다.')).toBeDefined();
+  expect(
+    page.calls.filter((c) => c === 'POST /api/broadcasts/b1/publish-token'),
+  ).toHaveLength(2);
+  expect(startWhipPublish).toHaveBeenCalledTimes(2);
+  page.emit({ kind: 'connected' });
+  expect(
+    await screen.findByText('송출 중입니다. 시청자가 방송을 볼 수 있습니다.'),
+  ).toBeDefined();
+});
+
 it('drops a connecting publish when the camera is taken away', async () => {
   const page = renderPage({
     'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
@@ -425,12 +450,11 @@ it('refuses someone else’s broadcast', async () => {
     'GET /api/auth/me': { status: 200, body: { ...me, id: 'u2' } },
     'GET /api/broadcasts/b1': { status: 200, body: broadcast },
   });
-  render(
-    <MemoryRouter initialEntries={['/studio/broadcasts/b1']}>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </MemoryRouter>,
+  renderInDataRouter(
+    ['/studio/broadcasts/b1'],
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>,
   );
   expect(
     await screen.findByRole('heading', { name: '권한이 없습니다' }),
@@ -767,4 +791,121 @@ it('shows how to allow the camera again when permission is denied', async () => 
   expect(guide.textContent).toContain('카메라·마이크 권한이 꺼져 있습니다');
   expect(guide.textContent).toContain('Android (Chrome)');
   expect(screen.getByRole('button', { name: '카메라 켜기' })).toBeDefined();
+});
+
+const LEAVE_TEXT = '송출 중입니다. 이 화면을 떠나면 방송이 끊깁니다.';
+
+function headerLink(name: string) {
+  return within(screen.getByRole('banner')).getByRole('link', { name });
+}
+
+function unloadIsBlocked() {
+  const event = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
+}
+
+it('asks before a header link leaves a live publish, and keeps it on 머무르기', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+  });
+  await goLive(page);
+
+  fireEvent.click(headerLink('방송 목록'));
+  const dialog = await screen.findByRole('alertdialog');
+  expect(within(dialog).getByText(LEAVE_TEXT)).toBeDefined();
+  expect(document.activeElement).toBe(
+    within(dialog).getByRole('button', { name: '머무르기' }),
+  );
+
+  fireEvent.click(within(dialog).getByRole('button', { name: '머무르기' }));
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  expect(page.router.state.location.pathname).toBe('/studio/broadcasts/b1');
+  expect(
+    screen.getByText('송출 중입니다. 시청자가 방송을 볼 수 있습니다.'),
+  ).toBeDefined();
+  expect(page.publisher.stop).not.toHaveBeenCalled();
+  expect(page.capture.stop).not.toHaveBeenCalled();
+});
+
+it('leaves and drops the publish, without ending, on 떠나기', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+    'GET /api/broadcasts': { status: 200, body: [] },
+  });
+  await goLive(page);
+
+  fireEvent.click(headerLink('Lime'));
+  fireEvent.click(await screen.findByRole('button', { name: '떠나기' }));
+  await waitFor(() => expect(page.router.state.location.pathname).toBe('/'));
+  expect(page.publisher.stop).toHaveBeenCalled();
+  expect(page.capture.stop).toHaveBeenCalled();
+  expect(page.calls).not.toContain('POST /api/broadcasts/b1/end');
+});
+
+it('asks before going back while connecting, and stays on Escape', async () => {
+  const page = renderPage(
+    { 'POST /api/broadcasts/b1/publish-token': TOKEN_OK },
+    { entries: ['/studio', '/studio/broadcasts/b1'] },
+  );
+  await turnOnCameraAndStart();
+  await screen.findByText('송출을 연결하는 중입니다.');
+
+  await act(() => page.router.navigate(-1));
+  const dialog = await screen.findByRole('alertdialog');
+  fireEvent.keyDown(dialog, { key: 'Escape' });
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  expect(page.router.state.location.pathname).toBe('/studio/broadcasts/b1');
+  expect(page.publisher.stop).not.toHaveBeenCalled();
+});
+
+it('asks the browser to confirm a reload or a closed tab only while publishing', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+    'POST /api/broadcasts/b1/end': ENDED,
+  });
+  await screen.findByRole('button', { name: '카메라 켜기' });
+  expect(unloadIsBlocked()).toBe(false);
+
+  await turnOnCameraAndStart();
+  await screen.findByText('송출을 연결하는 중입니다.');
+  // The listener comes and goes in an effect, a tick after the render.
+  await waitFor(() => expect(unloadIsBlocked()).toBe(true));
+  page.emit({ kind: 'connected' });
+  expect(unloadIsBlocked()).toBe(true);
+
+  fireEvent.click(screen.getByRole('button', { name: '방송 종료' }));
+  fireEvent.click(screen.getByRole('button', { name: '종료하기' }));
+  await screen.findByText('방송을 종료했습니다.');
+  await waitFor(() => expect(unloadIsBlocked()).toBe(false));
+});
+
+it('leaves without asking before the publish starts', async () => {
+  const page = renderPage({
+    'GET /api/broadcasts': { status: 200, body: [] },
+  });
+  fireEvent.click(await screen.findByRole('button', { name: '카메라 켜기' }));
+  await screen.findByRole('button', { name: '방송 시작' });
+
+  fireEvent.click(headerLink('방송 목록'));
+  await waitFor(() => expect(page.router.state.location.pathname).toBe('/'));
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+
+it('leaves without asking after the broadcast has ended', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+    'POST /api/broadcasts/b1/end': ENDED,
+    'GET /api/me/broadcasts': { status: 200, body: [] },
+  });
+  await goLive(page);
+  fireEvent.click(screen.getByRole('button', { name: '방송 종료' }));
+  fireEvent.click(screen.getByRole('button', { name: '종료하기' }));
+  await screen.findByText('방송을 종료했습니다.');
+
+  fireEvent.click(headerLink('내 방송'));
+  await waitFor(() =>
+    expect(page.router.state.location.pathname).toBe('/studio'),
+  );
+  expect(screen.queryByRole('alertdialog')).toBeNull();
 });

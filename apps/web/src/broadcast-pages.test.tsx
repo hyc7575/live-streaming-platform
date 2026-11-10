@@ -12,6 +12,7 @@ import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
 import type { Broadcast } from './broadcasts';
 import type { Comment } from './comments';
+import { renderInDataRouter } from './testing/renderInDataRouter';
 
 beforeEach(() => {
   // jsdom's play() returns nothing; a browser's returns a promise.
@@ -381,7 +382,13 @@ it('opens the publish page from a 방송 전 card and the watch page from the ot
     'GET /api/broadcasts': mine.slice(1),
     'GET /api/broadcasts/b3': mine[0],
   });
-  renderAt('/studio');
+  // The publish page uses useBlocker, which needs a data router.
+  renderInDataRouter(
+    ['/studio'],
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>,
+  );
   const hrefOf = async (name: RegExp) =>
     (await screen.findByRole('link', { name })).getAttribute('href');
   expect(await hrefOf(/송출 중인 방송/)).toBe('/broadcasts/b4');
@@ -414,13 +421,12 @@ it('goes to the new broadcast’s publish page, and back skips the form', async 
     go = useNavigate();
     return null;
   }
-  render(
-    <MemoryRouter initialEntries={['/studio', '/studio/new']}>
-      <AuthProvider>
-        <AppRoutes />
-        <Probe />
-      </AuthProvider>
-    </MemoryRouter>,
+  renderInDataRouter(
+    ['/studio', '/studio/new'],
+    <AuthProvider>
+      <AppRoutes />
+      <Probe />
+    </AuthProvider>,
   );
   fireEvent.change(await screen.findByLabelText('제목'), {
     target: { value: '새 방송' },

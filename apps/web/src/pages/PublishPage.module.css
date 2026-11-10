@@ -160,6 +160,30 @@
   border-radius: var(--radius-md);
 }
 
+/* Holds a move away from a page that is publishing until the streamer picks. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  /* Above the sticky header (10). */
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--color-backdrop);
+}
+
+.leaveDialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: var(--form-card-width);
+  padding: var(--space-6);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+}
+
 .confirmText {
   margin: 0;
   font-size: var(--font-size-sm);
