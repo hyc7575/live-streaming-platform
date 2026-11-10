@@ -147,7 +147,7 @@ export function BroadcastPage() {
         </div>
         <DonationPanel broadcast={b} />
       </div>
-      <CommentPanel broadcastId={b.id} />
+      <CommentPanel broadcastId={b.id} status={b.status} />
     </section>
   );
 }

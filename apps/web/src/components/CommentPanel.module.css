@@ -46,6 +46,38 @@
   gap: var(--space-1);
 }
 
+.chatList {
+  gap: var(--space-1);
+}
+
+/* One wrapping row: the line takes the space, my 수정·삭제 sit at its end,
+   and the edit form, delete confirmation and error drop to full rows. */
+.chatItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-2);
+  row-gap: var(--space-1);
+}
+
+.chatItem > .form,
+.chatItem > .confirm,
+.chatItem > .error {
+  flex-basis: 100%;
+}
+
+.chatLine {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.chatBody {
+  white-space: pre-wrap;
+}
+
 .meta {
   display: flex;
   flex-wrap: wrap;
