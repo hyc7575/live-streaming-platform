@@ -4,6 +4,7 @@ import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import type { BroadcastStatus } from '../components/StatusBadge';
+import { CommentPanel } from '../components/CommentPanel';
 import { LivePlayer } from '../components/LivePlayer';
 import { OwnerActions } from '../components/OwnerActions';
 import { StatusBadge } from '../components/StatusBadge';
@@ -104,30 +105,35 @@ export function BroadcastPage() {
     state.status === 'authenticated' && state.user.id === b.streamer.id;
   return (
     <section className={styles.page}>
-      <div className={styles.player}>
-        {b.status === 'LIVE' ? (
-          <LivePlayer
-            broadcastId={b.id}
-            startMuted={isOwner}
-            onPlaybackError={recheck}
-          />
-        ) : (
-          <p className={styles.notice}>{PLAYER_NOTICE[b.status]}</p>
+      <div className={styles.main}>
+        <div className={styles.player}>
+          {b.status === 'LIVE' ? (
+            <LivePlayer
+              broadcastId={b.id}
+              startMuted={isOwner}
+              onPlaybackError={recheck}
+            />
+          ) : (
+            <p className={styles.notice}>{PLAYER_NOTICE[b.status]}</p>
+          )}
+        </div>
+        {b.status === 'LIVE' && isOwner && (
+          <p className={styles.howling}>
+            내 방송이라 소리를 끄고 재생합니다. 송출하는 기기에서 소리를 켜면
+            하울링이 생길 수 있습니다. 소리는 플레이어에서 켤 수 있습니다.
+          </p>
         )}
+        <div className={styles.info}>
+          <StatusBadge status={b.status} />
+          <h1 className={styles.title}>{b.title}</h1>
+          <p className={styles.streamer}>{b.streamer.nickname}</p>
+          {b.description && (
+            <p className={styles.description}>{b.description}</p>
+          )}
+          {isOwner && <OwnerActions broadcast={b} onEnded={recheck} />}
+        </div>
       </div>
-      {b.status === 'LIVE' && isOwner && (
-        <p className={styles.howling}>
-          내 방송이라 소리를 끄고 재생합니다. 송출하는 기기에서 소리를 켜면
-          하울링이 생길 수 있습니다. 소리는 플레이어에서 켤 수 있습니다.
-        </p>
-      )}
-      <div className={styles.info}>
-        <StatusBadge status={b.status} />
-        <h1 className={styles.title}>{b.title}</h1>
-        <p className={styles.streamer}>{b.streamer.nickname}</p>
-        {b.description && <p className={styles.description}>{b.description}</p>}
-        {isOwner && <OwnerActions broadcast={b} onEnded={recheck} />}
-      </div>
+      <CommentPanel broadcastId={b.id} />
     </section>
   );
 }
