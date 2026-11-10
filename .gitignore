@@ -14,9 +14,10 @@ build/
 coverage/
 *.tsbuildinfo
 
-# 런타임 데이터 (DB 볼륨, OME 녹화 파일, Caddy 인증서)
+# 런타임 데이터 (DB 볼륨, OME 녹화 파일, 썸네일, Caddy 인증서)
 data/
 recordings/
+thumbnails/
 caddy_data/
 caddy_config/
 *.dump

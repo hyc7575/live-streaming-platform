@@ -61,5 +61,29 @@ services:
     ports:
       - '127.0.0.1:${RECORDINGS_HTTP_PORT:-8090}:8090/tcp'
 
+  # 썸네일 정적 서빙(#62). 녹화와 같은 방식이지만 nosniff 헤더와 API가 쓰는 중인 임시 파일 숨김이
+  # 필요해 caddy file-server 명령 대신 아래 Caddyfile로 띄운다.
+  thumbnails:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    configs:
+      - source: thumbnails-caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      - ${THUMBNAILS_DIR:-./thumbnails}:/srv:ro
+    ports:
+      - '127.0.0.1:${THUMBNAILS_HTTP_PORT:-8091}:8091/tcp'
+
+configs:
+  thumbnails-caddyfile:
+    content: |
+      :8091 {
+        root * /srv
+        header X-Content-Type-Options nosniff
+        file_server {
+          hide *.tmp
+        }
+      }
+
 volumes:
   postgres-data:

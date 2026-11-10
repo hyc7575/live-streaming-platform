@@ -67,6 +67,7 @@ services:
       OME_API_URL: http://ome:8081
       RECORDINGS_DIR: /recordings
       RECORDINGS_MAX_GB: ${RECORDINGS_MAX_GB:-10}
+      THUMBNAILS_DIR: /thumbnails
       TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:?TOSS_CLIENT_KEY를 deploy/.env에 넣으세요}
       TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:?TOSS_SECRET_KEY를 deploy/.env에 넣으세요}
       TEST_ACCOUNTS_ENABLED: ${TEST_ACCOUNTS_ENABLED:-}
@@ -88,9 +89,11 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-    # 녹화 용량을 재고 오래된 녹화를 지운다(#19). OME가 쓰는 폴더와 같은 호스트 폴더다.
     volumes:
+      # 녹화 용량을 재고 오래된 녹화를 지운다(#19). OME가 쓰는 폴더와 같은 호스트 폴더다.
       - ${RECORDINGS_DIR:-./recordings}:/recordings
+      # 송출 브라우저가 올린 썸네일을 쓰고 지운다(#62). Caddy가 같은 폴더를 내준다.
+      - ${THUMBNAILS_DIR:-./thumbnails}:/thumbnails
 
   ome:
     image: ovenmedialabs/ovenmediaengine:v0.21.0
@@ -138,6 +141,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
       - ${RECORDINGS_DIR:-./recordings}:/recordings:ro
+      - ${THUMBNAILS_DIR:-./thumbnails}:/thumbnails:ro
 
 volumes:
   postgres-data:
