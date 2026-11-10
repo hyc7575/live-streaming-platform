@@ -7,9 +7,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { CLOCK, type Clock } from '../clock.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma, type BroadcastStatus } from '../generated/prisma/client.js';
 import { OME_API, type OmeApi } from '../ome/ome-api.js';
+import { ThumbnailStore, thumbnailUrl } from './thumbnail-store.js';
 
 export interface CreateBroadcastInput {
   title: string;
@@ -25,6 +27,8 @@ export const END_READY_MESSAGE =
   '아직 시작하지 않은 방송은 종료할 수 없습니다.';
 export const DROP_STREAM_FAILED_MESSAGE =
   '송출 연결을 끊지 못했습니다. 다시 시도하세요.';
+export const THUMBNAIL_NOT_LIVE_MESSAGE =
+  '방송 중일 때만 썸네일을 올릴 수 있습니다.';
 
 export type PublicStatus = Extract<BroadcastStatus, 'LIVE' | 'ENDED'>;
 
@@ -39,12 +43,22 @@ const broadcastSelect = {
   endedAt: true,
   createdAt: true,
   recordingFiles: true,
+  thumbnailUpdatedAt: true,
   streamer: { select: { id: true, nickname: true } },
 } as const satisfies Prisma.BroadcastSelect;
 
-export type BroadcastView = Prisma.BroadcastGetPayload<{
+type BroadcastRow = Prisma.BroadcastGetPayload<{
   select: typeof broadcastSelect;
 }>;
+
+// The upload time only exists to build the URL, so clients get the URL.
+export type BroadcastView = Omit<BroadcastRow, 'thumbnailUpdatedAt'> & {
+  thumbnailUrl: string | null;
+};
+
+function toView({ thumbnailUpdatedAt, ...row }: BroadcastRow): BroadcastView {
+  return { ...row, thumbnailUrl: thumbnailUrl(row.id, thumbnailUpdatedAt) };
+}
 
 // No pagination: one contest-scale deployment holds tens of broadcasts, so a
 // fixed cap keeps the response bounded without a cursor API.
@@ -61,20 +75,24 @@ export class BroadcastsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(OME_API) private readonly ome: OmeApi,
+    @Inject(CLOCK) private readonly clock: Clock,
+    private readonly thumbnails: ThumbnailStore,
   ) {}
 
-  create(
+  async create(
     streamerId: string,
     input: CreateBroadcastInput,
   ): Promise<BroadcastView> {
-    return this.prisma.broadcast.create({
-      data: { ...input, streamerId },
-      select: broadcastSelect,
-    });
+    return toView(
+      await this.prisma.broadcast.create({
+        data: { ...input, streamerId },
+        select: broadcastSelect,
+      }),
+    );
   }
 
-  listPublic(status?: PublicStatus): Promise<BroadcastView[]> {
-    return this.prisma.broadcast.findMany({
+  async listPublic(status?: PublicStatus): Promise<BroadcastView[]> {
+    const rows = await this.prisma.broadcast.findMany({
       where: { status: status ?? { in: PUBLIC_STATUSES } },
       // Enum declaration order puts LIVE before ENDED.
       orderBy: [
@@ -85,23 +103,26 @@ export class BroadcastsService {
       take: PUBLIC_LIST_LIMIT,
       select: broadcastSelect,
     });
+    return rows.map(toView);
   }
 
-  listReplays(): Promise<BroadcastView[]> {
-    return this.prisma.broadcast.findMany({
+  async listReplays(): Promise<BroadcastView[]> {
+    const rows = await this.prisma.broadcast.findMany({
       where: { status: 'ENDED', recordingFiles: { isEmpty: false } },
       orderBy: { endedAt: 'desc' },
       take: PUBLIC_LIST_LIMIT,
       select: broadcastSelect,
     });
+    return rows.map(toView);
   }
 
-  listByStreamer(streamerId: string): Promise<BroadcastView[]> {
-    return this.prisma.broadcast.findMany({
+  async listByStreamer(streamerId: string): Promise<BroadcastView[]> {
+    const rows = await this.prisma.broadcast.findMany({
       where: { streamerId },
       orderBy: { createdAt: 'desc' },
       select: broadcastSelect,
     });
+    return rows.map(toView);
   }
 
   // A malformed id names no broadcast, so it gets the same 404 as an unknown
@@ -114,7 +135,7 @@ export class BroadcastsService {
         })
       : null;
     if (!broadcast) throw new NotFoundException('Broadcast not found');
-    return broadcast;
+    return toView(broadcast);
   }
 
   async streamerIdOf(id: string): Promise<string> {
@@ -135,11 +156,13 @@ export class BroadcastsService {
     input: UpdateBroadcastInput,
   ): Promise<BroadcastView> {
     try {
-      return await this.prisma.broadcast.update({
-        where: { id },
-        data: input,
-        select: broadcastSelect,
-      });
+      return toView(
+        await this.prisma.broadcast.update({
+          where: { id },
+          data: input,
+          select: broadcastSelect,
+        }),
+      );
     } catch (error) {
       if (isRecordNotFound(error)) {
         throw new NotFoundException('Broadcast not found');
@@ -186,9 +209,32 @@ export class BroadcastsService {
     const { count } = await this.prisma.broadcast.deleteMany({
       where: { id, status: 'READY' },
     });
-    if (count === 1) return;
-    await this.end(id);
-    await this.prisma.broadcast.deleteMany({ where: { id } });
+    if (count === 0) {
+      await this.end(id);
+      await this.prisma.broadcast.deleteMany({ where: { id } });
+    }
+    // The broadcast is already gone, so a leftover folder is only disk space
+    // and not worth failing the delete over.
+    try {
+      await this.thumbnails.remove(id);
+    } catch (error) {
+      this.logger.error(`Removing the thumbnail of ${id} failed`, error);
+    }
+  }
+
+  // The update repeats the LIVE check so a broadcast that ends mid-upload
+  // keeps its time. Its file may still be replaced, which only shows a
+  // slightly newer frame under the old URL.
+  async saveThumbnail(id: string, bytes: Uint8Array): Promise<void> {
+    const { status } = await this.get(id);
+    if (status !== 'LIVE') {
+      throw new ConflictException(THUMBNAIL_NOT_LIVE_MESSAGE);
+    }
+    await this.thumbnails.write(id, bytes);
+    await this.prisma.broadcast.updateMany({
+      where: { id, status: 'LIVE' },
+      data: { thumbnailUpdatedAt: this.clock.now() },
+    });
   }
 }
 

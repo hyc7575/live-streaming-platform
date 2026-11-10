@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import type { Broadcast } from '../broadcasts';
 import { BroadcastGrid } from '../components/BroadcastGrid';
-import { useApi } from '../use-api';
+import { usePolledApi } from '../use-api';
 import styles from './ListPage.module.css';
 
 // `status` is the page's ?status= value, `path` what the API is asked.
@@ -42,11 +42,18 @@ function matches(broadcast: Broadcast, needle: string) {
   );
 }
 
+const LIST_REFRESH_MS = 30_000;
+
 export function HomePage() {
   const [params, setParams] = useSearchParams();
   const filter =
     FILTERS.find((f) => f.status === params.get('status')) ?? FILTERS[0];
-  const broadcasts = useApi<Broadcast[]>(filter.path);
+  // Re-read like the follow panel, so LIVE cards pick up new thumbnails and
+  // status changes without a reload.
+  const broadcasts = usePolledApi<Broadcast[]>(
+    filter.path,
+    LIST_REFRESH_MS,
+  ).data;
   const query = params.get('q') ?? '';
   const needle = query.trim().toLowerCase();
   const searchRef = useRef<HTMLInputElement>(null);

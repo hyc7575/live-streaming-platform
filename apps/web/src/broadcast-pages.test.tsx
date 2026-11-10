@@ -36,6 +36,7 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
     endedAt: null,
     createdAt: '2026-11-09T00:00:00.000Z',
     recordingFiles: [],
+    thumbnailUrl: null,
     streamer: { id: streamer.id, nickname: streamer.nickname },
     ...overrides,
   };
@@ -308,6 +309,40 @@ it('swaps the 방송 전 notice for the player once a status poll says LIVE', as
     await act(() => vi.advanceTimersByTimeAsync(5000));
     expect(screen.getByLabelText('방송 화면')).toBeDefined();
     expect(screen.queryByText(notice)).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('re-reads the list every 30 s so a LIVE card shows the newest thumbnail', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  try {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts': [
+        broadcast({
+          title: '낚시',
+          thumbnailUrl: '/thumbnails/b1/live.jpg?v=1',
+        }),
+      ],
+    };
+    stubApi(routes);
+    renderAt('/');
+    const card = await screen.findByRole('link', { name: /낚시/ });
+    expect(card.querySelector('img')?.getAttribute('src')).toBe(
+      '/thumbnails/b1/live.jpg?v=1',
+    );
+
+    routes['GET /api/broadcasts'] = [
+      broadcast({
+        title: '낚시',
+        thumbnailUrl: '/thumbnails/b1/live.jpg?v=2',
+      }),
+    ];
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    expect(card.querySelector('img')?.getAttribute('src')).toBe(
+      '/thumbnails/b1/live.jpg?v=2',
+    );
   } finally {
     vi.useRealTimers();
   }

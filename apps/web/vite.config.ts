@@ -36,6 +36,11 @@ export default defineConfig(({ mode }) => {
           target: `http://localhost:${env.RECORDINGS_HTTP_PORT || 8090}`,
           rewrite: (path) => path.replace(/^\/recordings/, ''),
         },
+        // Thumbnails the API writes, served the same way from compose.yaml.
+        '/thumbnails': {
+          target: `http://localhost:${env.THUMBNAILS_HTTP_PORT || 8091}`,
+          rewrite: (path) => path.replace(/^\/thumbnails/, ''),
+        },
       },
     },
     test: {

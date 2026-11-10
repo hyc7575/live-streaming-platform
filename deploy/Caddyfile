@@ -30,6 +30,17 @@
 		}
 	}
 
+	# Thumbnails (#62). The API writes .live-*.tmp and renames it over
+	# live.jpg, so only finished images are served. nosniff keeps a browser
+	# from reading an uploaded file as anything but the image it claims.
+	handle_path /thumbnails/* {
+		root * /thumbnails
+		header X-Content-Type-Options nosniff
+		file_server {
+			hide *.tmp
+		}
+	}
+
 	handle {
 		root * /srv
 		@hashed path /assets/*
