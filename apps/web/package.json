@@ -13,6 +13,7 @@
     "e2e:stack": "playwright test --config playwright.stack.config.ts"
   },
   "dependencies": {
+    "@tosspayments/tosspayments-sdk": "2.10.0",
     "hls.js": "1.7.4",
     "ovenlivekit": "1.5.8",
     "pretendard": "^1.3.9",
