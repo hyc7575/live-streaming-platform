@@ -125,7 +125,7 @@ it('says so when there is nothing to replay', async () => {
   ).toBeDefined();
 });
 
-it('plays the recording of an ENDED broadcast instead of the ended notice', async () => {
+it('plays the recording of an ENDED broadcast under the ended notice', async () => {
   stubApi({
     'GET /api/auth/me': 401,
     'GET /api/broadcasts/b1': broadcast({
@@ -137,7 +137,9 @@ it('plays the recording of an ENDED broadcast instead of the ended notice', asyn
   const replay = await screen.findByLabelText('다시보기 화면');
   expect(replay.getAttribute('src')).toBe('/recordings/b1/1_0.mp4');
   expect(screen.getByRole('button', { name: '2부' })).toBeDefined();
-  expect(screen.queryByText('방송이 끝났습니다.')).toBeNull();
+  expect(
+    screen.getByText('방송이 끝났습니다. 녹화된 방송을 다시 볼 수 있습니다.'),
+  ).toBeDefined();
 });
 
 it('says the broadcast ended when it has no recording', async () => {

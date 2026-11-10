@@ -22,6 +22,21 @@ async function replays(request: APIRequestContext): Promise<Replay[]> {
   return (await res.json()) as Replay[];
 }
 
+// OME starts writing a file only once its output stream is up (the same
+// moment the LL-HLS playlist appears) and the first keyframe passes, a few
+// seconds after admission and later still under load. A connection that
+// drops before that leaves no file, so each one is held until it has been
+// recording for a while.
+async function holdUntilRecorded(request: APIRequestContext, id: string) {
+  await expect
+    .poll(async () => (await request.get(`/app/${id}/llhls.m3u8`)).status(), {
+      timeout: 60_000,
+      intervals: [1000],
+    })
+    .toBe(200);
+  await new Promise((resolve) => setTimeout(resolve, 8000));
+}
+
 async function endBroadcast(request: APIRequestContext, id: string) {
   const res = await request.post(`/api/broadcasts/${id}/end`);
   expect(res.status(), await res.text()).toBe(200);
@@ -38,7 +53,7 @@ test('an ended broadcast is listed as a replay and plays every part', async ({
   const id = await createBroadcast(api, title);
 
   await startPublishing(page, id);
-  await page.waitForTimeout(8000);
+  await holdUntilRecorded(api, id);
   // A reload within the grace period reconnects the same broadcast. OME
   // keeps the recording task and writes the second connection to a new file.
   await page.reload();
@@ -47,7 +62,7 @@ test('an ended broadcast is listed as a replay and plays every part', async ({
   await expect(page.getByText('송출 중입니다.')).toBeVisible({
     timeout: 30_000,
   });
-  await page.waitForTimeout(8000);
+  await holdUntilRecorded(api, id);
   const endedAt = Date.now();
   await endBroadcast(api, id);
 

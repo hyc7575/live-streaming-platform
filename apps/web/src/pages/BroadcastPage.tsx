@@ -17,6 +17,10 @@ const PLAYER_NOTICE: Record<Exclude<BroadcastStatus, 'LIVE'>, string> = {
   ENDED: '방송이 끝났습니다.',
 };
 
+// A viewer who was watching when the broadcast ended still reads that it
+// ended (T9), even when the recording is already up in the player's place.
+const REPLAY_NOTICE = '방송이 끝났습니다. 녹화된 방송을 다시 볼 수 있습니다.';
+
 // PRD §7.4 T9: viewers notice an ended broadcast within 10 s, so the status
 // is polled at half that.
 const STATUS_POLL_MS = 5000;
@@ -122,8 +126,11 @@ export function BroadcastPage() {
             )}
           </div>
         )}
+        {b.status === 'ENDED' && b.recordingFiles.length > 0 && (
+          <p className={styles.playerNote}>{REPLAY_NOTICE}</p>
+        )}
         {b.status === 'LIVE' && isOwner && (
-          <p className={styles.howling}>
+          <p className={styles.playerNote}>
             내 방송이라 소리를 끄고 재생합니다. 송출하는 기기에서 소리를 켜면
             하울링이 생길 수 있습니다. 소리는 플레이어에서 켤 수 있습니다.
           </p>
