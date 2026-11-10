@@ -73,10 +73,11 @@ UI를 만들거나 고치기 전에 이 파일을 읽는다. 여기 없는 결�
 - `src/api.ts`의 `apiFetch<T>(path, init)`만 쓴다. `path`는 `/api` 뒤의 경로다(`apiFetch('/broadcasts')` → `GET /api/broadcasts`).
 - 로그인은 쿠키 세션이라 `apiFetch`가 항상 `credentials: 'include'`를 붙인다. 토큰을 localStorage에 두지 않는다.
 - 2xx가 아니면 `ApiError`(`status` 포함)를 던진다. 401이면 로그인 화면으로, 403이면 "권한이 없습니다" 안내로 처리한다.
+- 401 규칙: `apiFetch`가 401을 받으면 `onUnauthorized` 구독자(`AuthProvider` 한 곳)에 알리고, 로그인 상태가 `anonymous`로 바뀐다. 로그인·회원가입·테스트 로그인(`/auth/login`·`/auth/signup`·`/auth/test-login`)의 401은 잘못된 입력이라 알리지 않는다. 화면은 지금처럼 `navigate('/login', { state: { from } })`만 하고 로그인 상태를 직접 바꾸지 않는다.
 - 화면을 열 때 데이터를 읽는 GET은 `src/use-api.ts`의 `useApi<T>(path)`를 쓴다. `loading`, `loaded`(`data`), `failed`(`error`) 중 하나를 돌려준다.
 - 로그인이 필요한 화면은 `AppRoutes`에서 `<Route element={<RequireAuth />}>` 아래에 둔다. 비로그인 방문자는 로그인 화면으로 가고, 로그인하면 원래 경로로 돌아온다.
 - 팔로우 목록 `GET /api/me/follows`는 `follows/FollowsProvider`(`AppLayout` 아래 한 곳)만 읽는다. 로그인했을 때 30초마다, 팔로우·언팔로우 직후 바로 다시 읽는다. 패널·팔로우 버튼·`/following`은 `useFollows()`로 같은 목록을 보고, 팔로우·언팔로우도 그 `setFollowing`으로 한다. 화면마다 따로 부르지 않는다.
-- 로그인 상태는 `src/auth/auth-context.ts`의 `useAuth()`로 읽는다. `state.status`는 `loading`(첫 `GET /api/auth/me` 응답 전), `anonymous`, `authenticated`(`state.user`) 중 하나다. 화면마다 `me`를 다시 부르지 않는다.
+- 로그인 상태는 `src/auth/auth-context.ts`의 `useAuth()`로 읽는다. `state.status`는 넷 중 하나다. `loading`: `GET /api/auth/me` 응답 전. `anonymous`: 세션이 없다고 API가 답했다(`me`나 다른 요청의 401). `error`: `me`가 401이 아닌 이유(네트워크, 5xx)로 실패해 로그인 여부를 모른다. `authenticated`: `state.user`가 있다. `error`는 비로그인으로 다루지 않는다. 로그인 화면으로 보내지 않고(`RequireAuth`는 아무것도 그리지 않는다), 로그인을 권하는 버튼·링크(테스트 계정 버튼 포함)도 `anonymous`일 때만 보인다. 헤더가 "로그인 상태를 확인하지 못했습니다."와 "다시 시도"(`recheck()`)를 보인다. 화면마다 `me`를 다시 부르지 않는다.
 - 개발 중에는 Vite dev proxy가 `/api`를 `http://localhost:${API_PORT}`(기본 3000)로 넘긴다. 그래서 웹과 API가 같은 출처로 보여 쿠키가 그대로 붙는다.
 - OME(WHIP 송출, LL-HLS 재생)는 `/app` 아래 같은 출처 경로로 쓴다. 개발 중에는 Vite dev proxy가 `/app`을 `http://localhost:${OME_HTTP_PORT}`(기본 3333)로 넘기고, 운영에서는 Caddy가 같은 일을 한다.
 - 녹화 파일은 `/recordings/<방송 id>/<파일>.mp4` 같은 출처 경로로 쓴다. 개발 중에는 Vite dev proxy가 `/recordings`를 `http://localhost:${RECORDINGS_HTTP_PORT}`(기본 8090, compose의 녹화 정적 서버)로 넘기고, 운영에서는 Caddy가 녹화 폴더를 내준다.

@@ -8,7 +8,9 @@ export function RequireAuth() {
   const { state } = useAuth();
   const location = useLocation();
 
-  if (state.status === 'loading') return null;
+  // `error` is not logged out: logging in would hit the same failure, so the
+  // page waits for the header's retry.
+  if (state.status === 'loading' || state.status === 'error') return null;
   if (state.status === 'anonymous') {
     const next: LoginPageState = {
       from: location.pathname + location.search,

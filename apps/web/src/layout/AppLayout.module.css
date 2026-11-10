@@ -31,6 +31,11 @@
   .nickname {
     display: none;
   }
+
+  /* Too long for a phone header; the retry button stays. */
+  .authError {
+    display: none;
+  }
 }
 
 .logo {
@@ -124,6 +129,11 @@
 
 .nickname {
   font-weight: 600;
+}
+
+.authError {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 
 .loginButton {

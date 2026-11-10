@@ -49,7 +49,9 @@ function FollowedPanel() {
   );
 }
 
-function LivePanel() {
+// `offerLogin` is false while the session check failed (`error`): the visitor
+// may be logged in, and logging in would hit the same failure.
+function LivePanel({ offerLogin }: { offerLogin: boolean }) {
   const location = useLocation();
   const { data } = usePolledApi<Broadcast[]>(
     '/broadcasts?status=LIVE',
@@ -69,9 +71,11 @@ function LivePanel() {
             collapsible
           />
         ))}
-      <Link to="/login" state={returnHere(location)} className={styles.cta}>
-        로그인하고 스트리머를 팔로우해 보세요
-      </Link>
+      {offerLogin && (
+        <Link to="/login" state={returnHere(location)} className={styles.cta}>
+          로그인하고 스트리머를 팔로우해 보세요
+        </Link>
+      )}
     </Panel>
   );
 }
@@ -81,5 +85,6 @@ function LivePanel() {
 export function FollowPanel() {
   const { state } = useAuth();
   if (state.status === 'loading') return <aside className={styles.panel} />;
-  return state.status === 'authenticated' ? <FollowedPanel /> : <LivePanel />;
+  if (state.status === 'authenticated') return <FollowedPanel />;
+  return <LivePanel offerLogin={state.status === 'anonymous'} />;
 }

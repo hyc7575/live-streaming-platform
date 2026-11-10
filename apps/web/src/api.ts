@@ -11,6 +11,25 @@ export class ApiError extends Error {
   }
 }
 
+// A 401 from these means a wrong password or a rejected sign-up, not a lost
+// session, so the screen shows its own message instead of logging out.
+const CREDENTIAL_PATHS = new Set([
+  '/auth/login',
+  '/auth/signup',
+  '/auth/test-login',
+]);
+
+const unauthorizedListeners = new Set<() => void>();
+
+// AuthProvider subscribes here so any 401 turns the app logged out, wherever
+// the request came from. Returns the unsubscribe function.
+export function onUnauthorized(listener: () => void): () => void {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
@@ -31,6 +50,9 @@ export async function apiFetch<T>(
     credentials: 'include',
   });
   if (!res.ok) {
+    if (res.status === 401 && !CREDENTIAL_PATHS.has(path)) {
+      for (const listener of unauthorizedListeners) listener();
+    }
     throw new ApiError(
       res.status,
       `${init?.method ?? 'GET'} /api${path} failed with ${res.status}`,

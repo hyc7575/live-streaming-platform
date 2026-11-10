@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { ApiError, apiFetch } from './api';
+import { ApiError, apiFetch, onUnauthorized } from './api';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -60,4 +60,26 @@ it('keeps the API message of a non-2xx response for the user', async () => {
       serverMessage: '기존 방송을 종료하세요.',
     }),
   );
+});
+
+it('reports a lost session on 401, but not a wrong password or sign-up', async () => {
+  vi.stubGlobal('fetch', () =>
+    Promise.resolve(new Response(null, { status: 401 })),
+  );
+  const listener = vi.fn();
+  const unsubscribe = onUnauthorized(listener);
+
+  for (const path of ['/auth/login', '/auth/signup', '/auth/test-login']) {
+    await expect(apiFetch(path, { method: 'POST' })).rejects.toBeInstanceOf(
+      ApiError,
+    );
+  }
+  expect(listener).not.toHaveBeenCalled();
+
+  await expect(apiFetch('/me/follows')).rejects.toBeInstanceOf(ApiError);
+  expect(listener).toHaveBeenCalledTimes(1);
+
+  unsubscribe();
+  await expect(apiFetch('/me/follows')).rejects.toBeInstanceOf(ApiError);
+  expect(listener).toHaveBeenCalledTimes(1);
 });

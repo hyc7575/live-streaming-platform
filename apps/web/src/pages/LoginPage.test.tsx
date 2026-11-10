@@ -33,7 +33,8 @@ function stubApi(accounts: string[] | 'error') {
         }),
       );
     }
-    if (url.startsWith('/api/broadcasts')) {
+    // Any other 401 would log the user out again (#78).
+    if (url === '/api/me/follows' || url.startsWith('/api/broadcasts')) {
       return Promise.resolve(Response.json([]));
     }
     return Promise.resolve(new Response(null, { status: 401 }));

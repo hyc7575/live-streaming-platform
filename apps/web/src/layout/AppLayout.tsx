@@ -6,10 +6,25 @@ import styles from './AppLayout.module.css';
 import { FollowPanel } from './FollowPanel';
 
 function AccountMenu() {
-  const { state, logOut } = useAuth();
+  const { state, logOut, recheck } = useAuth();
   const navigate = useNavigate();
 
   if (state.status === 'loading') return null;
+
+  // /auth/me failed without a 401: the session may still be fine, so the
+  // header offers a retry instead of a login button.
+  if (state.status === 'error') {
+    return (
+      <div className={styles.account}>
+        <span className={styles.authError}>
+          로그인 상태를 확인하지 못했습니다.
+        </span>
+        <button type="button" className={styles.logoutButton} onClick={recheck}>
+          다시 시도
+        </button>
+      </div>
+    );
+  }
 
   if (state.status === 'anonymous') {
     return (
