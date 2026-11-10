@@ -1,6 +1,10 @@
 import { defineConfig } from '@playwright/test';
+import { loadEnv } from 'vite';
 
-const port = Number(process.env.WEB_PORT || 5173);
+// Same lookup as vite.config.ts, so the dev server and the tests agree on
+// WEB_PORT from the repo-root .env. A WEB_PORT in the shell still wins.
+const repoRoot = new URL('../..', import.meta.url).pathname;
+const port = Number(loadEnv('development', repoRoot, '').WEB_PORT || 5173);
 
 // Publish → watch against the whole local stack: web dev server, API,
 // PostgreSQL and OME (README "송출에서 시청까지"). CI's `e2e` job does not run
