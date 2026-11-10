@@ -5,3 +5,5 @@ coverage
 apps/api/src/generated
 test-results
 playwright-report
+.claude
+.playwright-mcp
