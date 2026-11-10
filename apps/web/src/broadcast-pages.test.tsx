@@ -125,6 +125,89 @@ it('says so when there is nothing to replay', async () => {
   ).toBeDefined();
 });
 
+const searchable = [
+  broadcast({ id: 'b1', title: 'Minecraft 생존', status: 'LIVE' }),
+  broadcast({
+    id: 'b2',
+    title: '저녁 라디오',
+    status: 'LIVE',
+    streamer: { id: 'u2', nickname: 'MoonLight' },
+  }),
+  broadcast({ id: 'b3', title: '어제 minecraft 건축', status: 'ENDED' }),
+];
+
+function shownTitles() {
+  return screen
+    .queryAllByRole('listitem')
+    .map((item) => within(item).getAllByRole('paragraph')[0].textContent);
+}
+
+it('filters the list by title or streamer nickname, ignoring case and spaces', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': searchable });
+  renderAt('/');
+  await screen.findByText('저녁 라디오');
+  const search = screen.getByRole('searchbox', { name: '방송 검색' });
+
+  fireEvent.change(search, { target: { value: '  MINECRAFT ' } });
+  expect(shownTitles()).toEqual(['Minecraft 생존', '어제 minecraft 건축']);
+
+  fireEvent.change(search, { target: { value: 'moon' } });
+  expect(shownTitles()).toEqual(['저녁 라디오']);
+
+  fireEvent.change(search, { target: { value: '' } });
+  expect(shownTitles()).toHaveLength(3);
+});
+
+it('restores the search from ?q= and keeps it across status tabs', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts': searchable,
+    'GET /api/broadcasts?status=ENDED': [searchable[2]],
+  });
+  renderAt('/?q=minecraft');
+  await screen.findByText('Minecraft 생존');
+  expect(
+    screen.getByRole<HTMLInputElement>('searchbox', { name: '방송 검색' })
+      .value,
+  ).toBe('minecraft');
+  expect(shownTitles()).toEqual(['Minecraft 생존', '어제 minecraft 건축']);
+
+  const ended = screen.getByRole('link', { name: '방송 종료' });
+  expect(ended.getAttribute('href')).toBe('/?status=ENDED&q=minecraft');
+  fireEvent.click(ended);
+  await screen.findByText('어제 minecraft 건축');
+  expect(calls).toContain('GET /api/broadcasts?status=ENDED');
+  expect(shownTitles()).toEqual(['어제 minecraft 건축']);
+  expect(
+    screen.getByRole<HTMLInputElement>('searchbox', { name: '방송 검색' })
+      .value,
+  ).toBe('minecraft');
+});
+
+it('says nothing matched and clears the search on request', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': searchable });
+  renderAt('/?q=%20피아노%20');
+  expect(
+    await screen.findByText("'피아노'와 맞는 방송이 없습니다."),
+  ).toBeDefined();
+  expect(shownTitles()).toEqual([]);
+
+  fireEvent.click(screen.getByRole('button', { name: '검색어 지우기' }));
+  expect(shownTitles()).toHaveLength(3);
+  const search = screen.getByRole<HTMLInputElement>('searchbox', {
+    name: '방송 검색',
+  });
+  expect(search.value).toBe('');
+  expect(document.activeElement).toBe(search);
+});
+
+it('keeps the empty-list notice when there is nothing to search', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': [] });
+  renderAt('/?q=minecraft');
+  expect(await screen.findByText('아직 공개된 방송이 없습니다.')).toBeDefined();
+  expect(screen.queryByRole('button', { name: '검색어 지우기' })).toBeNull();
+});
+
 it('plays the recording of an ENDED broadcast under the ended notice', async () => {
   stubApi({
     'GET /api/auth/me': 401,
