@@ -11,6 +11,9 @@ export interface Broadcast {
   createdAt: string;
   // Paths under /recordings, oldest first. Empty means no replay.
   recordingFiles: string[];
+  // The streamer's latest captured frame under /thumbnails, or null when the
+  // broadcast never uploaded one.
+  thumbnailUrl: string | null;
   streamer: { id: string; nickname: string };
 }
 
