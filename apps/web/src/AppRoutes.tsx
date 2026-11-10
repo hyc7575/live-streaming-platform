@@ -6,6 +6,7 @@ import { DonatePage } from './pages/DonatePage';
 import { DonationFailPage } from './pages/DonationFailPage';
 import { DonationSuccessPage } from './pages/DonationSuccessPage';
 import { EditBroadcastPage } from './pages/EditBroadcastPage';
+import { FollowingPage } from './pages/FollowingPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { NewBroadcastPage } from './pages/NewBroadcastPage';
@@ -26,6 +27,7 @@ export function AppRoutes() {
         <Route element={<RequireAuth />}>
           <Route path="broadcasts/:id/donate" element={<DonatePage />} />
           <Route path="donations/success" element={<DonationSuccessPage />} />
+          <Route path="following" element={<FollowingPage />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path="studio/new" element={<NewBroadcastPage />} />
           <Route path="studio/broadcasts/:id" element={<PublishPage />} />

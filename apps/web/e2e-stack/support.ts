@@ -14,28 +14,46 @@ let clientCounter = 0;
 // Signup is rate limited per client IP. The API trusts one proxy hop, and
 // the Vite proxy adds none, so a fresh forwarded address per run keeps
 // repeated local runs under the limit.
-function clientIp(): string {
+export function clientIp(): string {
   clientCounter += 1;
   const n = (Date.now() + clientCounter) % 250;
   return `10.99.${clientCounter % 250}.${n + 1}`;
 }
 
-export async function signUpAndLogIn(
+export interface Account {
+  id: string;
+  nickname: string;
+  email: string;
+  password: string;
+}
+
+// Signup does not log in, so the account can be used from another context.
+export async function signUp(
   request: APIRequestContext,
-): Promise<void> {
+  nickname = '송출 확인',
+): Promise<Account> {
   const email = `stack-${Date.now()}-${clientCounter}@example.com`;
   const password = 'correct-horse-battery';
-  const headers = { 'X-Forwarded-For': clientIp() };
   const signup = await request.post('/api/auth/signup', {
-    headers,
-    data: { email, password, nickname: '송출 확인' },
+    headers: { 'X-Forwarded-For': clientIp() },
+    data: { email, password, nickname },
   });
   expect(signup.status(), await signup.text()).toBe(201);
+  const user = (await signup.json()) as { id: string };
+  return { id: user.id, nickname, email, password };
+}
+
+export async function signUpAndLogIn(
+  request: APIRequestContext,
+  nickname?: string,
+): Promise<Account> {
+  const account = await signUp(request, nickname);
   const login = await request.post('/api/auth/login', {
-    headers,
-    data: { email, password },
+    headers: { 'X-Forwarded-For': clientIp() },
+    data: { email: account.email, password: account.password },
   });
   expect(login.status(), await login.text()).toBe(200);
+  return account;
 }
 
 export async function createBroadcast(

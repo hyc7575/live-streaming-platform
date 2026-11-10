@@ -151,7 +151,20 @@
   color: var(--color-text);
 }
 
+.body {
+  display: flex;
+}
+
+/* The left panel shows the follow list from 1024px up. */
+@media (min-width: 1024px) {
+  .narrowOnly {
+    display: none;
+  }
+}
+
 .main {
+  flex: 1;
+  min-width: 0;
   max-width: var(--content-max-width);
   margin: 0 auto;
   padding: var(--space-6) var(--space-4);

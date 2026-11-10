@@ -1,0 +1,38 @@
+.follow,
+.following {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.follow {
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.follow:hover {
+  background: var(--color-brand-hover);
+}
+
+.following {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.following:hover {
+  color: var(--color-text);
+}
+
+.login {
+  color: var(--color-brand-strong);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}

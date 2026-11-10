@@ -73,6 +73,9 @@ const MATRIX = {
   '후원':           [401,      { READY: 409, LIVE: 201, ENDED: 409 }, 403],
   '후원 승인':      [401,      200,          403],
   '후원 내역 조회': [200,      200,          200],
+  '팔로우':         [401,      204,          400],
+  '언팔로우':       [401,      204,          400],
+  '내 팔로우 목록': [401,      200,          '—'],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
 // deleted. An ENDED broadcast never goes LIVE again, so it gets no publish
@@ -80,6 +83,9 @@ const MATRIX = {
 // READY included, can be read and commented on. Donations are ordered only
 // while LIVE, and never by the streamer, whose 403 comes before the status.
 // A confirm ignores the status: the donor already paid by then.
+// The PRD's one row "팔로우·언팔로우" is two rows here, one per request. The
+// owner column is the owner following themselves, and "내 팔로우 목록" has no
+// such cell: it is only ever the caller's own list.
 
 type Action = keyof typeof MATRIX;
 
@@ -149,6 +155,9 @@ describe('authorization matrix (PRD §7.5)', () => {
     broadcasts: await broadcastRows(),
     comments: await prisma.comment.findMany({ orderBy: { id: 'asc' } }),
     donations: await prisma.donation.findMany({ orderBy: { id: 'asc' } }),
+    follows: await prisma.follow.findMany({
+      orderBy: [{ followerId: 'asc' }, { streamerId: 'asc' }],
+    }),
   });
 
   const comments = async (w: World) =>
@@ -161,6 +170,30 @@ describe('authorization matrix (PRD §7.5)', () => {
       count: number;
       donations: { id: string }[];
     };
+
+  const follows = async (w: World, actor: 'owner' | 'other') =>
+    (await w.as[actor].get('/api/me/follows')).body as unknown;
+
+  // The other user's list once they follow the owner, as the panel reads it.
+  const followingOwner = (w: World) => [
+    {
+      id: w.owner.id,
+      nickname: w.owner.nickname,
+      live:
+        w.status === 'LIVE'
+          ? {
+              broadcastId: w.targetId,
+              title: '원래 제목',
+              startedAt: expect.any(String) as string,
+            }
+          : null,
+    },
+  ];
+
+  // What the owner's seeded follow of the other user looks like to the owner.
+  const ownerFollowsOther = (w: World) => [
+    { id: w.other.id, nickname: w.other.nickname, live: null },
+  ];
 
   const DRIVERS: Record<Action, ActionDriver> = {
     '방송 목록 조회': {
@@ -376,6 +409,33 @@ describe('authorization matrix (PRD §7.5)', () => {
         });
       },
     },
+    팔로우: {
+      send: (client, w) => client.put(`/api/streamers/${w.owner.id}/follow`),
+      verifyAllowed: async (_res, w) => {
+        expect(await follows(w, 'other')).toEqual(followingOwner(w));
+        expect(await follows(w, 'owner')).toEqual(ownerFollowsOther(w));
+      },
+    },
+    언팔로우: {
+      send: (client, w) => client.delete(`/api/streamers/${w.owner.id}/follow`),
+      // Nothing was followed, so the call alone shows no change. Following
+      // first through the API proves the delete removes a real follow.
+      verifyAllowed: async (_res, w) => {
+        expect(await follows(w, 'other')).toEqual([]);
+        const url = `/api/streamers/${w.owner.id}/follow`;
+        expect((await w.as.other.put(url)).status).toBe(204);
+        expect(await follows(w, 'other')).toEqual(followingOwner(w));
+        expect((await w.as.other.delete(url)).status).toBe(204);
+        expect(await follows(w, 'other')).toEqual([]);
+        expect(await follows(w, 'owner')).toEqual(ownerFollowsOther(w));
+      },
+    },
+    '내 팔로우 목록': {
+      send: (client) => client.get('/api/me/follows'),
+      verifyAllowed: (res) => {
+        expect(res.body).toEqual([]);
+      },
+    },
     '내 방송 조회': {
       send: (client) => client.get('/api/me/broadcasts'),
       verifyAllowed: (res, w, actor) => {
@@ -415,6 +475,11 @@ describe('authorization matrix (PRD §7.5)', () => {
   // publish flow.
   async function seed(status: BroadcastStatus): Promise<void> {
     await prisma.broadcast.deleteMany();
+    await prisma.follow.deleteMany();
+    // The other user's follow list must leave this one out.
+    await prisma.follow.create({
+      data: { followerId: world.owner.id, streamerId: world.other.id },
+    });
     const now = new Date();
     const target = await prisma.broadcast.create({
       data: {
