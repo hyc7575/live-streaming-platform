@@ -13,11 +13,12 @@ export function NewBroadcastPage() {
 
   async function create(fields: BroadcastFields): Promise<string | null> {
     try {
-      await apiFetch<Broadcast>('/broadcasts', {
+      const created = await apiFetch<Broadcast>('/broadcasts', {
         method: 'POST',
         body: JSON.stringify(fields),
       });
-      void navigate('/studio');
+      // replace: going back from the publish page skips the spent form.
+      void navigate(`/studio/broadcasts/${created.id}`, { replace: true });
       return null;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {

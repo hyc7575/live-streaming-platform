@@ -6,7 +6,7 @@ import {
   screen,
   within,
 } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
@@ -273,6 +273,74 @@ it('shows the logged-in streamer’s READY broadcast as 방송 전', async () =>
   renderAt('/studio');
   const card = await screen.findByRole('link', { name: /준비 중인 방송/ });
   expect(within(card).getByText('방송 전')).toBeDefined();
+});
+
+it('opens the publish page from a 방송 전 card and the watch page from the others', async () => {
+  const mine = [
+    broadcast({ id: 'b3', title: '준비 중인 방송', status: 'READY' }),
+    broadcast({ id: 'b4', title: '송출 중인 방송', status: 'LIVE' }),
+    broadcast({ id: 'b5', title: '끝난 방송', status: 'ENDED' }),
+  ];
+  stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/me/broadcasts': mine,
+    'GET /api/broadcasts': mine.slice(1),
+    'GET /api/broadcasts/b3': mine[0],
+  });
+  renderAt('/studio');
+  const hrefOf = async (name: RegExp) =>
+    (await screen.findByRole('link', { name })).getAttribute('href');
+  expect(await hrefOf(/송출 중인 방송/)).toBe('/broadcasts/b4');
+  expect(await hrefOf(/끝난 방송/)).toBe('/broadcasts/b5');
+  fireEvent.click(await screen.findByRole('link', { name: /준비 중인 방송/ }));
+  expect(
+    await screen.findByRole('heading', { name: '준비 중인 방송' }),
+  ).toBeDefined();
+  expect(screen.getByRole('link', { name: '시청 화면 열기' })).toBeDefined();
+  cleanup();
+
+  // The public list shares the card and still opens the watch page.
+  renderAt('/');
+  expect(await hrefOf(/송출 중인 방송/)).toBe('/broadcasts/b4');
+  expect(await hrefOf(/끝난 방송/)).toBe('/broadcasts/b5');
+});
+
+it('goes to the new broadcast’s publish page, and back skips the form', async () => {
+  const created = broadcast({ id: 'b9', title: '새 방송', status: 'READY' });
+  const calls = stubApi({
+    'GET /api/auth/me': streamer,
+    'GET /api/me/broadcasts': [],
+    'POST /api/broadcasts': created,
+    'GET /api/broadcasts/b9': created,
+  });
+  let at = '';
+  let go: ReturnType<typeof useNavigate> = () => undefined;
+  function Probe() {
+    at = useLocation().pathname;
+    go = useNavigate();
+    return null;
+  }
+  render(
+    <MemoryRouter initialEntries={['/studio', '/studio/new']}>
+      <AuthProvider>
+        <AppRoutes />
+        <Probe />
+      </AuthProvider>
+    </MemoryRouter>,
+  );
+  fireEvent.change(await screen.findByLabelText('제목'), {
+    target: { value: '새 방송' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '만들기' }));
+  expect(await screen.findByRole('heading', { name: '새 방송' })).toBeDefined();
+  expect(at).toBe('/studio/broadcasts/b9');
+  expect(calls.bodies['POST /api/broadcasts']).toMatchObject({
+    title: '새 방송',
+  });
+
+  await act(() => go(-1));
+  expect(await screen.findByRole('heading', { name: '내 방송' })).toBeDefined();
+  expect(at).toBe('/studio');
 });
 
 it('tells a visitor that a READY broadcast has not started', async () => {
