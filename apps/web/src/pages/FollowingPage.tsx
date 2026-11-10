@@ -1,10 +1,12 @@
 import { FollowList } from '../follows/FollowList';
 import { FOLLOWS_EMPTY, followedEntries } from '../follows/follows';
 import { useFollows } from '../follows/follows-context';
+import { useDocumentTitle } from '../use-document-title';
 import styles from './ListPage.module.css';
 
 // The left panel's list for screens too narrow to show the panel.
 export function FollowingPage() {
+  useDocumentTitle('팔로잉');
   const { follows } = useFollows();
   return (
     <section>

@@ -24,6 +24,7 @@ import {
   type PublishSessionState,
 } from '../publish/usePublishSession';
 import { useApi } from '../use-api';
+import { useDocumentTitle } from '../use-document-title';
 import {
   CAPTURE_SOURCES,
   endNotice,
@@ -39,6 +40,9 @@ export function PublishPage() {
   const { id = '' } = useParams();
   const { state } = useAuth();
   const broadcast = useApi<Broadcast>(`/broadcasts/${encodeURIComponent(id)}`);
+  useDocumentTitle(
+    broadcast.status === 'loaded' ? `[송출] ${broadcast.data.title}` : null,
+  );
 
   if (broadcast.status === 'loading') return null;
   if (broadcast.status === 'failed') {

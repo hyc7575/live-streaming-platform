@@ -7,10 +7,12 @@ import {
   type BroadcastFields,
 } from '../components/BroadcastForm';
 import { useApi } from '../use-api';
+import { useDocumentTitle } from '../use-document-title';
 import styles from './AuthForm.module.css';
 import type { LoginPageState } from './LoginPage';
 
 export function EditBroadcastPage() {
+  useDocumentTitle('방송 수정');
   const { id = '' } = useParams();
   const { state } = useAuth();
   const navigate = useNavigate();

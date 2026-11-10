@@ -19,6 +19,7 @@ import {
   type DonationOrder,
 } from '../donations';
 import { useApi } from '../use-api';
+import { useDocumentTitle } from '../use-document-title';
 import form from './AuthForm.module.css';
 import styles from './DonatePage.module.css';
 import type { LoginPageState } from './LoginPage';
@@ -47,6 +48,7 @@ function orderErrorMessage(err: unknown): string {
 
 // Step 1 saves an order; step 2 pays it through the Toss payment widget.
 export function DonatePage() {
+  useDocumentTitle('후원하기');
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const broadcast = useApi<Broadcast>(`/broadcasts/${encodeURIComponent(id)}`);

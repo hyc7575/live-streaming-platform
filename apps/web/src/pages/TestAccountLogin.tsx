@@ -10,12 +10,15 @@ const LABELS: Record<TestAccountKey, string> = {
 
 // The server lists only seeded accounts and none when the feature is off, so
 // an empty list or a failed request both mean "show nothing".
+// `inline` puts the label and buttons on one row, for the home intro.
 export function TestAccountLogin({
   disabled,
   onLogIn,
+  inline = false,
 }: {
   disabled: boolean;
   onLogIn: (account: TestAccountKey) => void;
+  inline?: boolean;
 }) {
   const [accounts, setAccounts] = useState<TestAccountKey[]>([]);
 
@@ -34,7 +37,10 @@ export function TestAccountLogin({
   if (accounts.length === 0) return null;
 
   return (
-    <section className={styles.section} aria-labelledby="test-accounts">
+    <section
+      className={inline ? styles.inline : styles.section}
+      aria-labelledby="test-accounts"
+    >
       <h2 id="test-accounts" className={styles.title}>
         테스트 계정으로 로그인
       </h2>

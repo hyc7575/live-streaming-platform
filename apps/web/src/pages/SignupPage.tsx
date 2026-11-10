@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
+import { useDocumentTitle } from '../use-document-title';
 import styles from './AuthForm.module.css';
 import type { LoginPageState } from './LoginPage';
 
@@ -19,6 +20,7 @@ function signupErrorMessage(err: unknown): string {
 }
 
 export function SignupPage() {
+  useDocumentTitle('회원가입');
   const { state } = useAuth();
   const navigate = useNavigate();
   const returnTo = (useLocation().state as LoginPageState | null)?.from;

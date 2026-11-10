@@ -1,9 +1,13 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
+import { useAuth, type TestAccountKey } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import { BroadcastGrid } from '../components/BroadcastGrid';
 import { usePolledApi } from '../use-api';
+import { useDocumentTitle } from '../use-document-title';
+import home from './HomePage.module.css';
 import styles from './ListPage.module.css';
+import { TestAccountLogin } from './TestAccountLogin';
 
 // `status` is the page's ?status= value, `path` what the API is asked.
 const FILTERS = [
@@ -44,7 +48,50 @@ function matches(broadcast: Broadcast, needle: string) {
 
 const LIST_REFRESH_MS = 30_000;
 
+// What the service is, and for a logged-out visitor (a judge, usually) the
+// one-click test accounts. Logging in keeps them on this screen. `loading`
+// and `error` show no buttons: the visitor may already be logged in.
+function Intro() {
+  const { state, logInAsTestAccount } = useAuth();
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function logIn(account: TestAccountKey) {
+    setLoggingIn(true);
+    setFailed(false);
+    try {
+      await logInAsTestAccount(account);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+
+  return (
+    <div className={home.intro}>
+      <p className={home.tagline}>
+        설치 없이 브라우저로 화면이나 카메라를 방송하고, 누구나 로그인 없이
+        시청합니다.
+      </p>
+      {state.status === 'anonymous' && (
+        <TestAccountLogin
+          inline
+          disabled={loggingIn}
+          onLogIn={(account) => void logIn(account)}
+        />
+      )}
+      {failed && (
+        <p className={home.error} role="alert">
+          로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function HomePage() {
+  useDocumentTitle('방송 목록');
   const [params, setParams] = useSearchParams();
   const filter =
     FILTERS.find((f) => f.status === params.get('status')) ?? FILTERS[0];
@@ -106,6 +153,7 @@ export function HomePage() {
 
   return (
     <section>
+      <Intro />
       <div className={styles.heading}>
         <h1 className={styles.title}>방송 목록</h1>
         <Link to="/studio/new" className={styles.create}>
