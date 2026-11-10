@@ -5,7 +5,6 @@ import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import type { BroadcastStatus } from '../components/StatusBadge';
 import { CommentPanel } from '../components/CommentPanel';
-import { CopyLinkButton } from '../components/CopyLinkButton';
 import { DonationPanel } from '../components/DonationPanel';
 import { ElapsedTime } from '../components/ElapsedTime';
 import { LivePlayer } from '../components/LivePlayer';
@@ -160,7 +159,6 @@ export function BroadcastPage() {
           {b.description && (
             <p className={styles.description}>{b.description}</p>
           )}
-          <CopyLinkButton />
           {isOwner && <OwnerActions broadcast={b} onEnded={recheck} />}
         </div>
         <DonationPanel broadcast={b} />

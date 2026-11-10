@@ -9,6 +9,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { formatClock } from '../../elapsed';
 import { FullscreenIcon, PauseIcon, PlayIcon, VolumeIcon } from './PlayerIcons';
 import styles from './PlayerControls.module.css';
 import { useMediaState } from './useMediaState';
@@ -21,6 +22,7 @@ export const LIVE_THRESHOLD_S = 3;
 export const HIDE_DELAY_MS = 3000;
 export const VOLUME_KEY = 'lime.player.volume';
 const VOLUME_STEP = 0.1;
+export const SEEK_STEP_S = 5;
 
 type EdgeState = 'unknown' | 'live' | 'behind';
 
@@ -92,6 +94,11 @@ export function PlayerControls({
   const tapWhileHidden = useRef(false);
 
   const shown = active || media.paused || dragging;
+  // A recording has an end to seek within; live has the live edge instead.
+  const seekable = !live && Number.isFinite(media.duration);
+  const timeText = seekable
+    ? `${formatClock(media.currentTime * 1000)} / ${formatClock(media.duration * 1000)}`
+    : '';
   const showHint = media.muted && !userSetMute;
 
   function poke() {
@@ -179,6 +186,18 @@ export function PlayerControls({
         break;
       case 'KeyF':
         toggleFullscreen();
+        break;
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        if (!seekable || onRange) return;
+        video.currentTime = Math.min(
+          video.duration,
+          Math.max(
+            0,
+            video.currentTime +
+              (event.code === 'ArrowRight' ? SEEK_STEP_S : -SEEK_STEP_S),
+          ),
+        );
         break;
       case 'ArrowUp':
       case 'ArrowDown':
@@ -268,6 +287,25 @@ export function PlayerControls({
         </button>
       )}
       <div className={cx(styles.bar, !shown && styles.hidden)}>
+        {seekable && (
+          <input
+            type="range"
+            className={styles.seek}
+            aria-label="재생 위치"
+            aria-valuetext={timeText}
+            min={0}
+            max={media.duration}
+            step="any"
+            value={media.currentTime}
+            onPointerDown={onDragStart}
+            onChange={(event) => {
+              const time = Number(event.currentTarget.value);
+              withVideo((video) => {
+                video.currentTime = time;
+              });
+            }}
+          />
+        )}
         <button
           type="button"
           className={styles.button}
@@ -304,6 +342,7 @@ export function PlayerControls({
             }}
           />
         </div>
+        {seekable && <span className={styles.time}>{timeText}</span>}
         {live &&
           (edge === 'behind' ? (
             <button

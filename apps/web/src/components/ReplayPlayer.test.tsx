@@ -27,12 +27,13 @@ const pressed = () =>
     .filter((b) => b.getAttribute('aria-pressed') === 'true')
     .map((b) => b.textContent);
 
-it('plays a single recording with controls and no part buttons', () => {
+it('plays a single recording under Lime controls and no part buttons', () => {
   render(<ReplayPlayer files={['b1/1_0.mp4']} />);
   expect(video().getAttribute('src')).toBe('/recordings/b1/1_0.mp4');
-  expect(video().controls).toBe(true);
+  expect(video().controls).toBe(false);
   expect(video().hasAttribute('playsinline')).toBe(true);
-  expect(screen.queryByRole('button')).toBeNull();
+  expect(screen.getByRole('button', { name: '전체화면' })).toBeDefined();
+  expect(screen.queryByRole('group', { name: '녹화 부분' })).toBeNull();
   expect(screen.queryByText(/녹화가 나뉩니다/)).toBeNull();
   expect(play).not.toHaveBeenCalled();
 });
@@ -42,8 +43,13 @@ it('moves on to the next part when one ends and keeps playing', () => {
   expect(pressed()).toEqual(['1부']);
   expect(screen.getByText(/녹화가 나뉩니다/)).toBeDefined();
 
+  const first = video();
+  first.volume = 0.3;
   fireEvent.ended(video());
   expect(video().getAttribute('src')).toBe('/recordings/b1/1_1.mp4');
+  // Same element, so the viewer's volume and the controls stay attached.
+  expect(video()).toBe(first);
+  expect(video().volume).toBe(0.3);
   expect(pressed()).toEqual(['2부']);
   expect(play).toHaveBeenCalledTimes(1);
 
