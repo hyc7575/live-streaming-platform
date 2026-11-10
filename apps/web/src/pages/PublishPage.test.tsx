@@ -69,6 +69,7 @@ const broadcast: Broadcast = {
   createdAt: '2026-11-09T00:00:00.000Z',
   recordingFiles: [],
   thumbnailUrl: null,
+  standbyImageUrl: null,
   streamer: { id: me.id, nickname: me.nickname },
 };
 

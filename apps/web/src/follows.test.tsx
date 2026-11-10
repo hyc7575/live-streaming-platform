@@ -36,6 +36,7 @@ function broadcast(overrides: Partial<Broadcast> = {}): Broadcast {
     createdAt: '2026-11-10T00:00:00.000Z',
     recordingFiles: [],
     thumbnailUrl: null,
+    standbyImageUrl: null,
     streamer,
     ...overrides,
   };

@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router';
 import { RequireAuth } from './auth/RequireAuth';
 import { AppLayout } from './layout/AppLayout';
 import { BroadcastPage } from './pages/BroadcastPage';
+import { ChannelPage } from './pages/ChannelPage';
 import { DonatePage } from './pages/DonatePage';
 import { DonationFailPage } from './pages/DonationFailPage';
 import { DonationSuccessPage } from './pages/DonationSuccessPage';
@@ -29,6 +30,7 @@ export function AppRoutes() {
           <Route path="donations/success" element={<DonationSuccessPage />} />
           <Route path="following" element={<FollowingPage />} />
           <Route path="studio" element={<StudioPage />} />
+          <Route path="studio/channel" element={<ChannelPage />} />
           <Route path="studio/new" element={<NewBroadcastPage />} />
           <Route path="studio/broadcasts/:id" element={<PublishPage />} />
           <Route
