@@ -53,6 +53,9 @@
   --comment-column-width: 340px;
   --comment-list-max-height: 60vh;
   --donation-list-max-height: 320px;
+  --follow-panel-width: 240px;
+  --follow-panel-collapsed-width: 56px;
+  --follow-avatar-size: 32px;
 
   --player-control-size: 40px;
   --player-icon-size: 24px;

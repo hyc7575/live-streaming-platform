@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router';
 import { useAuth } from '../auth/auth-context';
+import { FollowsProvider } from '../follows/FollowsProvider';
 import styles from './AppLayout.module.css';
+import { FollowPanel } from './FollowPanel';
 
 function AccountMenu() {
   const { state, logOut } = useAuth();
@@ -72,24 +74,37 @@ function Logo() {
 export function AppLayout() {
   const loggedIn = useAuth().state.status === 'authenticated';
   return (
-    <div className={styles.shell}>
-      <header className={styles.header}>
-        <Logo />
-        <nav className={styles.nav}>
-          <NavLink to="/" end className={styles.navLink}>
-            방송 목록
-          </NavLink>
-          {loggedIn && (
-            <NavLink to="/studio" className={styles.navLink}>
-              내 방송
+    <FollowsProvider>
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <Logo />
+          <nav className={styles.nav}>
+            <NavLink to="/" end className={styles.navLink}>
+              방송 목록
             </NavLink>
-          )}
-        </nav>
-        <AccountMenu />
-      </header>
-      <main className={styles.main}>
-        <Outlet />
-      </main>
-    </div>
+            {loggedIn && (
+              <NavLink
+                to="/following"
+                className={`${styles.navLink} ${styles.narrowOnly}`}
+              >
+                팔로잉
+              </NavLink>
+            )}
+            {loggedIn && (
+              <NavLink to="/studio" className={styles.navLink}>
+                내 방송
+              </NavLink>
+            )}
+          </nav>
+          <AccountMenu />
+        </header>
+        <div className={styles.body}>
+          <FollowPanel />
+          <main className={styles.main}>
+            <Outlet />
+          </main>
+        </div>
+      </div>
+    </FollowsProvider>
   );
 }

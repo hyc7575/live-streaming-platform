@@ -10,6 +10,7 @@ import { LivePlayer } from '../components/LivePlayer';
 import { OwnerActions } from '../components/OwnerActions';
 import { ReplayPlayer } from '../components/ReplayPlayer';
 import { StatusBadge } from '../components/StatusBadge';
+import { FollowButton } from '../follows/FollowButton';
 import type { Loadable } from '../use-api';
 import styles from './BroadcastPage.module.css';
 
@@ -139,7 +140,10 @@ export function BroadcastPage() {
         <div className={styles.info}>
           <StatusBadge status={b.status} />
           <h1 className={styles.title}>{b.title}</h1>
-          <p className={styles.streamer}>{b.streamer.nickname}</p>
+          <div className={styles.streamerRow}>
+            <p className={styles.streamer}>{b.streamer.nickname}</p>
+            {!isOwner && <FollowButton streamerId={b.streamer.id} />}
+          </div>
           {b.description && (
             <p className={styles.description}>{b.description}</p>
           )}
