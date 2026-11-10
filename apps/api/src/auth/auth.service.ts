@@ -1,7 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../database/database.module.js';
-import { authUserSelect, type AuthUser } from './auth-user.js';
+import { authUserSelect, toAuthUser, type AuthUser } from './auth-user.js';
 import { hashPassword, verifyPassword } from './password.js';
 
 export interface SignupInput {
@@ -26,10 +26,12 @@ export class AuthService {
   async signup(input: SignupInput): Promise<AuthUser> {
     const passwordHash = await hashPassword(input.password);
     try {
-      return await this.prisma.user.create({
-        data: { email: input.email, nickname: input.nickname, passwordHash },
-        select: authUserSelect,
-      });
+      return toAuthUser(
+        await this.prisma.user.create({
+          data: { email: input.email, nickname: input.nickname, passwordHash },
+          select: authUserSelect,
+        }),
+      );
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -50,9 +52,9 @@ export class AuthService {
       await verifyPassword(credentials.password, await this.decoyHash);
       return null;
     }
-    const { passwordHash, ...authUser } = user;
+    const { passwordHash, ...row } = user;
     return (await verifyPassword(credentials.password, passwordHash))
-      ? authUser
+      ? toAuthUser(row)
       : null;
   }
 }

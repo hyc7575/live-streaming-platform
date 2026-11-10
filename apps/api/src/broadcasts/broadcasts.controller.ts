@@ -1,7 +1,5 @@
 import {
-  BadRequestException,
   Body,
-  Catch,
   Controller,
   Delete,
   Get,
@@ -9,22 +7,19 @@ import {
   Param,
   ParseEnumPipe,
   Patch,
-  PayloadTooLargeException,
   Post,
   Put,
   Query,
-  UploadedFile,
-  UseFilters,
   UseGuards,
-  UseInterceptors,
-  type ArgumentsHost,
-  type ExceptionFilter,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
 import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
+import {
+  ImageUpload,
+  UploadedImage,
+  type ParsedImage,
+} from '../images/image-rules.js';
 import { ZodBodyPipe } from '../zod-body.pipe.js';
 import { BroadcastOwnerGuard } from './broadcast-owner.guard.js';
 import {
@@ -35,7 +30,6 @@ import {
   type UpdateBroadcastInput,
 } from './broadcasts.service.js';
 import { ThumbnailRateGuard } from './thumbnail-rate.guard.js';
-import { isJpeg } from './thumbnail-store.js';
 
 export const TITLE_MAX_LENGTH = 100;
 export const DESCRIPTION_MAX_LENGTH = 2000;
@@ -53,28 +47,6 @@ const updateSchema = z
   });
 
 const publicStatus = { LIVE: 'LIVE', ENDED: 'ENDED' } as const;
-
-const THUMBNAIL_MAX_BYTES = 512 * 1024;
-const THUMBNAIL_INVALID_MESSAGE =
-  '512KB 이하의 JPEG 이미지만 올릴 수 있습니다.';
-
-// The part of a multer file this controller reads. @types/multer is not a
-// dependency.
-interface UploadedImage {
-  buffer: Buffer;
-}
-
-// Multer reports an oversized file as 413. To a client it is one more way the
-// image is invalid, so it gets the same 400 as a wrong format.
-@Catch(PayloadTooLargeException)
-class FileTooLargeFilter implements ExceptionFilter {
-  catch(_error: PayloadTooLargeException, host: ArgumentsHost): void {
-    const body = new BadRequestException(
-      THUMBNAIL_INVALID_MESSAGE,
-    ).getResponse();
-    host.switchToHttp().getResponse<Response>().status(400).json(body);
-  }
-}
 
 @Controller()
 export class BroadcastsController {
@@ -134,21 +106,12 @@ export class BroadcastsController {
   @Put('broadcasts/:id/thumbnail')
   @HttpCode(204)
   @UseGuards(LoggedInGuard, BroadcastOwnerGuard, ThumbnailRateGuard)
-  @UseInterceptors(
-    FileInterceptor('image', {
-      limits: { fileSize: THUMBNAIL_MAX_BYTES, files: 1 },
-    }),
-  )
-  @UseFilters(FileTooLargeFilter)
+  @ImageUpload('thumbnail')
   uploadThumbnail(
     @Param('id') id: string,
-    @UploadedFile() image: UploadedImage | undefined,
+    @UploadedImage('thumbnail') image: ParsedImage,
   ): Promise<void> {
-    // The magic bytes decide, not the Content-Type the client claims.
-    if (!image || !isJpeg(image.buffer)) {
-      throw new BadRequestException(THUMBNAIL_INVALID_MESSAGE);
-    }
-    return this.broadcasts.saveThumbnail(id, image.buffer);
+    return this.broadcasts.saveThumbnail(id, image.bytes);
   }
 
   @Delete('broadcasts/:id')

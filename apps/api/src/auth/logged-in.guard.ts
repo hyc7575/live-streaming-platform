@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { PrismaService } from '../database/database.module.js';
-import { authUserSelect, type AuthUser } from './auth-user.js';
+import { authUserSelect, toAuthUser, type AuthUser } from './auth-user.js';
 
 // Rejects requests without a live session with 401 and puts the session's
 // user on `req.user` for `@CurrentUser()`. Ownership checks run after this.
@@ -24,7 +24,7 @@ export class LoggedInGuard implements CanActivate {
       select: authUserSelect,
     });
     if (!user) throw new UnauthorizedException();
-    req.user = user;
+    req.user = toAuthUser(user);
     return true;
   }
 }
