@@ -18,6 +18,10 @@
   --color-live: #e5484d;
   --color-ready: #4c8dff;
   --color-ended: #5c5c66;
+  /* Faint status fills behind a card's drawn thumbnail. */
+  --color-live-soft: #fde8e8;
+  --color-ready-soft: #e4eeff;
+  --color-ended-soft: #e6e6ea;
   --color-on-status: #ffffff;
   --color-danger: #e5484d;
   --color-video-bg: #000000;
@@ -33,6 +37,7 @@
   --font-size-md: 16px;
   --font-size-lg: 20px;
   --font-size-xl: 24px;
+  --font-size-display: 64px;
 
   --space-1: 4px;
   --space-2: 8px;

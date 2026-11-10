@@ -5,7 +5,9 @@ import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import type { BroadcastStatus } from '../components/StatusBadge';
 import { CommentPanel } from '../components/CommentPanel';
+import { CopyLinkButton } from '../components/CopyLinkButton';
 import { DonationPanel } from '../components/DonationPanel';
+import { ElapsedTime } from '../components/ElapsedTime';
 import { LivePlayer } from '../components/LivePlayer';
 import { OwnerActions } from '../components/OwnerActions';
 import { ReplayPlayer } from '../components/ReplayPlayer';
@@ -14,7 +16,7 @@ import type { Loadable } from '../use-api';
 import styles from './BroadcastPage.module.css';
 
 const PLAYER_NOTICE: Record<Exclude<BroadcastStatus, 'LIVE'>, string> = {
-  READY: '아직 시작하지 않은 방송입니다.',
+  READY: '방송 전입니다. 스트리머가 방송을 시작하면 자동으로 재생합니다.',
   ENDED: '방송이 끝났습니다.',
 };
 
@@ -115,7 +117,9 @@ export function BroadcastPage() {
         {b.status === 'ENDED' && b.recordingFiles.length > 0 ? (
           <ReplayPlayer files={b.recordingFiles} />
         ) : (
-          <div className={styles.player}>
+          <div
+            className={`${styles.player} ${b.status === 'READY' ? styles.waiting : ''}`}
+          >
             {b.status === 'LIVE' ? (
               <LivePlayer
                 broadcastId={b.id}
@@ -137,12 +141,22 @@ export function BroadcastPage() {
           </p>
         )}
         <div className={styles.info}>
-          <StatusBadge status={b.status} />
+          <div className={styles.status}>
+            <StatusBadge status={b.status} />
+            {b.status === 'LIVE' && b.startedAt && (
+              <ElapsedTime
+                startedAt={b.startedAt}
+                precision="second"
+                className={styles.elapsed}
+              />
+            )}
+          </div>
           <h1 className={styles.title}>{b.title}</h1>
           <p className={styles.streamer}>{b.streamer.nickname}</p>
           {b.description && (
             <p className={styles.description}>{b.description}</p>
           )}
+          <CopyLinkButton />
           {isOwner && <OwnerActions broadcast={b} onEnded={recheck} />}
         </div>
         <DonationPanel broadcast={b} />
