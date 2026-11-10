@@ -58,6 +58,27 @@ it('moves on to the next part when one ends and keeps playing', () => {
   expect(play).toHaveBeenCalledTimes(1);
 });
 
+it('keeps the chosen speed into the next part', async () => {
+  render(<ReplayPlayer files={['b1/1_0.mp4', 'b1/1_1.mp4']} />);
+  Object.defineProperty(video(), 'duration', { value: 60 });
+  fireEvent.durationChange(video());
+  for (const label of ['1', '1.25', '1.5']) {
+    fireEvent.click(
+      await screen.findByRole('button', { name: `재생 속도 ${label}배` }),
+    );
+  }
+  await screen.findByRole('button', { name: '재생 속도 2배' });
+
+  fireEvent.ended(video());
+  expect(video().getAttribute('src')).toBe('/recordings/b1/1_1.mp4');
+  // jsdom skips the load a new src starts; a browser resets the rate here.
+  video().playbackRate = video().defaultPlaybackRate;
+  expect(video().playbackRate).toBe(2);
+  expect(
+    (await screen.findByRole('button', { name: '재생 속도 2배' })).textContent,
+  ).toBe('2x');
+});
+
 it('jumps to the part the viewer picks', () => {
   render(<ReplayPlayer files={['b1/1_0.mp4', 'b1/1_1.mp4', 'b1/1_2.mp4']} />);
   fireEvent.click(screen.getByRole('button', { name: '3부' }));

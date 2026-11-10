@@ -23,6 +23,7 @@ export const HIDE_DELAY_MS = 3000;
 export const VOLUME_KEY = 'lime.player.volume';
 const VOLUME_STEP = 0.1;
 export const SEEK_STEP_S = 5;
+const PLAYBACK_RATES: readonly number[] = [1, 1.25, 1.5, 2, 0.5];
 
 type EdgeState = 'unknown' | 'live' | 'behind';
 
@@ -159,6 +160,17 @@ export function PlayerControls({
     } else {
       video?.webkitEnterFullscreen?.();
     }
+  }
+
+  function cycleRate(video: HTMLVideoElement) {
+    const next =
+      PLAYBACK_RATES[
+        (PLAYBACK_RATES.indexOf(media.playbackRate) + 1) % PLAYBACK_RATES.length
+      ];
+    // A new src resets playbackRate to the default, so the next part of a
+    // recording keeps the speed only if both change.
+    video.defaultPlaybackRate = next;
+    video.playbackRate = next;
   }
 
   function goLive(video: HTMLVideoElement) {
@@ -359,9 +371,19 @@ export function PlayerControls({
               LIVE
             </span>
           ))}
+        {seekable && (
+          <button
+            type="button"
+            className={cx(styles.button, styles.rate, styles.end)}
+            aria-label={`재생 속도 ${media.playbackRate}배`}
+            onClick={() => withVideo(cycleRate)}
+          >
+            {media.playbackRate}x
+          </button>
+        )}
         <button
           type="button"
-          className={cx(styles.button, styles.end)}
+          className={cx(styles.button, !seekable && styles.end)}
           aria-label={media.fullscreen ? '전체화면 종료' : '전체화면'}
           onClick={toggleFullscreen}
         >

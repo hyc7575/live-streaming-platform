@@ -140,6 +140,15 @@
   background: var(--color-ended);
 }
 
+.rate {
+  width: auto;
+  min-width: calc(var(--player-control-size) + var(--space-4));
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .end {
   margin-left: auto;
 }
