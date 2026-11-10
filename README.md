@@ -331,6 +331,53 @@ pnpm --filter @lsp/web e2e:stack readyToLive   # 로컬 스택(API·OME)이 떠 
 3. 시크릿 창에서 상태 배지 옆 경과 시간이 1초마다 늘어난다. "방송 목록"의 이 방송 카드에는 오른쪽 아래에 "방금 시작" 또는 "N분"이 보인다.
 4. 시청 화면에서 "링크 복사"를 누른다. 버튼이 2초 동안 "복사했습니다"로 바뀌고, 붙여 넣으면 이 화면 주소다. 휴대폰에서 LAN 주소(`http://192.168…`, 비보안 출처)로 열고 누르면 주소가 선택된 입력창이 뜬다.
 
+### 송출 화면 캡처 썸네일 (#62)
+
+송출 화면이 미리보기를 30초마다 한 장 캡처해 API에 올리고, 목록 카드가 그 이미지를 썸네일로 보인다. 방송이 끝나면 마지막 장면이 방송 종료 카드에 남는다. 서버는 영상을 디코딩하지 않는다(PRD §8.2).
+
+이 기능은 `Broadcast.thumbnailUpdatedAt` 열을 새로 쓴다. 이 변경을 받은 뒤에는 다음을 한 번 한다.
+
+```sh
+pnpm --filter @lsp/api db:migrate   # 마이그레이션 적용
+docker compose up -d thumbnails      # 썸네일 정적 서버 (127.0.0.1:8091)
+```
+
+흐름:
+
+1. 송출 화면(`publish/thumbnailCapture`)이 송출이 연결되면 바로 한 장, 이후 30초마다 미리보기 `<video>`를 가로 480px canvas에 그려 JPEG(품질 0.7)으로 만든다. 전면 카메라 미리보기의 좌우 반전은 CSS로만 하므로 캡처는 시청자가 보는 방향이다. 캡처·업로드가 실패해도 화면에는 아무것도 띄우지 않고 다음 주기에 다시 한다.
+2. `PUT /api/broadcasts/:id/thumbnail`(multipart, 필드 `image`)이 받는다. 검사 순서는 401(비로그인) → 404·403(없는 방송·남의 방송) → 429(방송당 10초에 한 번) → 400(512KB 초과, 매직 바이트가 JPEG이 아님, 파일 없음) → 409(`LIVE`가 아님)다.
+3. API는 `THUMBNAILS_DIR/<방송 id>/live.jpg`(기본 저장소 루트의 `thumbnails/`)에 임시 파일을 쓴 뒤 rename으로 바꾼다. 응답의 `thumbnailUrl`은 `/thumbnails/<id>/live.jpg?v=<업로드 시각>`이고, 올린 적이 없으면 `null`이다.
+4. 개발에서는 compose의 `thumbnails` 정적 서버가, 운영에서는 Caddy가 내주고 Vite가 `/thumbnails`를 그리로 넘긴다. 둘 다 `X-Content-Type-Options: nosniff`를 붙이고 쓰는 중인 `*.tmp`를 숨긴다.
+5. 목록은 30초마다 다시 읽는다. 카드는 `thumbnailUrl`이 있으면 이미지를, 없거나 이미지가 깨지면 제목 첫 글자를 그린다.
+6. 방송을 지우면 썸네일 폴더도 지운다. 썸네일은 DB 덤프 대상이 아니다.
+
+자동 테스트:
+
+- `apps/api/test/thumbnails.e2e.spec.ts` (실제 PostgreSQL, 임시 폴더, 가짜 시계): 올린 파일이 `thumbnailUrl` 경로와 같고 목록·상세·내 방송에 같은 URL이 나온다. 10초 뒤 다시 올리면 URL이 바뀌고 임시 파일이 남지 않는다. 종료 뒤에도 URL이 남는다. 401·403·404, `READY`·`ENDED`의 409, PNG·필드 없음·multipart 아님·512KB+1바이트의 400(정확히 512KB는 통과), 10초 안 두 번째 시도의 429와 10초 뒤 허용, 방송 삭제 때 폴더 삭제.
+- `apps/api/test/authorization-matrix.e2e.spec.ts`: "썸네일 업로드" 행과 검사 순서. 형식이 틀린 시도도 10초 횟수에 들어가 바로 다음 시도는 429이고, 10초 뒤 `READY` 방송은 409다.
+- `apps/web/src/publish/thumbnailCapture.test.ts`: 480px·비율 유지·JPEG 0.7, 반전된 미리보기도 변환 없이 그린다. 가짜 타이머로 켜면 바로, 30초마다 올리고 끄거나 화면을 떠나면 멈춘다. 업로드 실패는 던지지 않고 다음 주기에 다시 올린다.
+- `apps/web/src/components/BroadcastThumbnail.test.tsx`, `broadcast-pages.test.tsx`, `api.test.ts`: 이미지(`alt=""`, `loading="lazy"`), 첫 글자 대체, 30초마다 목록 다시 읽기, FormData 본문에 `Content-Type`을 붙이지 않기.
+- `apps/web/e2e-stack/thumbnail.spec.ts` (실제 OME, `e2e:stack`): 화면 공유와 카메라 송출 각각 LIVE 카드 이미지가 480px로 뜨고, 다음 캡처 뒤 바뀌고, 송출을 지켜보는 동안 시청 화면 재생이 끊기지 않으며, 종료 뒤 방송 종료 카드에 남는다. 지켜보는 시간은 `THUMBNAIL_SOAK_MS`(기본 65초)다.
+
+```sh
+THUMBNAIL_SOAK_MS=300000 pnpm --filter @lsp/web e2e:stack thumbnail --workers=1   # 이슈의 5분 확인
+```
+
+화면에서 확인:
+
+1. 3절 1~3번대로 송출을 시작한다. 몇 초 안에 `thumbnails/<방송 id>/live.jpg`가 생긴다.
+2. 시크릿 창에서 방송 목록을 연다. LIVE 카드에 송출 화면이 보이고, 30초 안팎으로 다음 장면으로 바뀐다. 전면 카메라로 송출하면 미리보기는 반전돼 있지만 카드는 시청 화면과 같은 방향이다.
+3. 송출 화면에서 방송을 종료한다. 방송 종료 카드에 마지막 장면이 남는다. 썸네일을 올린 적 없는 방송은 첫 글자 그림이다.
+4. 상세에서 방송을 삭제하면 `thumbnails/<방송 id>/`가 사라진다.
+
+API로 확인:
+
+```sh
+curl -s http://localhost:3000/api/broadcasts | grep -o '"thumbnailUrl":"[^"]*"'   # /thumbnails/<id>/live.jpg?v=...
+U=<위 thumbnailUrl>
+curl -s -o /dev/null -D - "http://localhost:5173$U" | grep -i -E '^HTTP|content-type|nosniff'   # 200 image/jpeg, nosniff
+```
+
 ### 테스트 계정 원클릭 로그인
 
 심사자가 계정을 만들지 않고 버튼 하나로 **스트리머 A** 또는 **사용자 B**가 된다. A는 방송을 만드는 스트리머, B는 A의 방송에 대한 수정·종료가 거절(403)되는지 확인하는 다른 사용자다.
