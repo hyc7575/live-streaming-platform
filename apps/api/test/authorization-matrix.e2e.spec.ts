@@ -4,6 +4,7 @@ import type { Response } from 'supertest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { BroadcastView } from '../src/broadcasts/broadcasts.service.js';
+import type { CommentView } from '../src/comments/comments.service.js';
 import { PrismaService } from '../src/database/database.module.js';
 import type { BroadcastStatus } from '../src/generated/prisma/client.js';
 import type { AdmissionRejection } from '../src/publish/admission.js';
@@ -34,6 +35,9 @@ interface World {
   // The owner's broadcast that resource rows act on.
   targetId: string;
   targetEndedAt: Date | null;
+  // A comment the owner wrote on the target, so for the comment rows the
+  // owner column is the comment's author and 'other' is anyone else.
+  targetCommentId: string;
   // An ENDED broadcast of the other user, so lists have something to leave out.
   othersId: string;
   as: Record<Actor, TestAgent>;
@@ -54,10 +58,15 @@ const MATRIX = {
   '방송 종료':      [401,      403,          { READY: 409, LIVE: 200, ENDED: 200 }],
   '내 방송 조회':   [401,      200,          200],
   '송출 토큰 발급': [401,      403,          { READY: 201, LIVE: 201, ENDED: 409 }],
+  '댓글 목록 조회': [200,      200,          200],
+  '댓글 작성':      [401,      201,          201],
+  '댓글 수정':      [401,      403,          200],
+  '댓글 삭제':      [401,      403,          204],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
 // deleted. An ENDED broadcast never goes LIVE again, so it gets no publish
-// token.
+// token. Comments follow the detail page: any broadcast that page shows,
+// READY included, can be read and commented on.
 
 type Action = keyof typeof MATRIX;
 
@@ -101,6 +110,7 @@ const ACTOR_LABEL: Record<Actor, string> = {
 };
 
 const EDITED = { title: '고친 제목', description: '고친 설명' };
+const ORIGINAL_COMMENT = '원래 댓글';
 
 describe('authorization matrix (PRD §7.5)', () => {
   let app: NestExpressApplication;
@@ -118,6 +128,16 @@ describe('authorization matrix (PRD §7.5)', () => {
 
   const broadcastRows = () =>
     prisma.broadcast.findMany({ orderBy: { id: 'asc' } });
+
+  // What a rejected call must leave untouched.
+  const rows = async () => ({
+    broadcasts: await broadcastRows(),
+    comments: await prisma.comment.findMany({ orderBy: { id: 'asc' } }),
+  });
+
+  const comments = async (w: World) =>
+    (await anonymous().get(`/api/broadcasts/${w.targetId}/comments`))
+      .body as CommentView[];
 
   const DRIVERS: Record<Action, ActionDriver> = {
     '방송 목록 조회': {
@@ -227,6 +247,57 @@ describe('authorization matrix (PRD §7.5)', () => {
         expect(detail.body).toMatchObject({ status: w.status });
       },
     },
+    '댓글 목록 조회': {
+      send: (client, w) => client.get(`/api/broadcasts/${w.targetId}/comments`),
+      verifyAllowed: (res, w) => {
+        expect(res.body).toEqual([
+          expect.objectContaining({
+            id: w.targetCommentId,
+            body: ORIGINAL_COMMENT,
+            author: { id: w.owner.id, nickname: w.owner.nickname },
+          }),
+        ]);
+      },
+    },
+    '댓글 작성': {
+      send: (client, w) =>
+        client
+          .post(`/api/broadcasts/${w.targetId}/comments`)
+          .send({ body: '새 댓글' }),
+      verifyAllowed: async (res, w, actor) => {
+        const author = actor === 'owner' ? w.owner : w.other;
+        expect(res.body).toMatchObject({
+          body: '새 댓글',
+          author: { id: author.id, nickname: author.nickname },
+        });
+        expect((await comments(w)).map((c) => c.id)).toEqual([
+          w.targetCommentId,
+          (res.body as CommentView).id,
+        ]);
+      },
+    },
+    '댓글 수정': {
+      // `authorId` rides along to prove a client cannot hand the comment to
+      // someone else.
+      send: (client, w) =>
+        client
+          .patch(`/api/comments/${w.targetCommentId}`)
+          .send({ body: '고친 댓글', authorId: w.other.id }),
+      verifyAllowed: async (res, w) => {
+        expect(res.body).toMatchObject({
+          id: w.targetCommentId,
+          body: '고친 댓글',
+          author: { id: w.owner.id },
+        });
+        expect(await comments(w)).toEqual([res.body]);
+      },
+    },
+    '댓글 삭제': {
+      send: (client, w) => client.delete(`/api/comments/${w.targetCommentId}`),
+      verifyAllowed: async (_res, w) => {
+        expect(await comments(w)).toEqual([]);
+      },
+    },
     '내 방송 조회': {
       send: (client) => client.get('/api/me/broadcasts'),
       verifyAllowed: (res, w, actor) => {
@@ -250,6 +321,7 @@ describe('authorization matrix (PRD §7.5)', () => {
       other: other.user,
       targetId: '',
       targetEndedAt: null,
+      targetCommentId: '',
       othersId: '',
       as: { anonymous: anonymous(), other: other.agent, owner: owner.agent },
     };
@@ -283,11 +355,19 @@ describe('authorization matrix (PRD §7.5)', () => {
         endedAt: now,
       },
     });
+    const comment = await prisma.comment.create({
+      data: {
+        broadcastId: target.id,
+        authorId: world.owner.id,
+        body: ORIGINAL_COMMENT,
+      },
+    });
     world = {
       ...world,
       status,
       targetId: target.id,
       targetEndedAt: target.endedAt,
+      targetCommentId: comment.id,
       othersId: others.id,
     };
     ome.reset();
@@ -311,11 +391,11 @@ describe('authorization matrix (PRD §7.5)', () => {
       '$action | $who → $expected',
       async ({ action, actor, expected }) => {
         const driver = DRIVERS[action];
-        const before = await broadcastRows();
+        const before = await rows();
         const res = await driver.send(world.as[actor], world);
         expect(res.status, JSON.stringify(res.body)).toBe(expected);
         if (expected >= 400) {
-          expect(await broadcastRows()).toEqual(before);
+          expect(await rows()).toEqual(before);
           expect(ome.calls).toEqual([]);
         } else {
           await driver.verifyAllowed(res, world, actor);
@@ -339,6 +419,10 @@ describe('authorization matrix (PRD §7.5)', () => {
         client.delete(`/api/broadcasts/${id}`),
       'POST end': (client: TestAgent, id: string) =>
         client.post(`/api/broadcasts/${id}/end`),
+      'PATCH comment': (client: TestAgent, id: string) =>
+        client.patch(`/api/comments/${id}`).send({ body: '고친 댓글' }),
+      'DELETE comment': (client: TestAgent, id: string) =>
+        client.delete(`/api/comments/${id}`),
     };
 
     it.each(
@@ -347,7 +431,7 @@ describe('authorization matrix (PRD §7.5)', () => {
         [method, 'not-a-uuid'] as const,
       ]),
     )(
-      '%s on a missing broadcast %s is 401 when anonymous and 404 when logged in',
+      '%s on a missing resource %s is 401 when anonymous and 404 when logged in',
       async (method, id) => {
         const send = (client: TestAgent) => SENDERS[method](client, id);
         expect((await send(world.as.anonymous)).status).toBe(401);
@@ -361,6 +445,29 @@ describe('authorization matrix (PRD §7.5)', () => {
       expect((await world.as.anonymous.patch(url).send(bad)).status).toBe(401);
       expect((await world.as.other.patch(url).send(bad)).status).toBe(403);
       expect((await world.as.owner.patch(url).send(bad)).status).toBe(400);
+    });
+
+    it('rejects a non-author of a comment before looking at the body', async () => {
+      const bad = { body: '' };
+      const url = `/api/comments/${world.targetCommentId}`;
+      expect((await world.as.anonymous.patch(url).send(bad)).status).toBe(401);
+      expect((await world.as.other.patch(url).send(bad)).status).toBe(403);
+      expect((await world.as.owner.patch(url).send(bad)).status).toBe(400);
+    });
+
+    // PRD §7.5 gives comment edits to the author alone, so owning the
+    // broadcast does not let the streamer change a viewer's comment.
+    it('refuses the streamer a viewer’s comment on their own broadcast', async () => {
+      const posted = await world.as.other
+        .post(`/api/broadcasts/${world.targetId}/comments`)
+        .send({ body: '시청자 댓글' });
+      const url = `/api/comments/${(posted.body as CommentView).id}`;
+      const before = await rows();
+      expect(
+        (await world.as.owner.patch(url).send({ body: '바꿈' })).status,
+      ).toBe(403);
+      expect((await world.as.owner.delete(url)).status).toBe(403);
+      expect(await rows()).toEqual(before);
     });
 
     it('treats an owner who logged out as anonymous', async () => {
@@ -455,8 +562,6 @@ describe('authorization matrix (PRD §7.5)', () => {
   // its issue lands, so a missing row stays visible here.
   describe('rows not built yet', () => {
     it.todo('스트림 키 조회·재발급: 비로그인 401, 타인 403, 소유자 허용 (P3)');
-    it.todo('댓글 작성: 비로그인 401, 타인·소유자 허용 (#18)');
-    it.todo('댓글 수정·삭제: 비로그인 401, 작성자만 허용 (#18)');
     it.todo('후원: 비로그인 401, 타인 허용, 자기 방송 후원 거절 (#20)');
   });
 });

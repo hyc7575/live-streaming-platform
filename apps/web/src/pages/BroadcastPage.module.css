@@ -1,5 +1,23 @@
 .page {
-  max-width: var(--player-max-width);
+  display: grid;
+  grid-template-columns: minmax(0, var(--player-max-width));
+  gap: var(--space-4);
+}
+
+/* Wide screens put the comments beside the player. Narrow ones stack
+   player, info, then comments. */
+@media (min-width: 1024px) {
+  .page {
+    grid-template-columns:
+      minmax(0, var(--player-max-width))
+      var(--comment-column-width);
+    align-items: start;
+    gap: var(--space-6);
+  }
+}
+
+.main {
+  min-width: 0;
 }
 
 .player {
