@@ -467,6 +467,7 @@ curl -s http://localhost:3000/api/broadcasts/$ID                           # sta
 - `apps/api/test/publish.e2e.spec.ts`: Webhook으로 `LIVE`가 된 뒤 종료하면, 새로 받은 유효한 토큰으로 재접속해도 `broadcast ended`로 거절된다.
 - `apps/api/test/ome-api.spec.ts`: OME 관리 API 클라이언트의 경로와 `Basic` 인증 헤더. 200·404는 성공이고 401·500·연결 실패는 오류다.
 - `apps/web/e2e-stack/publishToWatch.spec.ts` (실제 OME): 송출하고 시청자가 재생하는 것을 확인한 뒤 종료한다. 시청 화면은 "방송이 끝났습니다."로 10초 안에 바뀌고 플레이어가 사라진다. 송출 화면의 원본 트랙과 복제본은 모두 `ended`다. 종료 전에 받아 둔 토큰으로 WHIP을 다시 보내면 401이고 토큰 재발급은 409다. 다른 테스트는 송출 중에 상세 화면에서 종료하고, 송출 탭이 "방송이 종료되었습니다."로 바뀌는 것을 확인한다.
+- `apps/web/e2e-stack/playerControls.spec.ts` (실제 OME, #56): 송출 카메라를 `Date.now()`를 흑백 블록으로 그린 캔버스로 바꾸고, 시청자가 영상에서 그 값을 읽어 송출 시각과 비교해 지연을 잰다. 시청 플레이어에 `controls`가 없고, 일시정지 30초 뒤 "라이브로 이동"이 보이며, 누르면 지연이 5초 이하로 돌아오는지 확인한다. 3초 입력이 없으면 컨트롤이 숨고, 볼륨은 새로고침 뒤 남고 음소거는 남지 않으며, 360px 터치 화면의 첫 탭은 일시정지하지 않고, 소유자는 음소거로 시작해 "소리 켜기"가 보이고, 댓글 입력 중 Space·M이 플레이어에 먹지 않는다. 다른 스펙과 같이 `--workers=1`로 돌린다.
 
 실제 OME로 확인: 3절의 명령에 더해 `.env`에 `OME_API_ACCESS_TOKEN`을 채운다. 이 값을 바꿨으면 `docker compose up -d ome`으로 OME를 다시 만든다. OME 관리 API는 `127.0.0.1:8081`에만 열린다.
 

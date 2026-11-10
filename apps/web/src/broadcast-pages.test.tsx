@@ -427,7 +427,9 @@ it('switches a viewer to 방송이 끝났습니다 once a status poll says ENDED
     routes['GET /api/broadcasts/b1'] = 500;
     await act(() => vi.advanceTimersByTimeAsync(5000));
     expect(screen.getByLabelText('방송 화면')).toBeDefined();
-    expect(screen.getByText('LIVE')).toBeDefined();
+    // The badge beside the title; the player has its own LIVE indicator.
+    const info = screen.getByRole('heading', { level: 1 }).parentElement;
+    expect(within(info!).getByText('LIVE')).toBeDefined();
 
     routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
     await act(() => vi.advanceTimersByTimeAsync(4999));

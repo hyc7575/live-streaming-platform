@@ -18,6 +18,7 @@ const hls = vi.hoisted(() => {
     attachMedia: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
     fail: (fatal: boolean) => void;
+    liveSyncPosition: number | null;
   }[] = [];
   const supported = { value: true };
   return { instances, supported };
@@ -31,6 +32,7 @@ vi.mock('hls.js', () => {
     loadSource = vi.fn();
     attachMedia = vi.fn();
     destroy = vi.fn();
+    liveSyncPosition: number | null = null;
     constructor(readonly config: unknown) {
       hls.instances.push(this);
     }
@@ -223,4 +225,121 @@ it('asks native HLS to play right away, falling back to muted', async () => {
   await act(() => Promise.resolve());
   expect(play).toHaveBeenCalledTimes(2);
   expect(screen.getByLabelText<HTMLVideoElement>('방송 화면').muted).toBe(true);
+});
+
+it('shows the loading notice again while a retry is pending after playing', () => {
+  vi.stubGlobal('MediaSource', class {});
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
+  fireEvent.playing(screen.getByLabelText('방송 화면'));
+  act(() => hls.instances[0]?.fail(true));
+  expect(loading()).not.toBeNull();
+});
+
+it('does not retry play when an already muted video is refused', async () => {
+  vi.stubGlobal('MediaSource', class {});
+  const play = vi
+    .spyOn(HTMLMediaElement.prototype, 'play')
+    .mockRejectedValue(new DOMException('no gesture', 'NotAllowedError'));
+  render(<LivePlayer broadcastId="b1" startMuted />);
+  fireEvent.loadedMetadata(screen.getByLabelText('방송 화면'));
+  await act(() => Promise.resolve());
+  expect(play).toHaveBeenCalledTimes(1);
+});
+
+it('keeps sound when the browser lets it start with sound', async () => {
+  vi.stubGlobal('MediaSource', class {});
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
+  const video = screen.getByLabelText<HTMLVideoElement>('방송 화면');
+  fireEvent.loadedMetadata(video);
+  await act(() => Promise.resolve());
+  expect(video.muted).toBe(false);
+});
+
+it('drops the native source and a pending retry on unmount', () => {
+  canPlayNativeHls('maybe');
+  const { unmount } = render(
+    <LivePlayer broadcastId="b1" startMuted={false} />,
+  );
+  const video = screen.getByLabelText<HTMLVideoElement>('방송 화면');
+  fireEvent.error(video);
+  unmount();
+  act(() => {
+    vi.advanceTimersByTime(RETRY_DELAY_MS * 2);
+  });
+  expect(video.getAttribute('src')).toBeNull();
+});
+
+it('draws its own controls instead of the browser ones', () => {
+  vi.stubGlobal('MediaSource', class {});
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
+  expect(screen.getByLabelText('방송 화면').hasAttribute('controls')).toBe(
+    false,
+  );
+  expect(screen.getByRole('button', { name: '재생' })).toBeDefined();
+  expect(screen.getByRole('button', { name: '전체화면' })).toBeDefined();
+});
+
+it('offers 소리 켜기 to the owner, who starts muted', () => {
+  vi.stubGlobal('MediaSource', class {});
+  render(<LivePlayer broadcastId="b1" startMuted />);
+  expect(screen.getByRole('button', { name: '소리 켜기' })).toBeDefined();
+});
+
+it('offers 소리 켜기 after the browser forced a muted start', async () => {
+  vi.stubGlobal('MediaSource', class {});
+  vi.spyOn(HTMLMediaElement.prototype, 'play')
+    .mockRejectedValueOnce(new DOMException('no gesture', 'NotAllowedError'))
+    .mockResolvedValue();
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
+  expect(screen.queryByRole('button', { name: '소리 켜기' })).toBeNull();
+  fireEvent.loadedMetadata(screen.getByLabelText('방송 화면'));
+  await act(async () => {
+    await vi.runOnlyPendingTimersAsync();
+  });
+  expect(screen.getByRole('button', { name: '소리 켜기' })).toBeDefined();
+});
+
+it('shows LIVE near the live edge and catches up once behind', () => {
+  vi.stubGlobal('MediaSource', class {});
+  const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
+  const video = screen.getByLabelText<HTMLVideoElement>('방송 화면');
+  const instance = hls.instances[0];
+  const toLive = () => screen.queryByRole('button', { name: '라이브로 이동' });
+
+  instance.liveSyncPosition = 20;
+  video.currentTime = 17;
+  act(() => {
+    vi.advanceTimersByTime(1000);
+  });
+  expect(screen.getByText('LIVE')).toBeDefined();
+  expect(toLive()).toBeNull();
+
+  video.currentTime = 16;
+  act(() => {
+    vi.advanceTimersByTime(1000);
+  });
+  expect(screen.queryByText('LIVE')).toBeNull();
+  play.mockClear();
+  fireEvent.click(toLive()!);
+  expect(video.currentTime).toBe(20);
+  expect(play).toHaveBeenCalled();
+  expect(screen.getByText('LIVE')).toBeDefined();
+});
+
+it('reads the live edge from the hls.js instance that replaced a failed one', () => {
+  vi.stubGlobal('MediaSource', class {});
+  render(<LivePlayer broadcastId="b1" startMuted={false} />);
+  act(() => hls.instances[0]?.fail(true));
+  act(() => {
+    vi.advanceTimersByTime(RETRY_DELAY_MS);
+  });
+  hls.instances[1].liveSyncPosition = 30;
+  act(() => {
+    vi.advanceTimersByTime(1000);
+  });
+  fireEvent.click(screen.getByRole('button', { name: '라이브로 이동' }));
+  expect(screen.getByLabelText<HTMLVideoElement>('방송 화면').currentTime).toBe(
+    30,
+  );
 });

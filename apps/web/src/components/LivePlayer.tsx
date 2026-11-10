@@ -1,7 +1,8 @@
 import Hls from 'hls.js';
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { llhlsPath, playbackPath, RETRY_DELAY_MS } from '../playback';
 import styles from './LivePlayer.module.css';
+import { PlayerControls, type LiveEdge } from './player/PlayerControls';
 
 // Browsers refuse to start a video with sound before the visitor has
 // interacted with the site. A muted video may always start, so that is the
@@ -31,6 +32,8 @@ export function LivePlayer({
   onPlaybackError?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Replaced on every retry, so the live edge reads whichever is current.
+  const hlsRef = useRef<Hls | null>(null);
   const [playing, setPlaying] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
   const reportError = useEffectEvent(() => onPlaybackError?.());
@@ -73,14 +76,13 @@ export function LivePlayer({
       };
     }
 
-    let hls: Hls | null = null;
     const load = () => {
       const instance = new Hls({ lowLatencyMode: true });
-      hls = instance;
+      hlsRef.current = instance;
       instance.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return;
         instance.destroy();
-        hls = null;
+        hlsRef.current = null;
         reportError();
         retry(load);
       });
@@ -90,12 +92,32 @@ export function LivePlayer({
     load();
     return () => {
       clearTimeout(timer);
-      hls?.destroy();
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
     };
   }, [broadcastId]);
 
+  const live = useMemo<LiveEdge>(() => {
+    const position = () => {
+      const video = videoRef.current;
+      if (!video) return null;
+      if (hlsRef.current) return hlsRef.current.liveSyncPosition;
+      const { seekable } = video;
+      return seekable.length ? seekable.end(seekable.length - 1) : null;
+    };
+    return {
+      position,
+      seek: () => {
+        const edge = position();
+        if (edge !== null && videoRef.current) {
+          videoRef.current.currentTime = edge;
+        }
+      },
+    };
+  }, []);
+
   return (
-    <div className={styles.player}>
+    <PlayerControls videoRef={videoRef} live={live}>
       <video
         ref={videoRef}
         className={styles.video}
@@ -103,7 +125,6 @@ export function LivePlayer({
         autoPlay
         muted={startMuted}
         playsInline
-        controls
         onLoadedMetadata={(event) => play(event.currentTarget)}
         onPlaying={() => setPlaying(true)}
       />
@@ -114,6 +135,6 @@ export function LivePlayer({
             : '방송을 불러오는 중입니다'}
         </p>
       )}
-    </div>
+    </PlayerControls>
   );
 }
