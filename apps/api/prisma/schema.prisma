@@ -20,6 +20,8 @@ model User {
   broadcasts Broadcast[]
   comments   Comment[]
   donations  Donation[]
+  following  Follow[]    @relation("Follower")
+  followers  Follow[]    @relation("Followed")
 }
 
 enum BroadcastStatus {
@@ -69,6 +71,19 @@ model Comment {
   updatedAt   DateTime  @updatedAt
 
   @@index([broadcastId, createdAt])
+}
+
+// A viewer following a streamer. Both ends are users, and deleting either
+// user takes the follow with it.
+model Follow {
+  followerId String   @db.Uuid
+  streamerId String   @db.Uuid
+  createdAt  DateTime @default(now())
+  follower   User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  streamer   User     @relation("Followed", fields: [streamerId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, streamerId])
+  @@index([streamerId])
 }
 
 enum DonationStatus {

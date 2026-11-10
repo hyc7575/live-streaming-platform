@@ -4,6 +4,7 @@ import { BroadcastsModule } from './broadcasts/broadcasts.module.js';
 import { CommentsModule } from './comments/comments.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DonationsModule } from './donations/donations.module.js';
+import { FollowsModule } from './follows/follows.module.js';
 import { HealthController } from './health.controller.js';
 import { PublishModule } from './publish/publish.module.js';
 import { RecordingsModule } from './recording/recordings.module.js';
@@ -15,6 +16,7 @@ import { RecordingsModule } from './recording/recordings.module.js';
     BroadcastsModule,
     CommentsModule,
     DonationsModule,
+    FollowsModule,
     PublishModule,
     RecordingsModule,
   ],
