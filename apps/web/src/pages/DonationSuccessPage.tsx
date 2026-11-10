@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { formatWon, type ConfirmedDonation } from '../donations';
+import { useDocumentTitle } from '../use-document-title';
 import form from './AuthForm.module.css';
 import type { LoginPageState } from './LoginPage';
 
@@ -48,6 +49,7 @@ function confirmErrorMessage(err: unknown): string {
 // Toss redirects here after the buyer approves. Only the API's confirm turns
 // the order into a donation.
 export function DonationSuccessPage() {
+  useDocumentTitle('후원하기');
   const [params] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();

@@ -1,11 +1,13 @@
 import { Link, useSearchParams } from 'react-router';
 import { broadcastOfOrder } from '../donations';
+import { useDocumentTitle } from '../use-document-title';
 import form from './AuthForm.module.css';
 
 // Toss's code when the buyer closed the payment window.
 const CANCELED = 'PAY_PROCESS_CANCELED';
 
 export function DonationFailPage() {
+  useDocumentTitle('후원하기');
   const [params] = useSearchParams();
   const code = params.get('code');
   const orderId = params.get('orderId');

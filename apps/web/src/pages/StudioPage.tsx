@@ -3,6 +3,7 @@ import type { Broadcast } from '../broadcasts';
 import { BroadcastGrid } from '../components/BroadcastGrid';
 import { StudioTabs } from '../components/StudioTabs';
 import { useApi } from '../use-api';
+import { useDocumentTitle } from '../use-document-title';
 import styles from './ListPage.module.css';
 
 // A broadcast that has not started opens the publish page, since sending is
@@ -14,6 +15,7 @@ function cardPath(b: Broadcast): string {
 }
 
 export function StudioPage() {
+  useDocumentTitle('내 방송');
   const broadcasts = useApi<Broadcast[]>('/me/broadcasts');
 
   return (

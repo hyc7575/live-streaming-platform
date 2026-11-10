@@ -4,6 +4,7 @@ import { ApiError, apiFetch } from '../api';
 import { type AuthUser, useAuth } from '../auth/auth-context';
 import { ThumbnailPicture } from '../components/BroadcastThumbnail';
 import { StudioTabs } from '../components/StudioTabs';
+import { useDocumentTitle } from '../use-document-title';
 import type { LoginPageState } from './LoginPage';
 import styles from './ChannelPage.module.css';
 
@@ -16,6 +17,7 @@ const INVALID_FILE = '2MB 이하의 JPEG·PNG·WebP 이미지만 올릴 수 있�
 type Busy = 'upload' | 'delete' | null;
 
 export function ChannelPage() {
+  useDocumentTitle('내 채널');
   const { state, setUser } = useAuth();
   const navigate = useNavigate();
   const fileInput = useRef<HTMLInputElement>(null);

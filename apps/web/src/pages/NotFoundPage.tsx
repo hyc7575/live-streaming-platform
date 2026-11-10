@@ -1,6 +1,8 @@
 import { Link } from 'react-router';
+import { useDocumentTitle } from '../use-document-title';
 
 export function NotFoundPage() {
+  useDocumentTitle('페이지를 찾을 수 없습니다');
   return (
     <section>
       <h1>페이지를 찾을 수 없습니다</h1>

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
+import { useDocumentTitle } from '../use-document-title';
 import styles from './AuthForm.module.css';
 import { TestAccountLogin } from './TestAccountLogin';
 
@@ -23,6 +24,7 @@ function loginErrorMessage(err: unknown): string {
 }
 
 export function LoginPage() {
+  useDocumentTitle('로그인');
   const { state, logIn, logInAsTestAccount } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

@@ -13,6 +13,7 @@ import { ReplayPlayer } from '../components/ReplayPlayer';
 import { StatusBadge } from '../components/StatusBadge';
 import { FollowButton } from '../follows/FollowButton';
 import type { Loadable } from '../use-api';
+import { useDocumentTitle } from '../use-document-title';
 import styles from './BroadcastPage.module.css';
 
 const PLAYER_NOTICE: Record<Exclude<BroadcastStatus, 'LIVE'>, string> = {
@@ -126,6 +127,7 @@ export function BroadcastPage() {
   const { broadcast, waitingForReplay, recheck } = useWatchedBroadcast(
     `/broadcasts/${encodeURIComponent(id)}`,
   );
+  useDocumentTitle(broadcast.status === 'loaded' ? broadcast.data.title : null);
 
   // Until we know whether this is the owner, the player cannot know whether
   // to start muted (T7).

@@ -5,10 +5,12 @@ import {
   BroadcastForm,
   type BroadcastFields,
 } from '../components/BroadcastForm';
+import { useDocumentTitle } from '../use-document-title';
 import styles from './AuthForm.module.css';
 import type { LoginPageState } from './LoginPage';
 
 export function NewBroadcastPage() {
+  useDocumentTitle('방송 만들기');
   const navigate = useNavigate();
 
   async function create(fields: BroadcastFields): Promise<string | null> {
