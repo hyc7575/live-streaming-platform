@@ -8,12 +8,12 @@ import { usePolledApi } from '../use-api';
 import type { BroadcastStatus } from './StatusBadge';
 import styles from './CommentPanel.module.css';
 
-// PRD §8.2: no realtime push. While LIVE the list is re-read every 2 s so
+// PRD §8.2: no realtime push. While LIVE the list is re-read every 1 s so
 // other viewers' comments read like chat; otherwise on the status poll's
 // 5 s cadence. The viewer's own change re-reads right away.
 const COMMENT_POLL_MS: Record<BroadcastStatus, number> = {
   READY: 5000,
-  LIVE: 2000,
+  LIVE: 1000,
   ENDED: 5000,
 };
 

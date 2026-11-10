@@ -540,7 +540,7 @@ it('shows comments to an anonymous visitor with a login link instead of the form
   expect(await screen.findByLabelText('댓글 쓰기')).toBeDefined();
 });
 
-it('re-reads comments every 2 s while LIVE and every 5 s once ENDED', async () => {
+it('re-reads comments every 1 s while LIVE and every 5 s once ENDED', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
   try {
     const routes: Record<string, unknown> = {
@@ -554,22 +554,22 @@ it('re-reads comments every 2 s while LIVE and every 5 s once ENDED', async () =
     await screen.findByText('첫 댓글');
     const first = reads();
 
-    await act(() => vi.advanceTimersByTimeAsync(1999));
+    await act(() => vi.advanceTimersByTimeAsync(999));
     expect(reads()).toBe(first);
     await act(() => vi.advanceTimersByTimeAsync(1));
     expect(reads()).toBe(first + 1);
 
-    // The status poll answers ENDED at 5 s, after the comment read at 4 s;
-    // the new cadence starts with an immediate read.
+    // The status poll answers ENDED at 5 s, after the comment reads at 2, 3,
+    // 4 and 5 s; the new cadence starts with an immediate read.
     routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
-    await act(() => vi.advanceTimersByTimeAsync(3000));
+    await act(() => vi.advanceTimersByTimeAsync(4000));
     expect(await screen.findByText('방송 종료')).toBeDefined();
-    expect(reads()).toBe(first + 3);
+    expect(reads()).toBe(first + 6);
 
     await act(() => vi.advanceTimersByTimeAsync(4999));
-    expect(reads()).toBe(first + 3);
+    expect(reads()).toBe(first + 6);
     await act(() => vi.advanceTimersByTimeAsync(1));
-    expect(reads()).toBe(first + 4);
+    expect(reads()).toBe(first + 7);
   } finally {
     vi.useRealTimers();
   }
