@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { apiFetch } from '../api';
+import { ApiError, apiFetch, onUnauthorized } from '../api';
 import {
   AuthContext,
   type AuthContextValue,
@@ -16,6 +16,8 @@ import {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
+  // Bumped by recheck() to run the /auth/me effect again.
+  const [checks, setChecks] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,12 +25,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((user) => {
         if (!cancelled) setState({ status: 'authenticated', user });
       })
-      .catch(() => {
-        if (!cancelled) setState({ status: 'anonymous' });
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const noSession = err instanceof ApiError && err.status === 401;
+        setState({ status: noSession ? 'anonymous' : 'error' });
       });
     return () => {
       cancelled = true;
     };
+  }, [checks]);
+
+  // A 401 anywhere means the session is gone (logged out in another tab or
+  // expired), so the login page stops bouncing back to the screen.
+  useEffect(() => onUnauthorized(() => setState({ status: 'anonymous' })), []);
+
+  const recheck = useCallback(() => {
+    setState({ status: 'loading' });
+    setChecks((n) => n + 1);
   }, []);
 
   const logIn = useCallback(async (email: string, password: string) => {
@@ -57,8 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ state, logIn, logInAsTestAccount, logOut, setUser }),
-    [state, logIn, logInAsTestAccount, logOut, setUser],
+    () => ({ state, logIn, logInAsTestAccount, logOut, recheck, setUser }),
+    [state, logIn, logInAsTestAccount, logOut, recheck, setUser],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;

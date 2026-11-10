@@ -16,7 +16,7 @@ export function FollowButton({ streamerId }: { streamerId: string }) {
   const [pending, setPending] = useState<boolean | null>(null);
   const [failed, setFailed] = useState(false);
 
-  if (state.status === 'loading') return null;
+  if (state.status === 'loading' || state.status === 'error') return null;
   if (state.status === 'anonymous') {
     return (
       <Link to="/login" state={returnHere(location)} className={styles.login}>

@@ -62,6 +62,9 @@ export function CommentPanel({
   const listRef = useRef<HTMLOListElement>(null);
   const stickRef = useRef(true);
   const me = state.status === 'authenticated' ? state.user : null;
+  // Kept here, not in the form, so a 401 elsewhere (the follow poll) that
+  // logs the viewer out does not throw away what they were typing.
+  const [draft, setDraft] = useState('');
   const loginState: LoginPageState = { from: `/broadcasts/${broadcastId}` };
 
   const loaded = comments.status === 'loaded' ? comments.data : null;
@@ -119,19 +122,29 @@ export function CommentPanel({
           로그인하고 댓글을 남겨 보세요
         </Link>
       )}
-      {me && <CommentForm broadcastId={broadcastId} onPosted={afterOwnPost} />}
+      {(me || draft) && (
+        <CommentForm
+          broadcastId={broadcastId}
+          draft={draft}
+          setDraft={setDraft}
+          onPosted={afterOwnPost}
+        />
+      )}
     </aside>
   );
 }
 
 function CommentForm({
   broadcastId,
+  draft,
+  setDraft,
   onPosted,
 }: {
   broadcastId: string;
+  draft: string;
+  setDraft: (draft: string) => void;
   onPosted: () => void;
 }) {
-  const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toLogin = useLoginRedirect(broadcastId);
