@@ -629,7 +629,7 @@ Chrome의 가짜 카메라는 전·후면(`facingMode`) 정보가 없다. 그래
    pnpm --filter @lsp/web dev     # Network: https://<LAN IP>:<WEB_PORT> 가 찍힌다
    ```
 
-4. 스크립트가 알려 준 `rootCA.pem`을 휴대폰에 설치한다. Android는 설정 → 보안 → 암호화 및 사용자 인증 정보 → 인증서 설치 → CA 인증서, iPhone은 AirDrop으로 받은 프로필을 설치하고 설정 → 일반 → 정보 → 인증서 신뢰 설정에서 켠다.
+4. 휴대폰이 Mac의 인증서를 믿도록 스크립트가 알려 준 `rootCA.pem`을 휴대폰에 설치한다. 설치하지 않으면 "안전하지 않은 연결" 경고가 뜬다. Galaxy S22의 Slack 앱 웹뷰에서는 경고를 넘겨 들어가도 카메라가 열렸지만, 다른 브라우저에서도 그런지는 확인하지 않았다. Android는 설정 → 보안 → 암호화 및 사용자 인증 정보 → 인증서 설치 → CA 인증서, iPhone은 AirDrop으로 받은 프로필을 설치하고 설정 → 일반 → 정보 → 인증서 신뢰 설정에서 켠다.
 5. 휴대폰에서 `https://<LAN IP>:<WEB_PORT>`를 열고 스트리머 A로 로그인한다. 내 방송에서 방송을 만들고 송출 화면을 연다. "카메라 켜기"만 보이고 "화면 공유"는 없다.
 6. "카메라 켜기" → 카메라·마이크 허용 → "방송 시작"을 누른다. "송출 중입니다."가 뜬다.
 7. Mac Chrome 시크릿 창에서 `https://<LAN IP>:<WEB_PORT>/broadcasts/<방송 id>`를 연다. 휴대폰 영상과 소리가 나온다(인수 시나리오 6).
@@ -660,7 +660,8 @@ curl -fsS https://lsp-live.duckdns.org/api/health
 | 시스템 소리가 실제로 섞이는지 | macOS 26.5, Chrome 156 | 미확인. 전체 화면을 공유하려면 macOS 화면 녹화 권한이 필요하고, 자동 테스트로는 확인하지 않았다 |
 | Screen Wake Lock | macOS, Chrome 156 headless (Playwright, Pixel 7 에뮬레이션) | 권한(`screen-wake-lock`)을 주면 잠금을 얻는다. 주지 않으면 `NotAllowedError`로 거절되고 "화면 꺼짐 방지를 켜지 못했습니다."가 뜬다 |
 | 모바일 송출, 송출 중 전·후면 전환, 1분 화면 유지 | Chrome 156 headless (Playwright, Pixel 7 에뮬레이션, 가짜 카메라) + 로컬 OME | 송출·전환·해상도 변경 후 hls.js 재생 유지·Wake Lock 유지 확인 (`e2e-stack/mobilePublish.spec.ts`) |
-| 같은 기능을 실제 휴대폰에서 | iOS Safari, Android Chrome | 미확인. 위 "같은 Wi-Fi의 휴대폰으로 확인하는 절차"로 확인한 뒤 적는다 |
+| 같은 기능을 실제 휴대폰에서 (같은 Wi-Fi, 로컬 HTTPS) | Galaxy S22, Slack 앱 안 웹뷰(Android System WebView). Android 버전은 기록하지 않았다 | 2026-11-10 확인. 카메라 송출, PC 시청, 송출 중 전·후면 전환(시청 화면이 약 2~3초 뒤 바뀌고 재생이 이어짐), 1분 방치 뒤에도 송출 유지, 종료(시청 화면이 약 1초 만에 "방송이 끝났습니다."). 방송은 LIVE 93초 뒤 ENDED. mkcert 인증서를 설치하지 않고 경고 화면에서 넘어간 상태로 카메라가 열렸다 |
+| 같은 기능을 휴대폰 브라우저 앱에서 | Android Chrome 앱, iOS Safari | 미확인. 위 절차로 확인한 뒤 적는다 |
 
 macOS 시스템 소리를 직접 확인하는 절차: 시스템 설정 → 개인정보 보호 및 보안 → 화면 및 시스템 오디오 녹음에서 Chrome을 허용한다. 송출 화면에서 "화면 공유" → "전체 화면" → "시스템 오디오와 함께 공유"를 켜고 공유한다. 다른 앱(예: 음악 앱)에서 소리를 내고 화면 소리 미터가 움직이는지 본다.
 
