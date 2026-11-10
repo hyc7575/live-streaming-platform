@@ -21,6 +21,9 @@
   --color-on-status: #ffffff;
   --color-danger: #e5484d;
   --color-video-bg: #000000;
+  /* Text and icons drawn over the video, and the gradient behind them. */
+  --color-on-video: #ffffff;
+  --color-player-scrim: rgba(0, 0, 0, 0.7);
 
   --font-sans:
     'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
@@ -50,4 +53,10 @@
   --comment-column-width: 340px;
   --comment-list-max-height: 60vh;
   --donation-list-max-height: 320px;
+
+  --player-control-size: 40px;
+  --player-icon-size: 24px;
+  --player-big-play-size: 72px;
+  --player-volume-width: 72px;
+  --duration-fade: 200ms;
 }

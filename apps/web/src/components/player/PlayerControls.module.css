@@ -1,0 +1,165 @@
+.container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+/* The ring sits on the page background, not the video. */
+.container:focus-visible {
+  outline: 2px solid var(--color-brand-strong);
+  outline-offset: 2px;
+}
+
+.idle {
+  cursor: none;
+}
+
+.bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-8) var(--space-2) var(--space-2);
+  color: var(--color-on-video);
+  background: linear-gradient(to top, var(--color-player-scrim), transparent);
+  transition: opacity var(--duration-fade);
+}
+
+/* Taps on a hidden bar reach the video, which brings the controls back. */
+.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.button,
+.live,
+.unmuteHint,
+.bigPlay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  color: var(--color-on-video);
+  background: transparent;
+  font-family: inherit;
+}
+
+.button {
+  width: var(--player-control-size);
+  height: var(--player-control-size);
+  flex: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--player-icon-size);
+  cursor: pointer;
+}
+
+/* Over the dark video the full lime reads; brand-strong would not. */
+.button:focus-visible,
+.live:focus-visible,
+.unmuteHint:focus-visible,
+.bigPlay:focus-visible,
+.volume:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.volumeGroup {
+  display: flex;
+  align-items: center;
+}
+
+.volume {
+  width: 0;
+  margin: 0;
+  opacity: 0;
+  accent-color: var(--color-brand);
+  transition:
+    width var(--duration-fade),
+    opacity var(--duration-fade);
+}
+
+.volumeGroup:hover .volume,
+.volumeGroup:focus-within .volume {
+  width: var(--player-volume-width);
+  margin-right: var(--space-2);
+  opacity: 1;
+}
+
+/* Phones change volume with their own buttons. */
+@media (pointer: coarse) {
+  .volume {
+    display: none;
+  }
+}
+
+.live {
+  gap: var(--space-2);
+  height: var(--player-control-size);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-live);
+}
+
+.behind {
+  cursor: pointer;
+}
+
+.behind .dot {
+  background: var(--color-ended);
+}
+
+.end {
+  margin-left: auto;
+}
+
+.unmuteHint {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-player-scrim);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.unmuteHint svg {
+  font-size: var(--player-icon-size);
+}
+
+.bigPlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--player-big-play-size);
+  height: var(--player-big-play-size);
+  border-radius: 50%;
+  background: var(--color-player-scrim);
+  font-size: calc(var(--player-big-play-size) / 2);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .volume {
+    transition: none;
+  }
+}

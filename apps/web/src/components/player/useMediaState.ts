@@ -1,0 +1,73 @@
+import { useCallback, useSyncExternalStore, type RefObject } from 'react';
+
+export type MediaState = {
+  paused: boolean;
+  muted: boolean;
+  volume: number;
+  // readyState >= HAVE_METADATA: there is a picture to resume, not a load.
+  ready: boolean;
+  fullscreen: boolean;
+};
+
+const VIDEO_EVENTS = [
+  'play',
+  'pause',
+  'volumechange',
+  'loadedmetadata',
+  'emptied',
+] as const;
+
+const INITIAL: MediaState = {
+  paused: true,
+  muted: false,
+  volume: 1,
+  ready: false,
+  fullscreen: false,
+};
+
+// useSyncExternalStore needs the same object back while nothing changed.
+const snapshots = new WeakMap<HTMLVideoElement, MediaState>();
+
+function read(video: HTMLVideoElement): MediaState {
+  const next: MediaState = {
+    paused: video.paused,
+    muted: video.muted,
+    volume: video.volume,
+    ready: video.readyState >= HTMLMediaElement.HAVE_METADATA,
+    fullscreen: document.fullscreenElement?.contains(video) ?? false,
+  };
+  const previous = snapshots.get(video);
+  if (
+    previous &&
+    (Object.keys(next) as (keyof MediaState)[]).every(
+      (key) => previous[key] === next[key],
+    )
+  ) {
+    return previous;
+  }
+  snapshots.set(video, next);
+  return next;
+}
+
+export function useMediaState(
+  videoRef: RefObject<HTMLVideoElement | null>,
+): MediaState {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const video = videoRef.current;
+      if (!video) return () => {};
+      for (const name of VIDEO_EVENTS) video.addEventListener(name, onChange);
+      document.addEventListener('fullscreenchange', onChange);
+      return () => {
+        for (const name of VIDEO_EVENTS) {
+          video.removeEventListener(name, onChange);
+        }
+        document.removeEventListener('fullscreenchange', onChange);
+      };
+    },
+    [videoRef],
+  );
+  return useSyncExternalStore(subscribe, () =>
+    videoRef.current ? read(videoRef.current) : INITIAL,
+  );
+}

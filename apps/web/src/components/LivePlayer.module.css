@@ -1,9 +1,3 @@
-.player {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
 .video {
   display: block;
   width: 100%;
@@ -12,7 +6,7 @@
   border-radius: var(--radius-md);
 }
 
-/* Over the video, but lets clicks reach its controls. */
+/* Over the video, but lets clicks reach it. */
 .notice {
   position: absolute;
   inset: 0;
