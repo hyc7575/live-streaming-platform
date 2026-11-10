@@ -837,6 +837,69 @@ curl -s -b a-jar.txt -X POST $API/broadcasts/<id>/donations -H 'Content-Type: ap
 curl -s $API/broadcasts/<id>/donations                       # "total":1000,"count":1 (한 번만 반영)
 ```
 
+### 9. 팔로우 (#60)
+
+로그인한 시청자가 스트리머를 팔로우하고, 모든 화면 왼쪽 패널에서 팔로우한 스트리머가 지금 LIVE인지 보고 바로 들어간다(PRD §7.1, 인수 시나리오 14). 비로그인 방문자에게는 같은 자리에 LIVE 중인 방송을 보인다. 알림(푸시·이메일·브라우저 알림)은 하지 않는다(PRD §8.2).
+
+이 기능은 `Follow` 테이블을 새로 쓴다. 이 변경을 받은 뒤에는 `pnpm --filter @lsp/api db:migrate`로 마이그레이션을 적용한다.
+
+규칙:
+
+- 스트리머는 `User`다. "지금 LIVE"는 따로 저장하지 않고 그 스트리머의 `LIVE` 방송(하나뿐이다, 3절)으로 읽는다.
+- 팔로우·언팔로우는 멱등이다. 두 번 불러도 204이고 행은 하나다.
+- 검사 순서는 `로그인 확인 → id 형식(UUID) → 자기 자신 → 스트리머 있음`이다. 언팔로우도 같은 검사를 한다.
+- 내 팔로우 목록은 LIVE 먼저(`startedAt` 늦은 순), 그다음 닉네임 순이다. LIVE면 그 방송의 id·제목·시작 시각을 담고, 방송이 끝나면 `live: null`이다.
+- 팔로워나 스트리머 어느 쪽 사용자를 지워도 그 팔로우가 함께 지워진다.
+- 웹은 `FollowsProvider` 한 곳이 목록을 30초마다, 팔로우·언팔로우 직후 바로 읽는다. 패널, 시청 화면의 팔로우 버튼, `/following`이 같은 목록을 본다. 그래서 방송이 끝난 뒤 패널이 "오프라인"으로 바뀌기까지 30초까지 걸린다.
+
+| 행위 | API | 비로그인 | 로그인(타인) | 자기 자신 |
+|---|---|---|---|---|
+| 팔로우 | `PUT /api/streamers/:id/follow` | 401 | 204 | 400 `자기 자신은 팔로우할 수 없습니다.` |
+| 언팔로우 | `DELETE /api/streamers/:id/follow` | 401 | 204 | 400 `자기 자신은 팔로우할 수 없습니다.` |
+| 내 팔로우 목록 | `GET /api/me/follows` | 401 | 200 (내 것만) | — |
+
+그 밖의 응답: UUID 형식이 아닌 id 400, 없는 스트리머 404.
+
+자동 테스트:
+
+- `apps/api/test/authorization-matrix.e2e.spec.ts`: 위 세 행을 2절의 `MATRIX`에 넣었다. "소유자" 칸은 소유자가 자기 자신을 팔로우하는 경우다. 허용 칸은 목록을 다시 읽어 효과를 확인한다.
+- `apps/api/test/follows.e2e.spec.ts` (실제 PostgreSQL): 멱등(행 하나), 정렬, 방송 종료 뒤 `live: null`, `READY`·`ENDED` 방송은 LIVE로 보이지 않음, 사용자 삭제 시 양쪽 팔로우 삭제.
+- `apps/web/src/follows.test.tsx`: 패널 목록과 링크, 빈 목록 안내, 비로그인 LIVE 5개와 돌아오는 로그인 링크, 팔로우 뒤 패널 즉시 반영, 실패 시 되돌림, 소유자에게 버튼 없음, `/following`과 "팔로잉" 메뉴.
+- `apps/web/e2e-stack/follow.spec.ts` (3절의 로컬 스택, 목 없음): 송출 중인 방송에서 팔로우 → 패널에 LIVE → 방송 종료 → 30초 폴링 안에 "오프라인" → 언팔로우 → 사라짐. 소유자에게 버튼 없음, 비로그인이 패널 링크로 로그인하면 같은 시청 화면으로 돌아옴. `SCREENSHOT_DIR=<폴더>`를 앞에 붙이면 `1440-expanded.png`, `1100-collapsed.png`, `360-hidden-menu.png`, `360-following.png`, `1440-anonymous.png`를 남긴다.
+
+```sh
+pnpm --filter @lsp/web e2e:stack --workers=1 follow.spec.ts   # WEB_PORT를 바꿨으면 같은 값을 앞에 붙인다
+```
+
+화면에서 확인 (2절처럼 "스트리머 A"와 "사용자 B"를 쓴다):
+
+1. A로 방송을 만들고 3절처럼 송출한다.
+2. 로그아웃 상태로 폭 1280px 이상에서 "방송 목록"을 연다. 왼쪽 패널 제목이 "LIVE 중인 방송"이고 A의 방송이 빨간 점과 함께 보인다. 아래에 "로그인하고 스트리머를 팔로우해 보세요"가 있다.
+3. A의 시청 화면을 연다. 스트리머 이름 옆에 "로그인하고 팔로우"가 보인다. 패널의 로그인 링크를 눌러 B로 로그인한다. 같은 시청 화면으로 돌아오고 패널 제목이 "팔로우한 스트리머", 안내가 "방송을 보다가 팔로우하면 여기에 보입니다."다.
+4. "팔로우"를 누른다. 버튼이 "팔로잉"(테두리)으로 바뀌고 패널에 A가 빨간 점, 닉네임, 방송 제목과 함께 바로 나타난다. 누르면 시청 화면으로 간다.
+5. 창 폭을 1024~1279px로 줄인다. 패널이 이니셜 원만 남기고 접힌다. 원에 마우스를 올리면 "닉네임 · 방송 제목"이 보인다.
+6. 폭을 1024px 미만으로 줄인다. 패널이 사라지고 상단 메뉴에 "팔로잉"이 생긴다. 누르면 `/following`에 같은 목록이 전체 폭으로 보인다.
+7. A 창에서 같은 시청 화면을 연다. A에게는 팔로우 버튼이 없다.
+8. A가 방송을 종료한다. 30초 안에 B의 패널에서 A가 회색 원과 "오프라인"으로 바뀌고 링크가 없어진다.
+9. B가 "팔로잉"을 누른다. "팔로우"로 돌아오고 패널에서 A가 사라진다.
+
+API로 확인 (2절의 `a-jar.txt`·`b-jar.txt`):
+
+```sh
+API=http://localhost:3000/api
+A=$(curl -s -b a-jar.txt $API/auth/me | sed -E 's/^\{"id":"([^"]+)".*/\1/')
+
+curl -s -o /dev/null -w '%{http_code}\n' -X PUT $API/streamers/$A/follow               # 401
+curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X PUT $API/streamers/$A/follow   # 204
+curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X PUT $API/streamers/$A/follow   # 204 (두 번째도)
+curl -s -b b-jar.txt $API/me/follows                     # [{"id":"…","nickname":"스트리머 A","live":null}] (LIVE면 방송 정보)
+curl -s -b a-jar.txt -X PUT $API/streamers/$A/follow     # 400 자기 자신은 팔로우할 수 없습니다.
+curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X PUT $API/streamers/not-a-uuid/follow                            # 400
+curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X PUT $API/streamers/00000000-0000-4000-8000-000000000000/follow  # 404
+curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X DELETE $API/streamers/$A/follow   # 204, 다시 불러도 204
+curl -s -b b-jar.txt $API/me/follows                     # []
+```
+
 ## 운영 배포
 
 운영 서버는 `deploy/compose.yaml` 하나로 Caddy, API, OvenMediaEngine, PostgreSQL을 띄운다. 첫 배포, 재배포, 로그, 다운 감시는 [docs/OPERATIONS.md](docs/OPERATIONS.md)에 있다. 다운 알림을 받으면 서버 저장소 폴더에서 아래 세 줄로 복구한다.
