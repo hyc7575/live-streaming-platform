@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { BroadcastView } from '../src/broadcasts/broadcasts.service.js';
 import type { CommentView } from '../src/comments/comments.service.js';
 import { PrismaService } from '../src/database/database.module.js';
+import type { DonationOrder } from '../src/donations/donations.service.js';
 import type { BroadcastStatus } from '../src/generated/prisma/client.js';
 import type { AdmissionRejection } from '../src/publish/admission.js';
 import {
@@ -16,13 +17,17 @@ import {
 } from './support/app.js';
 import { fakeClockOf } from './support/fake-clock.js';
 import { fakeOmeApiOf, type FakeOmeApi } from './support/fake-ome-api.js';
+import {
+  fakeTossPaymentsOf,
+  type FakeTossPayments,
+} from './support/fake-toss-payments.js';
 import { mintedToken, openPublish } from './support/webhook.js';
 
 // PRD §7.5 authorization matrix (KR3), driven as one table. Every row that
 // exists in the API today runs for each caller against an owner's broadcast
 // in every status. A cell is the expected HTTP status. A rejected cell also
-// proves the database did not change and OME was not asked to drop a stream,
-// and an allowed cell proves its effect through the API the way a user would
+// proves the database did not change and neither OME nor Toss was asked
+// anything, and an allowed cell proves its effect through the API the way a user would
 // see it.
 
 type Actor = 'anonymous' | 'other' | 'owner';
@@ -38,6 +43,9 @@ interface World {
   // A comment the owner wrote on the target, so for the comment rows the
   // owner column is the comment's author and 'other' is anyone else.
   targetCommentId: string;
+  // An unpaid order by the other user on the target, so for '후원 승인' the
+  // owner column is the streamer, not the donor: someone else's order.
+  pendingOrder: { paymentKey: string; orderId: string; amount: number };
   // An ENDED broadcast of the other user, so lists have something to leave out.
   othersId: string;
   as: Record<Actor, TestAgent>;
@@ -62,11 +70,16 @@ const MATRIX = {
   '댓글 작성':      [401,      201,          201],
   '댓글 수정':      [401,      403,          200],
   '댓글 삭제':      [401,      403,          204],
+  '후원':           [401,      { READY: 409, LIVE: 201, ENDED: 409 }, 403],
+  '후원 승인':      [401,      200,          403],
+  '후원 내역 조회': [200,      200,          200],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
 // deleted. An ENDED broadcast never goes LIVE again, so it gets no publish
 // token. Comments follow the detail page: any broadcast that page shows,
-// READY included, can be read and commented on.
+// READY included, can be read and commented on. Donations are ordered only
+// while LIVE, and never by the streamer, whose 403 comes before the status.
+// A confirm ignores the status: the donor already paid by then.
 
 type Action = keyof typeof MATRIX;
 
@@ -111,11 +124,13 @@ const ACTOR_LABEL: Record<Actor, string> = {
 
 const EDITED = { title: '고친 제목', description: '고친 설명' };
 const ORIGINAL_COMMENT = '원래 댓글';
+const PAID_AMOUNT = 1000;
 
 describe('authorization matrix (PRD §7.5)', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
   let ome: FakeOmeApi;
+  let toss: FakeTossPayments;
   let world: World;
 
   const anonymous = () => request.agent(app.getHttpServer());
@@ -133,11 +148,19 @@ describe('authorization matrix (PRD §7.5)', () => {
   const rows = async () => ({
     broadcasts: await broadcastRows(),
     comments: await prisma.comment.findMany({ orderBy: { id: 'asc' } }),
+    donations: await prisma.donation.findMany({ orderBy: { id: 'asc' } }),
   });
 
   const comments = async (w: World) =>
     (await anonymous().get(`/api/broadcasts/${w.targetId}/comments`))
       .body as CommentView[];
+
+  const donations = async (w: World) =>
+    (await anonymous().get(`/api/broadcasts/${w.targetId}/donations`)).body as {
+      total: number;
+      count: number;
+      donations: { id: string }[];
+    };
 
   const DRIVERS: Record<Action, ActionDriver> = {
     '방송 목록 조회': {
@@ -298,6 +321,61 @@ describe('authorization matrix (PRD §7.5)', () => {
         expect(await comments(w)).toEqual([]);
       },
     },
+    후원: {
+      // `donorId` rides along to prove a client cannot order in someone
+      // else's name.
+      send: (client, w) =>
+        client
+          .post(`/api/broadcasts/${w.targetId}/donations`)
+          .send({ amount: 3000, donorId: w.owner.id }),
+      verifyAllowed: async (res, w) => {
+        const placed = res.body as DonationOrder;
+        expect(placed).toMatchObject({ amount: 3000, customerKey: w.other.id });
+        expect(await donations(w)).toMatchObject({ total: PAID_AMOUNT });
+        const paid = await w.as.other.post('/api/donations/confirm').send({
+          paymentKey: 'pay_new',
+          orderId: placed.orderId,
+          amount: 3000,
+        });
+        expect(paid.status).toBe(200);
+        expect(await donations(w)).toMatchObject({
+          total: PAID_AMOUNT + 3000,
+          count: 2,
+        });
+      },
+    },
+    '후원 승인': {
+      send: (client, w) =>
+        client.post('/api/donations/confirm').send(w.pendingOrder),
+      verifyAllowed: async (res, w) => {
+        expect(res.body).toMatchObject({
+          amount: w.pendingOrder.amount,
+          donor: { id: w.other.id, nickname: w.other.nickname },
+          broadcastId: w.targetId,
+        });
+        expect(toss.calls).toEqual([w.pendingOrder]);
+        expect(await donations(w)).toMatchObject({
+          total: PAID_AMOUNT + w.pendingOrder.amount,
+          count: 2,
+        });
+      },
+    },
+    '후원 내역 조회': {
+      send: (client, w) =>
+        client.get(`/api/broadcasts/${w.targetId}/donations`),
+      verifyAllowed: (res, w) => {
+        expect(res.body).toEqual({
+          total: PAID_AMOUNT,
+          count: 1,
+          donations: [
+            expect.objectContaining({
+              amount: PAID_AMOUNT,
+              donor: { id: w.other.id, nickname: w.other.nickname },
+            }),
+          ],
+        });
+      },
+    },
     '내 방송 조회': {
       send: (client) => client.get('/api/me/broadcasts'),
       verifyAllowed: (res, w, actor) => {
@@ -312,6 +390,7 @@ describe('authorization matrix (PRD §7.5)', () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
     ome = fakeOmeApiOf(app);
+    toss = fakeTossPaymentsOf(app);
     await resetDatabase(app);
     const owner = await signUpAndLogIn(app, { nickname: '소유자' });
     const other = await signUpAndLogIn(app, { nickname: '타인' });
@@ -322,6 +401,7 @@ describe('authorization matrix (PRD §7.5)', () => {
       targetId: '',
       targetEndedAt: null,
       targetCommentId: '',
+      pendingOrder: { paymentKey: '', orderId: '', amount: 0 },
       othersId: '',
       as: { anonymous: anonymous(), other: other.agent, owner: owner.agent },
     };
@@ -362,15 +442,40 @@ describe('authorization matrix (PRD §7.5)', () => {
         body: ORIGINAL_COMMENT,
       },
     });
+    await prisma.donation.create({
+      data: {
+        orderId: 'don_matrix_paid',
+        broadcastId: target.id,
+        donorId: world.other.id,
+        amount: PAID_AMOUNT,
+        status: 'PAID',
+        paymentKey: 'pay_matrix_paid',
+        approvedAt: now,
+      },
+    });
+    const pending = await prisma.donation.create({
+      data: {
+        orderId: 'don_matrix_pending',
+        broadcastId: target.id,
+        donorId: world.other.id,
+        amount: 2000,
+      },
+    });
     world = {
       ...world,
       status,
       targetId: target.id,
       targetEndedAt: target.endedAt,
       targetCommentId: comment.id,
+      pendingOrder: {
+        paymentKey: 'pay_matrix_pending',
+        orderId: pending.orderId,
+        amount: pending.amount,
+      },
       othersId: others.id,
     };
     ome.reset();
+    toss.reset();
   }
 
   describe.each(STATUSES)('owner’s broadcast is %s', (status) => {
@@ -397,6 +502,7 @@ describe('authorization matrix (PRD §7.5)', () => {
         if (expected >= 400) {
           expect(await rows()).toEqual(before);
           expect(ome.calls).toEqual([]);
+          expect(toss.calls).toEqual([]);
         } else {
           await driver.verifyAllowed(res, world, actor);
         }
@@ -423,6 +529,8 @@ describe('authorization matrix (PRD §7.5)', () => {
         client.patch(`/api/comments/${id}`).send({ body: '고친 댓글' }),
       'DELETE comment': (client: TestAgent, id: string) =>
         client.delete(`/api/comments/${id}`),
+      'POST donation': (client: TestAgent, id: string) =>
+        client.post(`/api/broadcasts/${id}/donations`).send({ amount: 1000 }),
     };
 
     it.each(
@@ -453,6 +561,20 @@ describe('authorization matrix (PRD §7.5)', () => {
       expect((await world.as.anonymous.patch(url).send(bad)).status).toBe(401);
       expect((await world.as.other.patch(url).send(bad)).status).toBe(403);
       expect((await world.as.owner.patch(url).send(bad)).status).toBe(400);
+    });
+
+    it('checks a donation’s streamer and status before its body', async () => {
+      const bad = { amount: 1 };
+      const send = (actor: Actor) =>
+        world.as[actor]
+          .post(`/api/broadcasts/${world.targetId}/donations`)
+          .send(bad);
+      expect((await send('anonymous')).status).toBe(401);
+      expect((await send('owner')).status).toBe(403);
+      expect((await send('other')).status).toBe(409);
+      await seed('LIVE');
+      expect((await send('owner')).status).toBe(403);
+      expect((await send('other')).status).toBe(400);
     });
 
     // PRD §7.5 gives comment edits to the author alone, so owning the
@@ -562,6 +684,5 @@ describe('authorization matrix (PRD §7.5)', () => {
   // its issue lands, so a missing row stays visible here.
   describe('rows not built yet', () => {
     it.todo('스트림 키 조회·재발급: 비로그인 401, 타인 403, 소유자 허용 (P3)');
-    it.todo('후원: 비로그인 401, 타인 허용, 자기 방송 후원 거절 (#20)');
   });
 });

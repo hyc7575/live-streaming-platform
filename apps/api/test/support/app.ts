@@ -15,6 +15,11 @@ import {
 } from '../../src/auth/test-accounts.js';
 import { configureApp } from '../../src/configure-app.js';
 import { PrismaService } from '../../src/database/database.module.js';
+import {
+  TOSS_CONFIG,
+  TOSS_PAYMENTS,
+  type TossConfig,
+} from '../../src/donations/toss-payments.js';
 import { OME_API } from '../../src/ome/ome-api.js';
 import {
   PUBLISH_CONFIG,
@@ -34,12 +39,15 @@ import {
 } from '../../src/recording/recordings-config.js';
 import { FakeClock } from './fake-clock.js';
 import { FakeOmeApi } from './fake-ome-api.js';
+import { FakeTossPayments, TEST_TOSS_CONFIG } from './fake-toss-payments.js';
 
 export const TEST_SESSION_SECRET = 'test-session-secret';
 export const TEST_OME_WEBHOOK_SECRET = 'test-ome-webhook-secret';
 
 // Runs the real AppModule against DATABASE_URL (migrations already applied).
 // Test accounts stay off unless a test passes a config, whatever .env says.
+// Toss always gets fake keys and a fake API; pass `toss: null` for an app
+// whose keys are missing.
 export async function createTestApp(
   options: {
     cookieSecure?: boolean;
@@ -47,6 +55,7 @@ export async function createTestApp(
     sweepIntervalMs?: number;
     recordings?: RecordingsConfig;
     reconcileIntervalMs?: number;
+    toss?: TossConfig | null;
   } = {},
 ): Promise<NestExpressApplication> {
   const moduleRef = await Test.createTestingModule({
@@ -79,6 +88,10 @@ export async function createTestApp(
     )
     .overrideProvider(RECONCILE_INTERVAL_MS)
     .useValue(options.reconcileIntervalMs ?? null)
+    .overrideProvider(TOSS_CONFIG)
+    .useValue(options.toss === undefined ? TEST_TOSS_CONFIG : options.toss)
+    .overrideProvider(TOSS_PAYMENTS)
+    .useValue(new FakeTossPayments())
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({
     rawBody: true,
