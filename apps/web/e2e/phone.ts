@@ -1,4 +1,5 @@
 import { devices, type Page } from '@playwright/test';
+import { mockPublishApi, PUBLISH_PAGE } from './publishPage';
 
 const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR;
 
@@ -55,8 +56,9 @@ export function emulatePhoneCameras() {
 }
 
 export async function openPreview(page: Page) {
+  await mockPublishApi(page.context());
   await page.addInitScript(emulatePhoneCameras);
-  await page.goto('/studio/mobile');
+  await page.goto(PUBLISH_PAGE);
   await page.getByRole('button', { name: '카메라 켜기' }).click();
 }
 

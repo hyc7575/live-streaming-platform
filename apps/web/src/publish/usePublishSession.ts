@@ -29,6 +29,8 @@ export interface PublishSession {
    * exists this does nothing: it sends whatever `stream` holds by then.
    */
   replaceTrack: (track: MediaStreamTrack) => void;
+  /** Stops sending `kind` until the next `replaceTrack`. */
+  releaseTrack: (kind: 'audio' | 'video') => void;
   /** Stops the publish, then ends the broadcast on the server. */
   end: () => void;
   /** Drops a publish that has not been ended, leaving the broadcast as it is. */
@@ -191,5 +193,9 @@ export function usePublishSession(broadcastId: string): PublishSession {
     publisher.current?.replaceTrack(track);
   }, []);
 
-  return { state, start, end, cancel, replaceTrack };
+  const releaseTrack = useCallback((kind: 'audio' | 'video') => {
+    publisher.current?.releaseTrack(kind);
+  }, []);
+
+  return { state, start, end, cancel, replaceTrack, releaseTrack };
 }

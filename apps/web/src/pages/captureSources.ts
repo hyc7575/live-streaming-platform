@@ -22,7 +22,7 @@ export type ActiveCapture =
 export type CaptureSlot =
   | { kind: 'off'; notice: string | null }
   | { kind: 'acquiring'; source: CaptureSource }
-  | { kind: 'failed'; message: string }
+  | { kind: 'failed'; message: string; permissionGuide: boolean }
   | ({ kind: 'on' } & ActiveCapture);
 
 export type CaptureEndReason = PcCaptureEndReason | CameraCaptureEndReason;
@@ -33,6 +33,8 @@ interface SourceSpec {
   acquiringText: string;
   start: () => Promise<ActiveCapture>;
   failureMessage: (error: unknown) => string;
+  /** The browser blocked the device, so only its settings can bring it back. */
+  isPermissionDenied: (error: unknown) => boolean;
   /** Status texts for a page that offers this source first. */
   offer: { placeholder: string; onAirWithoutCapture: string };
 }
@@ -58,6 +60,7 @@ export const CAPTURE_SOURCES: Record<CaptureSource, SourceSpec> = {
       error instanceof PcCaptureError && error.source === 'mic'
         ? '마이크를 쓸 수 없습니다. 브라우저의 마이크 권한을 확인하세요.'
         : '화면을 선택하지 않았습니다. 다시 선택하세요.',
+    isPermissionDenied: () => false,
     offer: {
       placeholder: '화면을 공유하거나 카메라를 켜면 미리보기가 보입니다.',
       onAirWithoutCapture:
@@ -76,6 +79,8 @@ export const CAPTURE_SOURCES: Record<CaptureSource, SourceSpec> = {
       CAMERA_FAILURE[
         error instanceof CameraCaptureError ? error.reason : 'unknown'
       ],
+    isPermissionDenied: (error) =>
+      error instanceof CameraCaptureError && error.reason === 'denied',
     offer: {
       placeholder: '카메라를 켜면 미리보기가 보입니다.',
       onAirWithoutCapture:

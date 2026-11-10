@@ -578,9 +578,11 @@ curl -s http://localhost:3000/api/broadcasts/$ID   # "status":"ENDED", endedAt�
 9. Chrome 상단의 "공유 중지"를 누른다. 송출 화면에 "화면 공유를 중지해 방송을 종료했습니다."가 뜨고, 시크릿 창은 10초 안에 "방송이 끝났습니다."로 바뀐다.
 10. 새 방송으로 "화면 공유"를 다시 누르고, 공유 창의 "전체 화면" 탭에 "시스템 오디오와 함께 공유" 스위치가 있는지 본다(PRD §7.1, §7.8). 결과는 아래 "지원 환경" 표에 적는다.
 
-### 모바일 카메라 캡처 (#22)
+### 모바일 송출 (#15)
 
-모바일 스트리머의 카메라와 마이크를 MediaStream 하나로 잡고, 전·후면을 바꾸고, 화면이 꺼지지 않게 한다. 아직 송출하지 않는다. 미리보기 화면은 `/studio/mobile`이고 로그인하지 않아도 열린다.
+휴대폰 카메라와 마이크로 송출하고, 송출 중에 전·후면을 바꿔도 송출이 이어진다. 화면을 건드리지 않아도 꺼지지 않는다(PRD §7.1, T5, 인수 시나리오 6·11). 모바일 송출은 PC와 같은 송출 화면(`/studio/broadcasts/:id`)을 쓴다. 화면 공유를 못 하는 브라우저(휴대폰)에는 "카메라 켜기"만 보인다.
+
+전·후면 전환은 이렇게 한다. 송출 연결은 카메라 트랙의 복제본을 보내는데, 복제본도 원본과 같은 카메라 장치를 붙잡는다. 대부분의 휴대폰은 카메라를 한 번에 하나만 열 수 있으므로, 전환할 때 먼저 송출 중인 복제본을 멈추고(`RTCRtpSender.replaceTrack(null)`), 새 카메라를 연 뒤 그 복제본을 같은 sender에 끼운다. 전환하는 동안(1초 안쪽) 영상 프레임이 잠깐 멈추고 소리는 이어진다.
 
 자동 확인 (Google Chrome 필요, 가짜 카메라·마이크 사용):
 
@@ -588,24 +590,55 @@ curl -s http://localhost:3000/api/broadcasts/$ID   # "status":"ENDED", endedAt�
 pnpm --filter @lsp/web e2e   # headless. CI도 같은 명령을 돌린다
 ```
 
-`apps/web/e2e/cameraCapture.spec.ts`와 `cameraCaptureSingle.spec.ts`가 Pixel 7 에뮬레이션에서 다음을 확인한다.
+`apps/web/e2e/cameraCapture.spec.ts`와 `cameraCaptureSingle.spec.ts`가 Pixel 7 에뮬레이션의 송출 화면(API는 가짜 응답)에서 다음을 확인한다.
 
-- 미리보기 `<video>`의 스트림에 영상 트랙 1개, 오디오 트랙 1개가 있다.
+- 미리보기 `<video>`의 스트림에 영상 트랙 1개, 오디오 트랙 1개가 있다. 전면 카메라 미리보기는 좌우 반전된다.
 - "후면 카메라로 전환"을 누르면 같은 스트림 객체에서 영상 트랙만 바뀐다. 오디오 트랙 id는 그대로이고, 이전 영상 트랙은 `ended`다. 다시 누르면 전면으로 돌아온다.
-- "화면 꺼짐 방지가 켜져 있습니다."가 뜬다. "미리보기 끝내기"를 누르면 모든 트랙이 `ended`이고 Wake Lock이 풀린다.
+- "화면 꺼짐 방지가 켜져 있습니다."가 뜬다. "카메라 끄기"를 누르면 모든 트랙이 `ended`이고 Wake Lock이 풀린다.
 - Wake Lock 권한이 없거나 API가 없으면 각각 안내 문구가 뜬다.
 - 카메라가 하나뿐이면 전환 버튼이 없다.
 - 카메라 권한을 거부하면 iPhone(Safari)·Android(Chrome)별로 다시 허용하는 방법이 뜬다. 카메라가 없을 때(`NotFoundError`)는 다른 문구가 뜬다.
 
+실제 OME까지 이어서 확인하려면 "송출에서 시청까지"의 명령으로 PostgreSQL, OME, API를 띄우고 `pnpm --filter @lsp/web e2e:stack`을 돌린다. `apps/web/e2e-stack/mobilePublish.spec.ts`가 Pixel 7 에뮬레이션으로 다음을 확인한다(약 1분 30초).
+
+- 전면 카메라(640×480)로 송출하고, 비로그인 시청 창에서 재생된다.
+- 송출 중에 후면 카메라로 바꾸면 sender가 후면 트랙을 보내고, 후면 카메라를 여는 순간에는 전면 카메라 트랙(송출 복제본 포함)이 하나도 살아 있지 않다.
+- 후면 카메라는 1280×720으로 연다. 시청 창의 hls.js가 새 해상도로 바뀌고 재생 시간이 계속 늘어난다. 다시 전면으로 바꾸면 640×480으로 돌아온다.
+- 1분 동안 아무것도 누르지 않아도 "송출 중입니다."와 `LIVE`가 유지되고, Wake Lock이 풀리지 않으며, 시청 재생이 50초 넘게 늘어난다.
+- 종료하면 원본과 복제본을 합친 모든 카메라·마이크 트랙이 `ended`이고 시청 창이 "방송이 끝났습니다."로 바뀐다.
+
 Chrome의 가짜 카메라는 전·후면(`facingMode`) 정보가 없다. 그래서 테스트는 `facingMode` 요청을 가짜 카메라 두 대(`fake_device_0`이 전면, `fake_device_1`이 후면)로 바꿔 주는 스크립트를 페이지에 넣는다. 페이지가 다시 보일 때 Wake Lock을 다시 요청하는지는 headless Chrome에서 페이지를 숨길 수 없어 단위 테스트(`src/capture/screenWakeLock.test.ts`)로 확인한다.
 
-사람이 확인하는 절차 (PC Chrome):
+같은 Wi-Fi의 휴대폰으로 확인하는 절차 (Mac, mkcert 필요):
 
-1. `pnpm --filter @lsp/web dev`로 웹을 띄우고 Chrome에서 `/studio/mobile`을 연다.
-2. "카메라 켜기"를 누르고 카메라·마이크를 허용한다. 미리보기가 보이고 "화면 꺼짐 방지가 켜져 있습니다."가 뜬다.
-3. 주소창의 카메라 아이콘에서 권한을 "차단"으로 바꾸고 새로고침한 뒤 "카메라 켜기"를 누른다. 권한을 다시 허용하는 안내가 뜬다.
+휴대폰 브라우저는 `http://<LAN IP>`에서 카메라를 막으므로 웹을 https로 연다. 송출 영상은 OME가 알려 주는 ICE 후보로 가므로 `OME_HOST_IP`도 Mac의 LAN IP여야 한다.
 
-휴대폰에서 열려면 https 주소가 필요하다. 브라우저는 `http://<PC의 LAN IP>`에서 카메라 API를 막고, 이 화면은 "https:// 로 시작하는 주소로 여세요"라고 안내한다. 실제 휴대폰(iOS Safari, Android Chrome) 확인은 배포 주소에서 송출과 함께 한다(#15).
+1. Mac과 휴대폰을 같은 Wi-Fi에 연결하고 인증서를 만든다. 스크립트는 `.env`를 고치지 않고, 넣을 줄과 다음 단계를 출력한다.
+
+   ```sh
+   brew install mkcert            # 없을 때만
+   scripts/lan-https.sh           # LAN IP를 바꾸려면 인자로 준다: scripts/lan-https.sh 192.168.0.10
+   ```
+
+2. 출력대로 `.env`에 `WEB_HTTPS_CERT=.certs/lan.pem`, `WEB_HTTPS_KEY=.certs/lan-key.pem`, `OME_HOST_IP=<Mac LAN IP>`를 넣는다.
+3. OME를 새 주소로 다시 만들고 API와 웹을 띄운다.
+
+   ```sh
+   docker compose up -d --wait ome
+   pnpm --filter @lsp/api dev
+   pnpm --filter @lsp/web dev     # Network: https://<LAN IP>:<WEB_PORT> 가 찍힌다
+   ```
+
+4. 스크립트가 알려 준 `rootCA.pem`을 휴대폰에 설치한다. Android는 설정 → 보안 → 암호화 및 사용자 인증 정보 → 인증서 설치 → CA 인증서, iPhone은 AirDrop으로 받은 프로필을 설치하고 설정 → 일반 → 정보 → 인증서 신뢰 설정에서 켠다.
+5. 휴대폰에서 `https://<LAN IP>:<WEB_PORT>`를 열고 스트리머 A로 로그인한다. 내 방송에서 방송을 만들고 송출 화면을 연다. "카메라 켜기"만 보이고 "화면 공유"는 없다.
+6. "카메라 켜기" → 카메라·마이크 허용 → "방송 시작"을 누른다. "송출 중입니다."가 뜬다.
+7. Mac Chrome 시크릿 창에서 `https://<LAN IP>:<WEB_PORT>/broadcasts/<방송 id>`를 연다. 휴대폰 영상과 소리가 나온다(인수 시나리오 6).
+8. 휴대폰에서 "후면 카메라로 전환"을 누른다. 시청 창이 몇 초 뒤 후면 영상으로 바뀌고 재생이 멈추지 않는다. "전면 카메라로 전환"으로 돌아와도 같다.
+9. 휴대폰을 1분 동안 건드리지 않는다. 화면이 꺼지지 않고 시청 창 재생이 이어진다(인수 시나리오 11).
+10. "방송 종료" → "종료하기"를 누른다. 휴대폰의 카메라 사용 표시가 꺼지고 시청 창이 "방송이 끝났습니다."로 바뀐다.
+11. 확인이 끝나면 `.env`의 `WEB_HTTPS_CERT`·`WEB_HTTPS_KEY`를 비우고 `OME_HOST_IP=127.0.0.1`로 되돌린 뒤 `docker compose up -d --wait ome`를 다시 실행한다. e2e는 http 웹과 `127.0.0.1` OME를 전제로 한다.
+
+결과는 아래 "지원 환경" 표에 기기·OS·브라우저 버전과 함께 적는다. LTE(Wi-Fi 끔) 송출은 배포 주소에서 확인한다.
 
 ## 지원 환경
 
@@ -616,7 +649,8 @@ Chrome의 가짜 카메라는 전·후면(`facingMode`) 정보가 없다. 그래
 | 화면 공유 창의 "시스템 오디오와 함께 공유" 스위치 | macOS 26.5, Chrome 156 | "전체 화면" 탭에 스위치가 있고 기본값은 꺼짐이다. "Chrome 탭"에는 "탭 오디오와 함께 공유"(기본값 켜짐)가 있다 |
 | 시스템 소리가 실제로 섞이는지 | macOS 26.5, Chrome 156 | 미확인. 전체 화면을 공유하려면 macOS 화면 녹화 권한이 필요하고, 자동 테스트로는 확인하지 않았다 |
 | Screen Wake Lock | macOS, Chrome 156 headless (Playwright, Pixel 7 에뮬레이션) | 권한(`screen-wake-lock`)을 주면 잠금을 얻는다. 주지 않으면 `NotAllowedError`로 거절되고 "화면 꺼짐 방지를 켜지 못했습니다."가 뜬다 |
-| 모바일 카메라 전·후면 전환, 화면 꺼짐 방지 | iOS Safari, Android Chrome | 미확인. 실제 휴대폰 확인은 #15에서 한다 |
+| 모바일 송출, 송출 중 전·후면 전환, 1분 화면 유지 | Chrome 156 headless (Playwright, Pixel 7 에뮬레이션, 가짜 카메라) + 로컬 OME | 송출·전환·해상도 변경 후 hls.js 재생 유지·Wake Lock 유지 확인 (`e2e-stack/mobilePublish.spec.ts`) |
+| 같은 기능을 실제 휴대폰에서 | iOS Safari, Android Chrome | 미확인. 위 "같은 Wi-Fi의 휴대폰으로 확인하는 절차"로 확인한 뒤 적는다 |
 
 macOS 시스템 소리를 직접 확인하는 절차: 시스템 설정 → 개인정보 보호 및 보안 → 화면 및 시스템 오디오 녹음에서 Chrome을 허용한다. 송출 화면에서 "화면 공유" → "전체 화면" → "시스템 오디오와 함께 공유"를 켜고 공유한다. 다른 앱(예: 음악 앱)에서 소리를 내고 화면 소리 미터가 움직이는지 본다.
 
