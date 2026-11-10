@@ -30,6 +30,8 @@
   --color-player-scrim: rgba(0, 0, 0, 0.7);
   /* Behind the 방송 전 notice laid over the streamer's standby image. */
   --color-standby-notice-band: rgba(0, 0, 0, 0.6);
+  /* Dims the page behind a confirm dialog. */
+  --color-backdrop: rgba(0, 0, 0, 0.5);
 
   --font-sans:
     'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,

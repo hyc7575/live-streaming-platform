@@ -10,7 +10,9 @@ import {
 } from './whipPublisher';
 
 export type PublishSessionState =
-  | { kind: 'idle'; error: string | null }
+  // `retry`: the publish was refused or never connected, so the start button
+  // offers to try again.
+  | { kind: 'idle'; error: string | null; retry?: boolean }
   | { kind: 'requesting' }
   | { kind: 'connecting' }
   | { kind: 'live' }
@@ -64,8 +66,13 @@ function publishErrorMessage(
   if (event.kind === 'disconnected') {
     return '송출 연결이 끊겼습니다. 다시 시작하세요.';
   }
-  return event.status === 401
-    ? '송출이 허가되지 않았습니다. 다시 시도하세요.'
+  if (event.status === 401) {
+    return '송출이 허가되지 않았습니다. 다시 시도하세요.';
+  }
+  // No answer from OME, or ICE never connected: usually a network that
+  // blocks both UDP and TURN.
+  return event.status === null
+    ? '송출 서버에 연결하지 못했습니다. 네트워크를 바꾸거나 다시 시도하세요.'
     : '송출 서버에 연결하지 못했습니다. 잠시 후 다시 시도하세요.';
 }
 
@@ -147,7 +154,11 @@ export function usePublishSession(broadcastId: string): PublishSession {
               setState(
                 ended
                   ? { kind: 'ended', elsewhere: true }
-                  : { kind: 'idle', error: publishErrorMessage(event) },
+                  : {
+                      kind: 'idle',
+                      error: publishErrorMessage(event),
+                      retry: event.kind === 'failed',
+                    },
               );
             });
           },

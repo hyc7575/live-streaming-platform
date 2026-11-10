@@ -1,11 +1,19 @@
 import {
+  useCallback,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
-import { Link, useParams } from 'react-router';
+import {
+  Link,
+  useBlocker,
+  useParams,
+  type Blocker,
+  type BlockerFunction,
+} from 'react-router';
 import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
@@ -123,6 +131,9 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
     active?.source === 'camera' ? active.capture : null,
   );
   const cameraSwitching = camera?.status === 'live' && camera.switching;
+  const leave = useLeaveGuard(
+    session.state.kind === 'connecting' || session.state.kind === 'live',
+  );
 
   useEffect(() => {
     alive.current = true;
@@ -220,6 +231,7 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
             </Link>
           </div>
         </div>
+        <LeaveConfirm blocker={leave} />
       </section>
     );
   }
@@ -316,7 +328,9 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
                   disabled={session.state.kind !== 'idle' || cameraSwitching}
                   onClick={() => startPublish(active)}
                 >
-                  방송 시작
+                  {session.state.kind === 'idle' && session.state.retry
+                    ? '다시 시도'
+                    : '방송 시작'}
                 </button>
                 <button
                   type="button"
@@ -343,7 +357,81 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
           </div>
         </div>
       </div>
+      <LeaveConfirm blocker={leave} />
     </section>
+  );
+}
+
+/**
+ * While `onAir`, asks before the streamer leaves: unmounting this page drops
+ * the publish, and the server ends the broadcast after its grace period.
+ * A reload or a closed tab gets the browser's own prompt; a move within the
+ * app (header links, back) is held for {@link LeaveConfirm}.
+ */
+function useLeaveGuard(onAir: boolean): Blocker {
+  useEffect(() => {
+    if (!onAir) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [onAir]);
+  // useBlocker hands a changed function to the router only in a passive
+  // effect, which can run a frame after the page shows that it is
+  // publishing. A ref set at commit closes that gap.
+  const blocking = useRef(onAir);
+  useLayoutEffect(() => {
+    blocking.current = onAir;
+  }, [onAir]);
+  const shouldBlock = useCallback<BlockerFunction>(
+    ({ currentLocation, nextLocation }) =>
+      blocking.current && currentLocation.pathname !== nextLocation.pathname,
+    [],
+  );
+  return useBlocker(shouldBlock);
+}
+
+function LeaveConfirm({ blocker }: { blocker: Blocker }) {
+  const stay = useRef<HTMLButtonElement>(null);
+  const blocked = blocker.state === 'blocked';
+  useEffect(() => {
+    if (blocked) stay.current?.focus();
+  }, [blocked]);
+  if (blocker.state !== 'blocked') return null;
+  return (
+    <div className={styles.backdrop}>
+      <div
+        className={styles.leaveDialog}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="leave-confirm-text"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') blocker.reset();
+        }}
+      >
+        <p id="leave-confirm-text" className={styles.confirmText}>
+          송출 중입니다. 이 화면을 떠나면 방송이 끊깁니다.
+        </p>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.danger}
+            onClick={() => blocker.proceed()}
+          >
+            떠나기
+          </button>
+          <button
+            ref={stay}
+            type="button"
+            className={styles.secondary}
+            onClick={() => blocker.reset()}
+          >
+            머무르기
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
