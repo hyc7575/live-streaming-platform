@@ -36,7 +36,7 @@
   font-weight: 600;
 }
 
-.howling {
+.playerNote {
   margin: var(--space-3) 0 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);

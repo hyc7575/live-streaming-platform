@@ -4,19 +4,39 @@ import { BroadcastGrid } from '../components/BroadcastGrid';
 import { useApi } from '../use-api';
 import styles from './ListPage.module.css';
 
+// `status` is the page's ?status= value, `path` what the API is asked.
 const FILTERS = [
-  { status: null, label: '전체', empty: '아직 공개된 방송이 없습니다.' },
-  { status: 'LIVE', label: 'LIVE', empty: '지금 LIVE인 방송이 없습니다.' },
-  { status: 'ENDED', label: '방송 종료', empty: '끝난 방송이 없습니다.' },
+  {
+    status: null,
+    label: '전체',
+    path: '/broadcasts',
+    empty: '아직 공개된 방송이 없습니다.',
+  },
+  {
+    status: 'LIVE',
+    label: 'LIVE',
+    path: '/broadcasts?status=LIVE',
+    empty: '지금 LIVE인 방송이 없습니다.',
+  },
+  {
+    status: 'ENDED',
+    label: '방송 종료',
+    path: '/broadcasts?status=ENDED',
+    empty: '끝난 방송이 없습니다.',
+  },
+  {
+    status: 'REPLAY',
+    label: '다시보기',
+    path: '/replays',
+    empty: '다시 볼 수 있는 방송이 없습니다.',
+  },
 ] as const;
 
 export function HomePage() {
   const [params] = useSearchParams();
   const filter =
     FILTERS.find((f) => f.status === params.get('status')) ?? FILTERS[0];
-  const broadcasts = useApi<Broadcast[]>(
-    filter.status ? `/broadcasts?status=${filter.status}` : '/broadcasts',
-  );
+  const broadcasts = useApi<Broadcast[]>(filter.path);
 
   return (
     <section>

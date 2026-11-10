@@ -10,6 +10,12 @@ export interface OmeApi {
   // does not exist counts as already dropped.
   dropStream(broadcastId: string): Promise<void>;
   listStreams(): Promise<string[]>;
+  // Recording tasks are keyed by the broadcast id. Starting one that already
+  // exists, or stopping one that does not, counts as done.
+  startRecord(broadcastId: string): Promise<void>;
+  stopRecord(broadcastId: string): Promise<void>;
+  // Ids of every recording task OME holds, recording or waiting.
+  listRecords(): Promise<string[]>;
 }
 
 export const OME_API = Symbol('OME_API');
@@ -33,9 +39,18 @@ export function omeApiConfigFromEnv(
 
 const REQUEST_TIMEOUT_MS = 5000;
 
-const STREAMS_PATH = `/v1/vhosts/default/apps/${OME_APP}/streams`;
+const APP_PATH = `/v1/vhosts/default/apps/${OME_APP}`;
+const STREAMS_PATH = `${APP_PATH}/streams`;
+
+// Output profile names from ome/Server.xml <Encodes>. Without them OME also
+// writes the Opus track kept for WebRTC playback; these leave H.264 + AAC.
+const RECORD_VARIANTS = ['bypass_video', 'aac_audio'];
 
 const streamListSchema = z.object({ response: z.array(z.string()) });
+
+const recordListSchema = z.object({
+  response: z.array(z.object({ id: z.string() })),
+});
 
 export class HttpOmeApi implements OmeApi {
   private readonly authorization: string;
@@ -63,10 +78,53 @@ export class HttpOmeApi implements OmeApi {
     return streamListSchema.parse(await res.json()).response;
   }
 
-  private request(method: 'GET' | 'DELETE', path: string): Promise<Response> {
+  // OME v0.21 answers a duplicate id with 400, not the 409 its docs name.
+  async startRecord(broadcastId: string): Promise<void> {
+    const path = `${APP_PATH}:startRecord`;
+    const res = await this.request('POST', path, {
+      id: broadcastId,
+      stream: { name: broadcastId, variantNames: RECORD_VARIANTS },
+    });
+    const body = await res.text();
+    if (res.ok || (res.status === 400 && body.includes('Duplicate ID'))) {
+      return;
+    }
+    throw new Error(`OME POST ${path} answered ${res.status}: ${body}`);
+  }
+
+  async stopRecord(broadcastId: string): Promise<void> {
+    const path = `${APP_PATH}:stopRecord`;
+    const res = await this.request('POST', path, { id: broadcastId });
+    await res.body?.cancel();
+    if (res.ok || res.status === 404) return;
+    throw new Error(`OME POST ${path} answered ${res.status}`);
+  }
+
+  async listRecords(): Promise<string[]> {
+    const path = `${APP_PATH}:records`;
+    const res = await this.request('POST', path, {});
+    if (!res.ok) {
+      await res.body?.cancel();
+      throw new Error(`OME POST ${path} answered ${res.status}`);
+    }
+    return recordListSchema.parse(await res.json()).response.map((r) => r.id);
+  }
+
+  private request(
+    method: 'GET' | 'DELETE' | 'POST',
+    path: string,
+    body?: unknown,
+  ): Promise<Response> {
     return fetch(`${this.config.baseUrl}${path}`, {
       method,
-      headers: { authorization: this.authorization },
+      headers:
+        body === undefined
+          ? { authorization: this.authorization }
+          : {
+              authorization: this.authorization,
+              'content-type': 'application/json',
+            },
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   }

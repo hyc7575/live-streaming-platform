@@ -39,6 +39,8 @@ services:
       OME_API_ACCESS_TOKEN: ${OME_API_ACCESS_TOKEN:?OME_API_ACCESS_TOKEN을 .env에 넣으세요}
     volumes:
       - ./ome/Server.xml:/opt/ovenmediaengine/bin/origin_conf/Server.xml:ro
+      # 녹화 파일(#19). 호스트에서 도는 API가 같은 폴더를 읽고 지운다.
+      - ${RECORDINGS_DIR:-./recordings}:/opt/ovenmediaengine/records
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     ports:
@@ -48,6 +50,16 @@ services:
       - '${OME_TURN_PORT:-3478}:${OME_TURN_PORT:-3478}/tcp'
       # 관리 API는 호스트의 API만 부르므로 루프백에만 연다.
       - '127.0.0.1:${OME_API_PORT:-8081}:8081/tcp'
+
+  # 녹화 파일 정적 서빙. 운영에서는 Caddy가 /recordings를 내주고, 개발에서는 Vite가 /recordings를 여기로 넘긴다.
+  recordings:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    command: ['caddy', 'file-server', '--root', '/srv', '--listen', ':8090']
+    volumes:
+      - ${RECORDINGS_DIR:-./recordings}:/srv:ro
+    ports:
+      - '127.0.0.1:${RECORDINGS_HTTP_PORT:-8090}:8090/tcp'
 
 volumes:
   postgres-data:

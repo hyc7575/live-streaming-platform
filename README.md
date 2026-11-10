@@ -700,6 +700,68 @@ curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X DELETE $API/comments/$C
 curl -s $API/broadcasts/$ID/comments                                                # []
 ```
 
+### 7. 녹화·다시보기 (#19)
+
+`LIVE`가 된 방송은 OME가 자동으로 녹화하고, 끝난 방송은 방송 목록의 "다시보기" 탭에서 다시 본다(PRD §7.1, §8.4). 녹화 파일이 디스크를 채우지 않도록 용량 상한을 넘으면 오래된 녹화부터 지운다(T6).
+
+이 기능은 `Broadcast.recordingFiles` 열을 새로 쓴다. 이 변경을 받은 뒤에는 `pnpm --filter @lsp/api db:migrate`로 마이그레이션을 적용하고, OME 설정과 compose가 바뀌었으므로 `docker compose up -d --wait`로 OME를 다시 만들고 녹화 정적 서버(`recordings`)를 띄운다.
+
+흐름:
+
+1. 송출 허가(3절 3번)로 방송이 `LIVE`가 되면 API가 OME 관리 API `POST /v1/vhosts/default/apps/app:startRecord`를 부른다. 녹화 id와 스트림 이름은 방송 id다. Webhook 응답은 이 호출을 기다리지 않는다(OME가 Webhook을 3초까지만 기다리고, 넘으면 송출을 거절한다).
+2. OME는 `recordings/<방송 id>/<녹화 id>_<순번>.mp4`로 쓴다. 쓰는 동안은 `tmp_…` 이름이고, 송출이 끊기면 `.mp4`로 바뀐다. 영상은 H.264, 소리는 AAC 한 트랙만 남긴다.
+3. 유예 시간 안에 재접속하면(5절) 같은 녹화가 이어지지만 파일은 순번이 하나 늘어난 새 파일이다. 다시보기는 파일마다 "1부", "2부"로 보이고 한 부가 끝나면 다음 부를 이어서 재생한다.
+4. 종료 경로는 모두 `:stopRecord`를 부른다. 소유자 종료와 `LIVE` 삭제는 4절의 송출 끊기 다음에, 정리 작업(5절)은 유예를 넘겨 `ENDED`로 바꾼 방송마다 부른다. 녹화 중지가 실패해도 종료는 성공으로 돌려준다. 아래 녹화 정리가 맞춘다.
+5. 녹화 정리(`RecordingReconciler`)가 30초마다 돈다.
+   - OME의 녹화 작업 목록과 DB의 `LIVE` 방송을 대조해, `LIVE`가 아닌 방송의 작업은 멈추고 작업이 없는 `LIVE` 방송은 시작한다.
+   - 녹화 폴더를 읽어 `ENDED` 방송의 다 쓴 `.mp4` 목록을 `recordingFiles`에 적는다(오래된 파일 먼저). 아직 `tmp_` 파일이 있으면 다음 회차로 미룬다. 폴더가 사라진 방송은 목록을 비운다. 방송이 지워진 폴더는 지운다.
+   - 폴더 전체 크기가 `RECORDINGS_MAX_GB`(기본 10, GiB)를 넘으면 오래 전에 끝난 방송의 녹화부터 지운다. DB 목록을 먼저 비우고 폴더를 지우므로 다시보기 목록에 없는 파일이 남지 않는다. `LIVE` 방송의 녹화는 지우지 않는다.
+6. `GET /api/replays`는 `ENDED`이면서 `recordingFiles`가 있는 방송만 늦게 끝난 순으로 준다(최대 100개). 녹화 파일은 같은 출처 `/recordings/<방송 id>/<파일>.mp4`로 재생한다. 운영에서는 Caddy가, 개발에서는 compose의 `recordings` 정적 서버가 내주고 Vite가 `/recordings`를 그리로 넘긴다. Caddy는 `tmp_…`와 `.xml`을 숨기고 Range 요청에 206으로 답한다.
+7. 시청 화면은 `ENDED`이면서 녹화가 있으면 다시보기 플레이어를 띄우고, 그 아래에 "방송이 끝났습니다. 녹화된 방송을 다시 볼 수 있습니다."를 둔다. 시청 중에 방송이 끝난 시청자도 종료를 알 수 있다(T9).
+
+로컬 OME(v0.21.0)로 잰 것:
+
+| 질문 | 결과 |
+|---|---|
+| Webhook 시점에는 스트림이 없는데 `:startRecord`가 되나 | 된다. 스트림이 없으면 작업이 `ready`로 예약되고 스트림이 생기면 녹화를 시작한다. 그래서 허가 직후에 부른다 |
+| 녹화는 언제부터 담기나 | OME 출력 스트림이 생기고(LL-HLS 재생 목록이 나오는 시점) 첫 키프레임이 지난 뒤다. 한 번 잰 값: 허가 → 녹화 시작 6.4초, 출력 스트림 → 녹화 시작 2.7초. 방송 첫 몇 초는 녹화에 없다 |
+| 파일 형식 | MP4. Chrome에서 바로 재생됐고 Range 요청으로 탐색된다. OME 설정에 `variantNames`를 주지 않으면 H.264 + AAC + Opus(소리 두 트랙)라 `bypass_video`·`aac_audio`만 고른다. TS는 Chrome이 직접 재생하지 않고, WebM은 H.264를 담지 못한다 |
+| 유예 안 재접속 | 같은 녹화 작업이 `ready`로 돌아갔다가 이어서 쓰지만 파일은 나뉜다(`_0.mp4`, `_1.mp4`) |
+| 같은 id로 `:startRecord` 두 번 | 400 `Duplicate ID already exists`(문서의 409가 아니다). 이미 녹화 중으로 본다 |
+| 없는 id로 `:stopRecord` | 404. 이미 멈춘 것으로 본다. 스트림이 없는 `ready` 작업도 200으로 멈춘다 |
+
+자동 테스트:
+
+- `apps/api/test/ome-api.spec.ts`: 녹화 시작·중지·목록 요청의 경로, 본문, `Content-Type`. 시작의 400 `Duplicate ID`와 중지의 404는 성공, 다른 400·401·500은 오류.
+- `apps/api/test/recording-plan.spec.ts`: 정리 계획 순수 함수. 폴더와 DB를 맞추는 표, `tmp_` 대기, 상한에서 오래된 `ENDED`부터 지우기, `LIVE`는 지우지 않고 넘친 만큼 알리기, 정확히 상한이면 그대로.
+- `apps/api/test/recordings.e2e.spec.ts` (실제 PostgreSQL, 임시 폴더, 가짜 OME): 작업 시작·중지 맞추기, OME가 죽어도 파일 정리는 계속, 여러 부분의 순서와 `/api/replays`, `tmp_` 이름이 바뀐 뒤 반영, 지워진 방송의 폴더 삭제, 상한에서 DB를 먼저 비우고 폴더 삭제, 타이머.
+- `apps/api/test/publish.e2e.spec.ts`·`broadcasts.e2e.spec.ts`·`reconnect-grace.e2e.spec.ts`: 허가가 녹화를 시작하고 녹화 호출이 끝나지 않아도 Webhook이 바로 답한다. 종료는 송출을 끊은 뒤 녹화를 멈추고, 두 번 불러도 200이며 녹화 중지 실패도 200이다. `LIVE` 삭제와 유예 초과 정리도 녹화를 멈춘다. `/api/replays`의 거르기와 순서.
+- `apps/web/src/components/ReplayPlayer.test.tsx`, `broadcast-pages.test.tsx`: 다시보기 탭과 빈 목록 문구, 녹화가 있는 `ENDED` 방송의 플레이어와 종료 안내, 부분 버튼과 다음 부로 넘어가기.
+- `apps/web/e2e-stack/replay.spec.ts` (실제 OME, `e2e:stack`): 송출 → 새로고침 → 유예 안 재송출 → 종료하면 다시보기 목록에 두 부분으로 오른다. 파일은 `video/mp4`, Range 요청은 206이다. 시청자가 "다시보기" 탭에서 들어가 1부를 재생하고 끝 근처로 넘기면 2부로 넘어가 재생된다. 다른 테스트는 미디어를 한 번도 보내지 않은 방송(허가는 됐지만 SDP가 틀림)이 끝난 뒤 정리 한 회차가 지나도 목록에 없음을 확인한다. 로컬 실측: 종료 → 목록 등장 4.1~24.4초.
+
+실제 OME로 확인: 3절의 명령을 그대로 쓴다. `docker compose up -d --wait`가 녹화 폴더(`RECORDINGS_DIR`, 기본 저장소 루트의 `recordings/`)를 OME와 정적 서버에 연결한다. API도 같은 폴더를 기본값으로 읽는다. `RECORDINGS_DIR`을 바꾸면 절대 경로를 넣는다.
+
+> `pnpm --filter @lsp/web e2e:stack`을 기본 병렬로 돌리면 `mobilePublish.spec.ts`가 카메라 폭 640 대신 480을 받아 실패할 수 있다. 여러 브라우저가 동시에 송출하면 Chrome이 해상도를 낮추기 때문이고, 이 변경 전 main에서도 같게 실패한다. `--workers=1`이면 열 개 모두 통과한다.
+
+화면에서 확인:
+
+1. 3절 1~3번대로 송출을 시작한다. 몇 초 뒤 `recordings/<방송 id>/`에 `tmp_…` 파일이 생긴다.
+2. 송출 화면을 새로고침하고 30초 안에 다시 "방송 시작"을 누른다. 10초쯤 뒤 "방송 종료" → "종료하기"를 누른다.
+3. 30초 안에 방송 목록의 "다시보기" 탭에 이 방송이 나타난다. 들어가면 플레이어 아래에 "1부"·"2부"와 나뉜 이유, "방송이 끝났습니다. 녹화된 방송을 다시 볼 수 있습니다."가 보인다. 재생하면 1부가 끝난 뒤 2부가 이어진다.
+4. 송출을 시작하자마자 종료한 방송은 녹화가 없어 "다시보기"에 나타나지 않고, 상세는 "방송이 끝났습니다."만 띄운다.
+
+API로 확인:
+
+```sh
+curl -s http://localhost:3000/api/replays                      # 녹화가 있는 ENDED 방송만, "recordingFiles":["<id>/<녹화 id>_0.mp4",...]
+F=<위 응답의 recordingFiles 하나>
+curl -s -o /dev/null -w '%{http_code} %{content_type}\n' http://localhost:5173/recordings/$F   # 200 video/mp4 (Vite → 정적 서버)
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Range: bytes=0-99' http://localhost:5173/recordings/$F   # 206
+du -sh recordings                                               # 녹화가 쓰는 용량
+```
+
+용량 상한을 바로 확인하려면 `.env`에 `RECORDINGS_MAX_GB=0.001`(약 1MB)을 넣고 API를 다시 띄운다. 녹화가 있는 방송을 둘 이상 끝내면 30초 안에 먼저 끝난 방송의 녹화 폴더가 지워지고, API 로그에 `Evicted the recording of <id> to stay under the cap`이 남으며 다시보기 목록에서 빠진다.
+
 ## 운영 배포
 
 운영 서버는 `deploy/compose.yaml` 하나로 Caddy, API, OvenMediaEngine, PostgreSQL을 띄운다. 첫 배포, 재배포, 로그, 다운 감시는 [docs/OPERATIONS.md](docs/OPERATIONS.md)에 있다. 다운 알림을 받으면 서버 저장소 폴더에서 아래 세 줄로 복구한다.

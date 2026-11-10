@@ -15,6 +15,7 @@ describe('HttpOmeApi', () => {
   let seen: SeenRequest[];
   let answer: number;
   let answerBody: string | null;
+  let posted: { contentType: string | undefined; body: unknown }[];
 
   beforeAll(async () => {
     server = createServer((req, res) => {
@@ -23,8 +24,18 @@ describe('HttpOmeApi', () => {
         url: req.url,
         authorization: req.headers.authorization,
       });
-      res.writeHead(answer, { 'content-type': 'application/json' });
-      res.end(answerBody ?? JSON.stringify({ statusCode: answer }));
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => {
+        if (req.method === 'POST') {
+          posted.push({
+            contentType: req.headers['content-type'],
+            body: JSON.parse(Buffer.concat(chunks).toString()) as unknown,
+          });
+        }
+        res.writeHead(answer, { 'content-type': 'application/json' });
+        res.end(answerBody ?? JSON.stringify({ statusCode: answer }));
+      });
     });
     await new Promise<void>((resolve) =>
       server.listen(0, '127.0.0.1', resolve),
@@ -34,6 +45,7 @@ describe('HttpOmeApi', () => {
 
   beforeEach(() => {
     seen = [];
+    posted = [];
     answer = 200;
     answerBody = null;
   });
@@ -125,6 +137,117 @@ describe('HttpOmeApi', () => {
 
     it('throws when OME is unreachable', async () => {
       await expect((await unreachableApi()).listStreams()).rejects.toThrow();
+    });
+  });
+
+  const basic = `Basic ${Buffer.from('admin-token').toString('base64')}`;
+
+  describe('startRecord', () => {
+    it('posts the broadcast as both task id and stream, H.264 + AAC only', async () => {
+      await api().startRecord('b-1');
+      expect(seen).toEqual([
+        {
+          method: 'POST',
+          url: '/v1/vhosts/default/apps/app:startRecord',
+          authorization: basic,
+        },
+      ]);
+      expect(posted).toEqual([
+        {
+          contentType: 'application/json',
+          body: {
+            id: 'b-1',
+            stream: {
+              name: 'b-1',
+              variantNames: ['bypass_video', 'aac_audio'],
+            },
+          },
+        },
+      ]);
+    });
+
+    it('treats a duplicate id (400) as already started', async () => {
+      answer = 400;
+      answerBody = JSON.stringify({
+        message: '[HTTP] Duplicate ID already exists (400)',
+        statusCode: 400,
+      });
+      await expect(api().startRecord('b-1')).resolves.toBeUndefined();
+    });
+
+    it('throws on any other 400', async () => {
+      answer = 400;
+      answerBody = JSON.stringify({ message: 'Bad request', statusCode: 400 });
+      await expect(api().startRecord('b-1')).rejects.toThrow('400');
+    });
+
+    it.each([401, 404, 500])('throws when OME answers %i', async (status) => {
+      answer = status;
+      await expect(api().startRecord('b-1')).rejects.toThrow(String(status));
+    });
+
+    it('throws when OME is unreachable', async () => {
+      await expect(
+        (await unreachableApi()).startRecord('b-1'),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('stopRecord', () => {
+    it('posts the task id', async () => {
+      await api().stopRecord('b-1');
+      expect(seen).toEqual([
+        {
+          method: 'POST',
+          url: '/v1/vhosts/default/apps/app:stopRecord',
+          authorization: basic,
+        },
+      ]);
+      expect(posted).toEqual([
+        { contentType: 'application/json', body: { id: 'b-1' } },
+      ]);
+    });
+
+    it('treats an unknown id (404) as already stopped', async () => {
+      answer = 404;
+      await expect(api().stopRecord('b-1')).resolves.toBeUndefined();
+    });
+
+    it.each([400, 401, 500])('throws when OME answers %i', async (status) => {
+      answer = status;
+      await expect(api().stopRecord('b-1')).rejects.toThrow(String(status));
+    });
+  });
+
+  describe('listRecords', () => {
+    it('reads the task ids', async () => {
+      answerBody = JSON.stringify({
+        message: 'OK',
+        response: [
+          { id: 'b-1', state: 'recording', stream: { name: 'b-1' } },
+          { id: 'b-2', state: 'ready', stream: { name: 'b-2' } },
+        ],
+        statusCode: 200,
+      });
+      expect(await api().listRecords()).toEqual(['b-1', 'b-2']);
+      expect(seen).toEqual([
+        {
+          method: 'POST',
+          url: '/v1/vhosts/default/apps/app:records',
+          authorization: basic,
+        },
+      ]);
+      expect(posted).toEqual([{ contentType: 'application/json', body: {} }]);
+    });
+
+    it.each([401, 404, 500])('throws when OME answers %i', async (status) => {
+      answer = status;
+      await expect(api().listRecords()).rejects.toThrow(String(status));
+    });
+
+    it('throws on a body without a task list', async () => {
+      answerBody = JSON.stringify({ statusCode: 200 });
+      await expect(api().listRecords()).rejects.toThrow();
     });
   });
 });

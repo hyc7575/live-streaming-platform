@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -22,6 +24,14 @@ import {
   PublishSweeper,
   SWEEP_INTERVAL_MS,
 } from '../../src/publish/publish-sweeper.js';
+import {
+  RECONCILE_INTERVAL_MS,
+  RecordingReconciler,
+} from '../../src/recording/recording-reconciler.js';
+import {
+  RECORDINGS_CONFIG,
+  type RecordingsConfig,
+} from '../../src/recording/recordings-config.js';
 import { FakeClock } from './fake-clock.js';
 import { FakeOmeApi } from './fake-ome-api.js';
 
@@ -35,6 +45,8 @@ export async function createTestApp(
     cookieSecure?: boolean;
     testAccounts?: TestAccountsConfig;
     sweepIntervalMs?: number;
+    recordings?: RecordingsConfig;
+    reconcileIntervalMs?: number;
   } = {},
 ): Promise<NestExpressApplication> {
   const moduleRef = await Test.createTestingModule({
@@ -58,6 +70,15 @@ export async function createTestApp(
     .useValue(new FakeClock())
     .overrideProvider(SWEEP_INTERVAL_MS)
     .useValue(options.sweepIntervalMs ?? null)
+    .overrideProvider(RECORDINGS_CONFIG)
+    .useValue(
+      options.recordings ?? {
+        dir: join(tmpdir(), 'lsp-test-no-recordings'),
+        maxBytes: 1024 ** 3,
+      },
+    )
+    .overrideProvider(RECONCILE_INTERVAL_MS)
+    .useValue(options.reconcileIntervalMs ?? null)
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({
     rawBody: true,
@@ -72,6 +93,10 @@ export async function createTestApp(
 
 export function sweeperOf(app: NestExpressApplication): PublishSweeper {
   return app.get(PublishSweeper);
+}
+
+export function reconcilerOf(app: NestExpressApplication): RecordingReconciler {
+  return app.get(RecordingReconciler);
 }
 
 // Empties every table except Prisma's migration history.

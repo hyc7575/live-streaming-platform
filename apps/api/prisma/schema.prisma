@@ -39,6 +39,9 @@ model Broadcast {
   startedAt      DateTime?
   endedAt        DateTime?
   disconnectedAt DateTime?
+  // Finalized recording files relative to the recordings root, oldest
+  // first. The reconciler keeps this in step with the disk.
+  recordingFiles String[]        @default([])
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 

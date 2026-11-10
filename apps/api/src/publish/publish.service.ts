@@ -1,8 +1,9 @@
-import { ConflictException, Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 import { CLOCK, type Clock } from '../clock.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { OME_API, type OmeApi } from '../ome/ome-api.js';
 import {
   decideAdmission,
   graceWindow,
@@ -29,10 +30,13 @@ const uuid = z.uuid();
 
 @Injectable()
 export class PublishService {
+  private readonly logger = new Logger(PublishService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(PUBLISH_CONFIG) private readonly config: PublishConfig,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(OME_API) private readonly ome: OmeApi,
   ) {}
 
   // The caller already passed BroadcastOwnerGuard, so the broadcast exists
@@ -112,9 +116,9 @@ export class PublishService {
         where: { id, status: 'READY' },
         data: { status: 'LIVE', startedAt: now },
       });
-      return count === 1
-        ? { allowed: true }
-        : { allowed: false, reason: 'broadcast not ready' };
+      if (count !== 1) return { allowed: false, reason: 'broadcast not ready' };
+      this.startRecording(id);
+      return { allowed: true };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -124,6 +128,18 @@ export class PublishService {
       }
       throw error;
     }
+  }
+
+  // OME waits at most 3 s for the admission reply and refuses the publish on
+  // a timeout, so the reply never waits on the recording request. OME starts
+  // a task before its stream exists, and RecordingReconciler retries a
+  // failed start.
+  private startRecording(id: string): void {
+    this.ome
+      .startRecord(id)
+      .catch((error: unknown) =>
+        this.logger.error(`Starting the recording of ${id} failed`, error),
+      );
   }
 
   private async reconnect(id: string, now: Date): Promise<AdmissionDecision> {

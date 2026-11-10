@@ -10,12 +10,22 @@ export interface DropStreamCall {
   statusAtCall: BroadcastStatus | null;
 }
 
+export interface RecordCall extends DropStreamCall {
+  kind: 'start' | 'stop';
+}
+
 // Stands in for OME's admin API, which CI does not run.
 export class FakeOmeApi implements OmeApi {
   calls: DropStreamCall[] = [];
   failing = false;
   streams: string[] = [];
   listFailing = false;
+  recordCalls: RecordCall[] = [];
+  // The recording tasks OME holds, keyed by broadcast id.
+  records: string[] = [];
+  recordFailing = false;
+  // Lets a test hold startRecord open, like an OME that never answers.
+  startRecordHangs = false;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -35,11 +45,50 @@ export class FakeOmeApi implements OmeApi {
     return Promise.resolve([...this.streams]);
   }
 
+  async startRecord(broadcastId: string): Promise<void> {
+    await this.recordCall('start', broadcastId);
+    if (this.startRecordHangs) return new Promise(() => {});
+    if (this.recordFailing) throw new Error('OME is unreachable');
+    if (!this.records.includes(broadcastId)) this.records.push(broadcastId);
+  }
+
+  async stopRecord(broadcastId: string): Promise<void> {
+    await this.recordCall('stop', broadcastId);
+    if (this.recordFailing) throw new Error('OME is unreachable');
+    this.records = this.records.filter((id) => id !== broadcastId);
+  }
+
+  listRecords(): Promise<string[]> {
+    if (this.recordFailing) {
+      return Promise.reject(new Error('OME is unreachable'));
+    }
+    return Promise.resolve([...this.records]);
+  }
+
   reset(): void {
     this.calls = [];
     this.failing = false;
     this.streams = [];
     this.listFailing = false;
+    this.recordCalls = [];
+    this.records = [];
+    this.recordFailing = false;
+    this.startRecordHangs = false;
+  }
+
+  private async recordCall(
+    kind: RecordCall['kind'],
+    broadcastId: string,
+  ): Promise<void> {
+    const row = await this.prisma.broadcast.findUnique({
+      where: { id: broadcastId },
+      select: { status: true },
+    });
+    this.recordCalls.push({
+      kind,
+      broadcastId,
+      statusAtCall: row?.status ?? null,
+    });
   }
 }
 

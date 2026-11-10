@@ -29,6 +29,13 @@ export default defineConfig(({ mode }) => {
         // OME: WHIP publish and LL-HLS playback under the web origin, the way
         // Caddy serves them in production.
         '/app': `http://localhost:${env.OME_HTTP_PORT || 3333}`,
+        // Recording files from the static server in compose.yaml, whose root
+        // is the recordings folder itself. The prefix is stripped the way
+        // Caddy's handle_path does in production.
+        '/recordings': {
+          target: `http://localhost:${env.RECORDINGS_HTTP_PORT || 8090}`,
+          rewrite: (path) => path.replace(/^\/recordings/, ''),
+        },
       },
     },
     test: {

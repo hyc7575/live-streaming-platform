@@ -1,7 +1,15 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import type TestAgent from 'supertest/lib/agent.js';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { PrismaService } from '../src/database/database.module.js';
 import type { BroadcastStatus } from '../src/generated/prisma/client.js';
 import {
@@ -16,6 +24,7 @@ import {
   type TestUser,
 } from './support/app.js';
 import { fakeClockOf, type FakeClock } from './support/fake-clock.js';
+import { fakeOmeApiOf, type FakeOmeApi } from './support/fake-ome-api.js';
 import {
   admissionBody,
   mintedToken as mintToken,
@@ -30,16 +39,19 @@ describe('publish', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
   let clock: FakeClock;
+  let ome: FakeOmeApi;
   let owner: { user: TestUser; agent: TestAgent };
 
   beforeAll(async () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
     clock = fakeClockOf(app);
+    ome = fakeOmeApiOf(app);
   });
 
   beforeEach(async () => {
     await resetDatabase(app);
+    ome.reset();
     owner = await signUpAndLogIn(app, { nickname: '소유자' });
   });
 
@@ -160,6 +172,31 @@ describe('publish', () => {
         `/api/broadcasts/${id}`,
       );
       expect(detail.body).toMatchObject({ status: 'LIVE' });
+      await vi.waitFor(() =>
+        expect(ome.recordCalls).toEqual([
+          { kind: 'start', broadcastId: id, statusAtCall: 'LIVE' },
+        ]),
+      );
+    });
+
+    it('answers without waiting for the recording to start', async () => {
+      ome.startRecordHangs = true;
+      const id = await seed('READY');
+      const res = await admission(
+        admissionBody(whipUrl(id, await tokenFor(id))),
+      );
+      expect(res.body).toEqual({ allowed: true });
+      expect(await statusOf(id)).toBe('LIVE');
+    });
+
+    it('admits even when OME refuses to start the recording', async () => {
+      ome.recordFailing = true;
+      const id = await seed('READY');
+      const res = await admission(
+        admissionBody(whipUrl(id, await tokenFor(id))),
+      );
+      expect(res.body).toEqual({ allowed: true });
+      await vi.waitFor(() => expect(ome.recordCalls).toHaveLength(1));
     });
 
     it.each([
@@ -209,6 +246,7 @@ describe('publish', () => {
       const res = await admission(admissionBody(whipUrl(id, mintedToken(id))));
       expect(res.body).toEqual({ allowed: false, reason });
       expect(await statusOf(id)).toBe(status);
+      expect(ome.recordCalls).toEqual([]);
     });
 
     it('refuses a reconnect after the streamer ends the broadcast', async () => {

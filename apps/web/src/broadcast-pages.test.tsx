@@ -35,6 +35,7 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
     startedAt: null,
     endedAt: null,
     createdAt: '2026-11-09T00:00:00.000Z',
+    recordingFiles: [],
     streamer: { id: streamer.id, nickname: streamer.nickname },
     ...overrides,
   };
@@ -92,6 +93,63 @@ it('lists public broadcasts and refetches when a status filter is picked', async
   await screen.findByRole('link', { name: /어제 방송/ });
   expect(screen.queryByRole('link', { name: /지금 방송/ })).toBeNull();
   expect(calls).toContain('GET /api/broadcasts?status=ENDED');
+});
+
+it('lists replays under the 다시보기 tab', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts': [],
+    'GET /api/replays': [
+      broadcast({
+        id: 'b2',
+        title: '녹화된 방송',
+        status: 'ENDED',
+        recordingFiles: ['b2/1_0.mp4'],
+      }),
+    ],
+  });
+  renderAt('/');
+  fireEvent.click(await screen.findByRole('link', { name: '다시보기' }));
+  expect(await screen.findByText('녹화된 방송')).toBeDefined();
+  expect(calls).toContain('GET /api/replays');
+  expect(
+    screen.getByRole('link', { name: '다시보기' }).getAttribute('aria-current'),
+  ).toBe('page');
+});
+
+it('says so when there is nothing to replay', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/replays': [] });
+  renderAt('/?status=REPLAY');
+  expect(
+    await screen.findByText('다시 볼 수 있는 방송이 없습니다.'),
+  ).toBeDefined();
+});
+
+it('plays the recording of an ENDED broadcast under the ended notice', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({
+      status: 'ENDED',
+      recordingFiles: ['b1/1_0.mp4', 'b1/1_1.mp4'],
+    }),
+  });
+  renderAt('/broadcasts/b1');
+  const replay = await screen.findByLabelText('다시보기 화면');
+  expect(replay.getAttribute('src')).toBe('/recordings/b1/1_0.mp4');
+  expect(screen.getByRole('button', { name: '2부' })).toBeDefined();
+  expect(
+    screen.getByText('방송이 끝났습니다. 녹화된 방송을 다시 볼 수 있습니다.'),
+  ).toBeDefined();
+});
+
+it('says the broadcast ended when it has no recording', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+  });
+  renderAt('/broadcasts/b1');
+  expect(await screen.findByText('방송이 끝났습니다.')).toBeDefined();
+  expect(screen.queryByLabelText('다시보기 화면')).toBeNull();
 });
 
 it('sends an anonymous visitor who clicks 방송 만들기 to the login page', async () => {

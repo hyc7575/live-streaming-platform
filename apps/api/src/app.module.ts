@@ -5,6 +5,7 @@ import { CommentsModule } from './comments/comments.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health.controller.js';
 import { PublishModule } from './publish/publish.module.js';
+import { RecordingsModule } from './recording/recordings.module.js';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { PublishModule } from './publish/publish.module.js';
     BroadcastsModule,
     CommentsModule,
     PublishModule,
+    RecordingsModule,
   ],
   controllers: [HealthController],
 })

@@ -38,6 +38,7 @@ const broadcastSelect = {
   startedAt: true,
   endedAt: true,
   createdAt: true,
+  recordingFiles: true,
   streamer: { select: { id: true, nickname: true } },
 } as const satisfies Prisma.BroadcastSelect;
 
@@ -81,6 +82,15 @@ export class BroadcastsService {
         { startedAt: { sort: 'desc', nulls: 'last' } },
         { createdAt: 'desc' },
       ],
+      take: PUBLIC_LIST_LIMIT,
+      select: broadcastSelect,
+    });
+  }
+
+  listReplays(): Promise<BroadcastView[]> {
+    return this.prisma.broadcast.findMany({
+      where: { status: 'ENDED', recordingFiles: { isEmpty: false } },
+      orderBy: { endedAt: 'desc' },
       take: PUBLIC_LIST_LIMIT,
       select: broadcastSelect,
     });
@@ -141,7 +151,9 @@ export class BroadcastsService {
   // PRD §7.4: the database turns ENDED before OME drops the stream, so a
   // publisher reconnecting in between is refused by the admission webhook.
   // The reverse order would let it slip back in. An ENDED broadcast still
-  // gets the drop, so a retry after a failed drop converges.
+  // gets the drop, so a retry after a failed drop converges. Stopping the
+  // recording comes last and may fail: RecordingReconciler stops any task
+  // whose broadcast is no longer LIVE.
   async end(id: string): Promise<BroadcastView> {
     await this.prisma.broadcast.updateMany({
       where: { id, status: 'LIVE' },
@@ -157,6 +169,11 @@ export class BroadcastsService {
     } catch (error) {
       this.logger.error(`Dropping the stream of ${id} failed`, error);
       throw new BadGatewayException(DROP_STREAM_FAILED_MESSAGE);
+    }
+    try {
+      await this.ome.stopRecord(id);
+    } catch (error) {
+      this.logger.error(`Stopping the recording of ${id} failed`, error);
     }
     return broadcast;
   }

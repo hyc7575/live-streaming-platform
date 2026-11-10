@@ -84,6 +84,7 @@ describe('broadcasts', () => {
         startedAt: null,
         endedAt: null,
         createdAt: expect.any(String) as string,
+        recordingFiles: [],
         streamer: { id: user.id, nickname: '불씨' },
       });
     });
@@ -162,6 +163,32 @@ describe('broadcasts', () => {
         expect(res.status).toBe(400);
       },
     );
+  });
+
+  describe('GET /api/replays', () => {
+    async function withRecording(id: string, endedAt?: Date): Promise<void> {
+      await prisma.broadcast.update({
+        where: { id },
+        data: { recordingFiles: [`${id}/1_0.mp4`], endedAt },
+      });
+    }
+
+    it('lists ENDED broadcasts with a recording, latest end first', async () => {
+      const { user } = await signUpAndLogIn(app);
+      const older = await seed(user, '이전 녹화', 'ENDED');
+      await withRecording(older, new Date('2026-11-01T10:00:00Z'));
+      const newer = await seed(user, '최근 녹화', 'ENDED');
+      await withRecording(newer, new Date('2026-11-02T10:00:00Z'));
+      await seed(user, '녹화 없음', 'ENDED');
+      await withRecording(await seed(user, '녹화 중 LIVE', 'LIVE'));
+
+      const res = await request(app.getHttpServer()).get('/api/replays');
+      expect(res.status).toBe(200);
+      expect(titles(res.body)).toEqual(['최근 녹화', '이전 녹화']);
+      expect((res.body as BroadcastView[])[0]?.recordingFiles).toEqual([
+        `${newer}/1_0.mp4`,
+      ]);
+    });
   });
 
   describe('GET /api/me/broadcasts', () => {
@@ -299,10 +326,50 @@ describe('broadcasts', () => {
         { broadcastId: id, statusAtCall: 'ENDED' },
         { broadcastId: id, statusAtCall: 'ENDED' },
       ]);
+      // Only the successful drop is followed by a recording stop.
+      expect(ome.recordCalls).toEqual([
+        { kind: 'stop', broadcastId: id, statusAtCall: 'ENDED' },
+      ]);
+    });
+
+    it('stops the recording after the drop, and again on a second end', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '녹화 중', 'LIVE');
+      ome.records = [id];
+      const first = await agent.post(`/api/broadcasts/${id}/end`);
+      expect(first.status).toBe(200);
+      expect(ome.records).toEqual([]);
+      const second = await agent.post(`/api/broadcasts/${id}/end`);
+      expect(second.status).toBe(200);
+      expect(second.body).toEqual(first.body);
+      expect(ome.recordCalls).toEqual([
+        { kind: 'stop', broadcastId: id, statusAtCall: 'ENDED' },
+        { kind: 'stop', broadcastId: id, statusAtCall: 'ENDED' },
+      ]);
+    });
+
+    it('still ends with 200 when OME cannot stop the recording', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '녹화 중', 'LIVE');
+      ome.recordFailing = true;
+      const res = await agent.post(`/api/broadcasts/${id}/end`);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ status: 'ENDED' });
     });
   });
 
   describe('DELETE /api/broadcasts/:id', () => {
+    it('stops the recording of a LIVE broadcast before deleting it', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '송출 중', 'LIVE');
+      ome.records = [id];
+      expect((await agent.delete(`/api/broadcasts/${id}`)).status).toBe(204);
+      expect(ome.records).toEqual([]);
+      expect(ome.recordCalls).toEqual([
+        { kind: 'stop', broadcastId: id, statusAtCall: 'ENDED' },
+      ]);
+    });
+
     it('ends a LIVE broadcast first and keeps it when OME fails, then a retry deletes it', async () => {
       const { user, agent } = await signUpAndLogIn(app);
       const id = await seed(user, '송출 중', 'LIVE');
