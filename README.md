@@ -762,6 +762,75 @@ du -sh recordings                                               # 녹화가 쓰�
 
 용량 상한을 바로 확인하려면 `.env`에 `RECORDINGS_MAX_GB=0.001`(약 1MB)을 넣고 API를 다시 띄운다. 녹화가 있는 방송을 둘 이상 끝내면 30초 안에 먼저 끝난 방송의 녹화 폴더가 지워지고, API 로그에 `Evicted the recording of <id> to stay under the cap`이 남으며 다시보기 목록에서 빠진다.
 
+### 8. 도네이션 (#20)
+
+로그인한 시청자가 `LIVE` 방송에 토스페이먼츠 테스트 모드로 후원하고, 시청 화면에서 그 방송의 후원 합계와 최근 후원을 본다(PRD §8.4). 실제 돈은 나가지 않는다. 웹훅, 취소·환불, 가상계좌, 정산은 하지 않는다.
+
+이 기능은 `Donation` 표를 새로 쓴다. 이 변경을 받은 뒤에는 `pnpm --filter @lsp/api db:migrate`로 마이그레이션을 적용한다. API는 `TOSS_CLIENT_KEY`·`TOSS_SECRET_KEY`를 읽는다. 둘 중 하나라도 비어 있으면 API는 뜨지만 주문과 승인은 503 `후원 기능이 설정되지 않았습니다.`로 답한다. 키는 API에만 넣는다. 웹은 `VITE_` 변수를 쓰지 않고 주문 응답에 담긴 클라이언트 키로 결제위젯을 띄운다.
+
+로컬에서는 토스 개발자센터 문서의 공개 테스트 키를 쓴다. 이 키는 [tosspayments-sample](https://github.com/tosspayments/tosspayments-sample)의 `express-react/server.js`(시크릿 키)와 `express-react/src/pages/widget/WidgetCheckoutWindow.jsx`(클라이언트 키)에 있다. 공개 키지만 커밋 전 비밀값 검사(gitleaks)가 잡으므로 `.env.example`에는 넣지 않았다. `.env`에 직접 넣거나 실행할 때 명령 앞에 붙인다.
+
+흐름:
+
+1. 시청자가 "후원하기"에서 금액과 메시지를 넣고 "다음"을 누르면 `POST /api/broadcasts/:id/donations`가 주문(`PENDING`)을 저장하고 `orderId`, `orderName`, 금액, 클라이언트 키, `customerKey`(후원자 id)를 돌려준다.
+2. 웹이 결제위젯(SDK v2 `widgets()`)을 그 금액으로 띄운다. "결제하기"를 누르면 토스 결제 화면으로 넘어간다.
+3. 결제가 끝나면 토스가 `/donations/success?paymentKey=…&orderId=…&amount=…`로 돌려보낸다. 이 화면이 `POST /api/donations/confirm`을 한 번 부른다.
+4. 서버는 주문을 찾아 후원자 본인인지와 금액이 주문과 같은지 확인한다. 그다음 한 트랜잭션 안에서 주문 행을 `SELECT … FOR UPDATE`로 잠그고 토스 승인 API를 부른다. 이때 `Idempotency-Key`는 `orderId`다. 응답의 `status`가 `DONE`이고 `totalAmount`, `orderId`, `paymentKey`가 요청과 같을 때만 `PAID`로 바꾼다.
+5. 이미 `PAID`인 주문에 같은 `paymentKey`로 승인이 다시 오면 토스를 부르지 않고 기존 후원을 그대로 준다. 새로고침, 두 번 누르기, 동시 요청 모두 한 번만 반영된다. 동시 요청은 행 잠금으로 줄을 세운다. `orderId`와 `paymentKey`에는 UNIQUE가 걸려 있다.
+6. 토스가 4xx로 거절하면 그 `message`와 `code`를 400으로 전한다. 토스 5xx, 시간 초과(10초), 응답 불일치는 502다. 이 경우 주문은 `PENDING`으로 남아 같은 요청을 다시 보내면 맞춰진다.
+7. 시청 화면은 `GET /api/broadcasts/:id/donations`를 5초마다 불러 합계, 건수, 최근 50건을 보여 준다. `PAID`만 센다. 후원자는 닉네임만 보인다.
+
+규칙:
+
+- 금액은 1,000원 이상 100,000원 이하의 정수다. 메시지는 선택이고 앞뒤 공백을 뺀 뒤 100자까지다.
+- 주문은 방송이 `LIVE`일 때만 받는다. 승인은 방송 상태를 보지 않는다. 결제가 이미 끝난 뒤라 방송이 그새 끝났어도 반영한다.
+- 아무도 결제를 마치지 않은 `PENDING` 주문은 지우지 않는다. 합계에 들어가지 않는다.
+
+| 행동 | 비로그인 | 다른 시청자 | 스트리머 본인 |
+|---|---|---|---|
+| 후원 주문 `POST /broadcasts/:id/donations` | 401 | `LIVE` 201, 그 밖 409 | 403 `내 방송에는 후원할 수 없습니다.` |
+| 후원 승인 `POST /donations/confirm` | 401 | 주문한 본인 200 | 남의 주문 403 `내 후원 주문만 승인할 수 있습니다.` |
+| 후원 내역 `GET /broadcasts/:id/donations` | 200 | 200 | 200 |
+
+그 밖의 응답: 없는 방송 404, 없는 주문 404, 금액 범위 밖 400, 승인 금액이 주문과 다름 400, 이미 다른 주문에 쓰인 `paymentKey` 409. 인가 매트릭스 테스트에 세 행을 더했다.
+
+토스 테스트 모드로 잰 것(2026-11-10, 문서 공개 테스트 키):
+
+| 질문 | 결과 |
+|---|---|
+| 결제창(`payment()`)과 결제위젯(`widgets()`) 중 무엇을 쓰나 | 문서 공개 키는 결제위젯 키라 결제창은 `NOT_SUPPORTED_WIDGET_KEY`로 거절한다. 결제위젯을 쓴다 |
+| 테스트 모드에서 카드 결제를 끝까지 하려면 | 테스트 모드여도 카드사 인증 화면은 실제와 같다. 본인 카드로 인증하고, 돈은 나가지 않는다 |
+| 같은 `Idempotency-Key`로 승인을 두 번 | 두 번 다 200, 같은 본문(`status: "DONE"`) |
+| `Idempotency-Key` 없이 승인을 다시 | 400 `ALREADY_PROCESSED_PAYMENT` |
+
+자동 테스트(토스 네트워크는 부르지 않는다. 승인 API는 가짜로 바꾼다):
+
+- `apps/api/test/donations.e2e.spec.ts` (실제 PostgreSQL): 주문 응답, 금액 경계와 메시지 길이, `READY`·`ENDED` 방송 409, 본인 방송 403, 승인 후 합계 반영, 새로고침·재시도 한 번 반영과 토스 호출 한 번, 동시 승인 두 개의 한 번 반영, 금액 불일치 400, 남의 주문 403, 없는 주문 404, 비로그인 401, 토스 거절 400과 재시도 성공, 토스 오류·응답 불일치 502, `paymentKey` 재사용 409, 방송 종료 뒤 승인, 목록 50건 제한과 전체 합계, 이메일 비노출, 방송 삭제 시 후원 삭제, 키가 없을 때 503.
+- `apps/api/test/toss-payments.spec.ts`: 승인 요청의 Basic 인증과 `Idempotency-Key`, 토스 오류 본문 전달, 네트워크 오류, 환경변수 읽기.
+- `apps/api/test/authorization-matrix.e2e.spec.ts`: "후원", "후원 승인", "후원 내역 조회" 행.
+- `apps/web/src/donations.test.tsx`: 시청 화면 합계와 목록, 스트리머·종료 방송에서 "후원하기" 숨김, 비로그인 로그인 안내, 금액 범위, 주문 → 위젯 → 결제 요청, StrictMode에서도 승인 한 번, 실패·취소 화면.
+
+화면에서 확인(토스 키를 넣고 API와 웹을 띄운 상태):
+
+1. 사용자 A로 방송을 만들고 3절대로 송출해 `LIVE`로 만든다. 시청 화면의 방송 정보 아래에 "후원 0원 0건"과 "아직 후원이 없습니다."가 보인다. A에게는 "후원하기"가 없다.
+2. 로그아웃하고 같은 방송을 열면 "로그인하고 후원해 보세요"가 보인다. 누르면 로그인 화면으로 가고 로그인 뒤 이 방송으로 돌아온다.
+3. 사용자 B로 로그인해 "후원하기"를 누른다. 금액(예: 1,000원)과 메시지를 넣고 "다음"을 누르면 결제위젯이 뜬다.
+4. "신용·체크카드"와 카드사를 고르고 "결제하기"를 누른다. 카드 인증을 마치면 "후원했습니다."와 금액이 보인다.
+5. 이 화면을 새로고침해도 같은 화면이 다시 뜬다. 시청 화면으로 돌아가면 합계와 건수가 한 번만 늘어 있고, B의 닉네임, 금액, 메시지가 목록 맨 위에 있다.
+6. A로 `/broadcasts/<id>/donate`를 직접 열고 "다음"을 누르면 "내 방송에는 후원할 수 없습니다."가 보인다.
+
+API로 확인(위 4번에서 돌아온 주소의 `paymentKey`·`orderId`·`amount`를 쓴다):
+
+```sh
+API=http://localhost:3000/api
+BODY='{"paymentKey":"<paymentKey>","orderId":"<orderId>","amount":1000}'
+curl -s -b b-jar.txt -X POST $API/donations/confirm -H 'Content-Type: application/json' -d "$BODY" -o /dev/null -w '%{http_code}\n'   # 200, 여러 번 보내도 200
+curl -s -X POST $API/donations/confirm -H 'Content-Type: application/json' -d "$BODY" -o /dev/null -w '%{http_code}\n'                # 401
+curl -s -b a-jar.txt -X POST $API/donations/confirm -H 'Content-Type: application/json' -d "$BODY" -o /dev/null -w '%{http_code}\n'   # 403 (남의 주문)
+curl -s -b a-jar.txt -X POST $API/broadcasts/<id>/donations -H 'Content-Type: application/json' -d '{"amount":1000}' -o /dev/null -w '%{http_code}\n'   # 403 (내 방송)
+curl -s $API/broadcasts/<id>/donations                       # "total":1000,"count":1 (한 번만 반영)
+```
+
 ## 운영 배포
 
 운영 서버는 `deploy/compose.yaml` 하나로 Caddy, API, OvenMediaEngine, PostgreSQL을 띄운다. 첫 배포, 재배포, 로그, 다운 감시는 [docs/OPERATIONS.md](docs/OPERATIONS.md)에 있다. 다운 알림을 받으면 서버 저장소 폴더에서 아래 세 줄로 복구한다.
