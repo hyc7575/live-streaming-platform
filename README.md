@@ -2,6 +2,29 @@
 
 브라우저로 PC 화면이나 모바일 카메라를 송출하고, 시청자는 로그인 없이 보는 서비스다.
 
+## 심사자용 확인
+
+- 서비스: https://lsp-live.duckdns.org
+- 테스트 계정: 홈이나 로그인 화면의 "테스트 계정으로 로그인"에서 "스트리머 A" 또는 "사용자 B"를 누른다. 비밀번호를 입력하지 않는다.
+- 권장 환경: PC Chrome + 휴대폰 1대. Edge, Windows, 휴대폰 브라우저 앱(Android Chrome, iOS Safari)은 미검증이다. 확인한 환경은 [지원 환경](#지원-환경)에 있다.
+
+확인 순서 (약 10분). 각 줄 끝의 링크가 자세한 절차다.
+
+1. **PC 송출**: PC에서 "스트리머 A" → "방송 만들기" → 제목 입력 → "만들기"를 누르면 송출 화면이 열린다. 다른 탭에서 소리 나는 영상을 재생해 둔다. "화면 공유" → 공유 창의 "Chrome 탭"에서 그 탭을 고르고 "탭 오디오와 함께 공유"를 켠다 → "방송 시작" → "송출 중입니다. 시청자가 방송을 볼 수 있습니다."가 보인다. [PC 화면 송출](#pc-화면-송출-13)
+2. **휴대폰 시청**: 휴대폰에서 로그인하지 않고 서비스 주소 → "LIVE" 탭 → 방송 카드를 누른다. "방송을 불러오는 중입니다"가 잠시 보인 뒤 화면, 탭 소리, 마이크 소리가 함께 나온다. 소리가 꺼져 있으면 "소리 켜기"를 누른다. [송출에서 시청까지](#3-송출에서-시청까지-10)
+3. **권한 거절**: PC 시크릿 창에서 "사용자 B" → A의 방송을 연다. 수정·삭제·종료 버튼이 없고 "팔로우"만 있다. 주소의 `/broadcasts/`를 `/studio/broadcasts/`로 바꿔 열면 "권한이 없습니다"가 보인다. [방송 수정·삭제와 인가 매트릭스](#2-방송-수정삭제와-인가-매트릭스)
+4. **종료**: A의 송출 화면에서 "방송 종료" → "종료하기"를 누르면 "방송을 종료했습니다."가 보인다. 휴대폰 시청 화면은 10초 안에 "방송이 끝났습니다."로 바뀐다. [방송 종료](#4-방송-종료-11)
+5. **다시보기**: 같은 시청 화면에 "다시보기를 준비하는 중입니다."가 보이고, 새로고침하지 않아도 다시보기 플레이어로 바뀐다. 방송 목록의 "다시보기" 탭에도 이 방송이 있다. [녹화·다시보기](#7-녹화다시보기-19)
+6. **모바일 송출**: 휴대폰에서 "스트리머 A" → "방송 만들기" → "만들기" → "카메라 켜기" → 카메라·마이크 허용 → "방송 시작". PC에서 그 방송을 열어 본다. 휴대폰에서 "후면 카메라로 전환"을 누르면 PC 화면도 바뀐다. "방송 종료" → "종료하기"로 끝낸다. [모바일 송출](#모바일-송출-15)
+
+송출 중에 다른 화면으로 가려 하면 "송출 중입니다. 이 화면을 떠나면 방송이 끊깁니다."가 뜬다. "머무르기"를 누른다. "송출 서버에 연결하지 못했습니다."가 뜨면 네트워크를 바꾸고 "다시 시도"를 누른다.
+
+### 소리가 안 나올 때
+
+- 공유 창에서 "Chrome 탭"을 고르고 "탭 오디오와 함께 공유"를 켠다. 창 공유와 macOS 전체 화면 공유에는 소리가 없다.
+- Chrome으로 송출한다. Firefox와 Safari는 화면 소리를 공유하지 못한다.
+- 송출 화면의 사전 점검을 본다. "화면 소리가 잡히지 않습니다"가 보이면 "다시 선택"을 누른다. [송출 사전 점검](#송출-사전-점검-14)
+
 ## 구성
 
 | 경로 | 내용 |
@@ -10,121 +33,6 @@
 | `apps/web` | React + Vite 웹 앱 (TypeScript strict). UI 지침은 `apps/web/CLAUDE.md` |
 | `compose.yaml` | 로컬 개발용 PostgreSQL, OvenMediaEngine |
 | `docs/` | PRD, pre-mortem, 작업 목록 |
-
-## 실행 방법
-
-필요한 것: Node.js 24 (`.nvmrc`), pnpm 11 (`corepack enable` 또는 `npm i -g pnpm`), Docker, gitleaks (`brew install gitleaks`).
-
-```sh
-pnpm install
-git config core.hooksPath .githooks   # 커밋 전 비밀값 검사 훅
-cp .env.example .env                  # DATABASE_URL, SESSION_SECRET, OME_WEBHOOK_SECRET, OME_API_ACCESS_TOKEN, OME_HOST_IP를 채운다
-docker compose up -d --wait           # PostgreSQL + OME
-pnpm --filter @lsp/api db:migrate     # Prisma 마이그레이션 적용
-pnpm dev                              # API :3000, 웹 :5173
-```
-
-`.env` 예시 (compose 기본값과 맞춘 값):
-
-```sh
-DATABASE_URL=postgresql://lsp:lsp@localhost:5432/lsp
-SESSION_SECRET=<openssl rand -base64 32 결과>
-OME_WEBHOOK_SECRET=<openssl rand -base64 32 결과>
-OME_API_ACCESS_TOKEN=<openssl rand -hex 24 결과>
-OME_HOST_IP=127.0.0.1
-```
-
-`pnpm install`이 Prisma 클라이언트를 `apps/api/src/generated/`에 만든다(`postinstall`). 스키마를 바꾸면 `pnpm --filter @lsp/api db:migrate:dev --name <이름>`으로 마이그레이션 파일을 만들고 커밋한다.
-
-브라우저에서 `http://localhost:5173`을 연다. 웹은 `/api` 요청을 Vite dev proxy로 API에 넘긴다. API 상태는 `curl http://localhost:3000/api/health`로 확인한다.
-
-정리:
-
-```sh
-docker compose down      # 컨테이너만 내린다
-docker compose down -v   # DB 볼륨까지 지운다
-```
-
-### 검사
-
-CI(GitHub Actions)가 push와 pull request마다 같은 명령을 돌린다.
-
-```sh
-pnpm typecheck   # tsc --noEmit
-pnpm lint        # ESLint + Prettier 검사
-pnpm build
-pnpm test        # API: Vitest + supertest, 웹: Vitest + Testing Library
-pnpm format      # Prettier로 고친다
-```
-
-앱 하나만 돌리려면 `pnpm --filter @lsp/api test`처럼 쓴다.
-
-**API 테스트는 실제 PostgreSQL이 필요하다.** `.env`의 `DATABASE_URL`로 접속하고, 테스트마다 모든 테이블을 비운다(`TRUNCATE`). 개발 데이터가 지워지니 필요하면 테스트용 DB를 따로 둔다. 순서:
-
-```sh
-docker compose up -d --wait postgres
-pnpm --filter @lsp/api db:migrate
-pnpm test
-```
-
-CI도 같은 순서로 GitHub Actions의 Postgres 서비스에 마이그레이션을 적용한 뒤 테스트를 돌린다. 테스트 파일은 DB를 같이 쓰므로 하나씩 차례로 돈다(`apps/api/vitest.config.ts`의 `fileParallelism: false`).
-
-## 환경변수
-
-`.env.example`에 이름과 설명이 있다. compose, API, 웹이 모두 저장소 루트의 `.env` 하나를 읽는다. 값을 비워 두면 아래 기본값을 쓴다.
-
-| 이름 | 기본값 | 쓰는 곳 |
-|---|---|---|
-| `COMPOSE_PROJECT_NAME` | `lsp` | compose 프로젝트 이름 (컨테이너·볼륨 이름 앞부분) |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `lsp` / `lsp` / `lsp` | 로컬 PostgreSQL |
-| `POSTGRES_HOST_PORT` | `5432` | PostgreSQL 호스트 포트 (127.0.0.1에만 연다) |
-| `DATABASE_URL` | 없음 (필수) | API·Prisma CLI·API 테스트의 DB 연결 |
-| `SESSION_SECRET` | 없음 (필수) | 세션 쿠키 서명. 송출 토큰 서명 키도 여기서 만든다. 바꾸면 기존 로그인과 발급된 송출 토큰이 모두 풀린다 |
-| `OME_WEBHOOK_SECRET` | 없음 (필수) | OME Admission Webhook 서명 키. API와 OME가 같은 값을 읽는다 |
-| `NODE_ENV` | 없음 | `production`이면 세션 쿠키에 `Secure`를 붙인다 |
-| `TEST_ACCOUNTS_ENABLED` | 없음 (꺼짐) | `true`면 테스트 계정 원클릭 로그인을 켠다 |
-| `TEST_ACCOUNT_A_EMAIL` / `TEST_ACCOUNT_B_EMAIL` | `streamer-a@modak.test` / `user-b@modak.test` | 테스트 계정 이메일 (시드와 API가 같이 읽는다) |
-| `TEST_ACCOUNT_A_NICKNAME` / `TEST_ACCOUNT_B_NICKNAME` | `스트리머 A` / `사용자 B` | 테스트 계정 닉네임 (시드만 읽는다) |
-| `TEST_ACCOUNT_A_PASSWORD` / `TEST_ACCOUNT_B_PASSWORD` | 없음 (시드에 필수) | 테스트 계정 비밀번호 (시드만 읽는다, 8자 이상) |
-| `API_PORT` / `WEB_PORT` | `3000` / `5173` | 개발 서버 포트 |
-| `OME_HOST_IP` | `*` | OME가 ICE 후보로 알리는 주소. 로컬 송출은 `127.0.0.1` |
-| `OME_HTTP_PORT` | `3333` | OME WebRTC 시그널링 + LL-HLS |
-| `OME_ICE_UDP_PORTS` | `10000-10003` | OME WebRTC ICE (UDP 범위) |
-| `OME_ICE_TCP_PORT` | `10000` | OME WebRTC ICE (TCP) |
-| `OME_TURN_PORT` | `3478` | OME 내장 TURN (TCP) |
-| `OME_WEBHOOK_URL` | `http://host.docker.internal:${API_PORT}/api/ome/admission` | OME가 송출 허가를 묻는 API 주소 |
-| `OME_API_ACCESS_TOKEN` | 없음 (필수) | OME 관리 API 토큰. API가 방송을 종료할 때 이 토큰으로 송출 연결을 끊는다. compose의 OME도 같은 값을 읽고, 비어 있으면 `docker compose`가 시작하지 않는다 |
-| `OME_API_PORT` | `8081` | OME 관리 API의 호스트 포트. `127.0.0.1`에만 열린다 |
-| `OME_API_URL` | `http://127.0.0.1:${OME_API_PORT}` | API가 부르는 OME 관리 API 주소 |
-
-### 여러 worktree에서 동시에 띄우기
-
-worktree마다 `.env`에 다른 프로젝트 이름과 포트를 적으면 서로 충돌하지 않는다.
-
-```sh
-COMPOSE_PROJECT_NAME=lsp-feature-x
-POSTGRES_HOST_PORT=25433
-OME_HTTP_PORT=23333
-OME_ICE_UDP_PORTS=20000-20003
-OME_ICE_TCP_PORT=20000
-OME_TURN_PORT=23478
-API_PORT=23000
-WEB_PORT=25173
-```
-
-OME 포트는 호스트와 컨테이너가 **같은 번호**를 쓴다. OME가 ICE 후보에 자기가 듣는 포트 번호를 그대로 적어 브라우저에 알리기 때문에, `20000:10000`처럼 번호를 바꿔 연결하면 브라우저가 엉뚱한 포트로 접속한다. 그래서 compose는 위 변수로 OME 설정과 포트 연결을 함께 바꾼다.
-
-한계: `OME_HOST_IP`를 비우면 OME가 STUN으로 찾은 공인 IP와 컨테이너 내부 IP(172.x)를 ICE 후보로 알린다. 같은 Mac의 브라우저에서 WebRTC 송출을 하려면 `OME_HOST_IP=127.0.0.1`을 적는다. 비우면 ICE가 `checking`에서 멈춰 송출이 실패한다(#2 실측, #10에서 이 값으로 송출 확인). 같은 Wi-Fi의 휴대폰에서 하려면 Mac의 LAN IP를 적어야 할 것으로 보인다(미확인).
-
-## 커밋 전 비밀값 검사
-
-`.githooks/pre-commit`이 스테이징된 변경을 gitleaks로 검사하고, 토큰·키·비밀번호가 있으면 커밋을 막는다. 저장소를 받은 뒤 한 번 설정한다.
-
-```sh
-git config core.hooksPath .githooks
-```
-
-비밀값은 `.env`에만 둔다. `.env`는 `.gitignore`에 있다.
 
 ## 기능 확인
 
@@ -1042,6 +950,22 @@ curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X DELETE $API/streamers/$
 curl -s -b b-jar.txt $API/me/follows                     # []
 ```
 
+## 지원 환경
+
+송출·시청 기능 이슈에서 실제로 확인한 환경만 적는다.
+
+| 확인한 것 | 환경 | 결과 |
+|---|---|---|
+| 화면 공유 창의 "시스템 오디오와 함께 공유" 스위치 | macOS 26.5, Chrome 156 | "전체 화면" 탭에 스위치가 있고 기본값은 꺼짐이다. "Chrome 탭"에는 "탭 오디오와 함께 공유"(기본값 켜짐)가 있다 |
+| 시스템 소리가 실제로 섞이는지 | macOS 26.5, Chrome 156 | 미검증. 전체 화면을 공유하려면 macOS 화면 녹화 권한이 필요하고, 자동 테스트로는 확인하지 않았다 |
+| Screen Wake Lock | macOS, Chrome 156 headless (Playwright, Pixel 7 에뮬레이션) | 권한(`screen-wake-lock`)을 주면 잠금을 얻는다. 주지 않으면 `NotAllowedError`로 거절되고 "화면 꺼짐 방지를 켜지 못했습니다."가 뜬다 |
+| 모바일 송출, 송출 중 전·후면 전환, 1분 화면 유지 | Chrome 156 headless (Playwright, Pixel 7 에뮬레이션, 가짜 카메라) + 로컬 OME | 송출·전환·해상도 변경 후 hls.js 재생 유지·Wake Lock 유지 확인 (`e2e-stack/mobilePublish.spec.ts`) |
+| 같은 기능을 실제 휴대폰에서 (같은 Wi-Fi, 로컬 HTTPS) | Galaxy S22, Slack 앱 안 웹뷰(Android System WebView). Android 버전은 기록하지 않았다 | 2026-11-10 확인. 카메라 송출, PC 시청, 송출 중 전·후면 전환(시청 화면이 약 2~3초 뒤 바뀌고 재생이 이어짐), 1분 방치 뒤에도 송출 유지, 종료(시청 화면이 약 1초 만에 "방송이 끝났습니다."). 방송은 LIVE 93초 뒤 ENDED. mkcert 인증서를 설치하지 않고 경고 화면에서 넘어간 상태로 카메라가 열렸다 |
+| 같은 기능을 휴대폰 브라우저 앱에서 | Android Chrome 앱, iOS Safari | 미검증. 위 절차로 확인한 뒤 적는다 |
+| PC 화면 + 탭 소리 송출 | Windows, Edge | 미검증 |
+
+macOS 시스템 소리를 직접 확인하는 절차: 시스템 설정 → 개인정보 보호 및 보안 → 화면 및 시스템 오디오 녹음에서 Chrome을 허용한다. 송출 화면에서 "화면 공유" → "전체 화면" → "시스템 오디오와 함께 공유"를 켜고 공유한다. 다른 앱(예: 음악 앱)에서 소리를 내고 화면 소리 미터가 움직이는지 본다.
+
 ## 운영 배포
 
 운영 서버는 `deploy/compose.yaml` 하나로 Caddy, API, OvenMediaEngine, PostgreSQL을 띄운다. 첫 배포, 재배포, 로그, 다운 감시는 [docs/OPERATIONS.md](docs/OPERATIONS.md)에 있다. 다운 알림을 받으면 서버 저장소 폴더에서 아래 세 줄로 복구한다.
@@ -1051,21 +975,6 @@ sudo systemctl start docker
 docker compose -f deploy/compose.yaml up -d --wait
 curl -fsS https://lsp-live.duckdns.org/api/health
 ```
-
-## 지원 환경
-
-송출·시청 기능 이슈에서 실제로 확인한 환경만 적는다.
-
-| 확인한 것 | 환경 | 결과 |
-|---|---|---|
-| 화면 공유 창의 "시스템 오디오와 함께 공유" 스위치 | macOS 26.5, Chrome 156 | "전체 화면" 탭에 스위치가 있고 기본값은 꺼짐이다. "Chrome 탭"에는 "탭 오디오와 함께 공유"(기본값 켜짐)가 있다 |
-| 시스템 소리가 실제로 섞이는지 | macOS 26.5, Chrome 156 | 미확인. 전체 화면을 공유하려면 macOS 화면 녹화 권한이 필요하고, 자동 테스트로는 확인하지 않았다 |
-| Screen Wake Lock | macOS, Chrome 156 headless (Playwright, Pixel 7 에뮬레이션) | 권한(`screen-wake-lock`)을 주면 잠금을 얻는다. 주지 않으면 `NotAllowedError`로 거절되고 "화면 꺼짐 방지를 켜지 못했습니다."가 뜬다 |
-| 모바일 송출, 송출 중 전·후면 전환, 1분 화면 유지 | Chrome 156 headless (Playwright, Pixel 7 에뮬레이션, 가짜 카메라) + 로컬 OME | 송출·전환·해상도 변경 후 hls.js 재생 유지·Wake Lock 유지 확인 (`e2e-stack/mobilePublish.spec.ts`) |
-| 같은 기능을 실제 휴대폰에서 (같은 Wi-Fi, 로컬 HTTPS) | Galaxy S22, Slack 앱 안 웹뷰(Android System WebView). Android 버전은 기록하지 않았다 | 2026-11-10 확인. 카메라 송출, PC 시청, 송출 중 전·후면 전환(시청 화면이 약 2~3초 뒤 바뀌고 재생이 이어짐), 1분 방치 뒤에도 송출 유지, 종료(시청 화면이 약 1초 만에 "방송이 끝났습니다."). 방송은 LIVE 93초 뒤 ENDED. mkcert 인증서를 설치하지 않고 경고 화면에서 넘어간 상태로 카메라가 열렸다 |
-| 같은 기능을 휴대폰 브라우저 앱에서 | Android Chrome 앱, iOS Safari | 미확인. 위 절차로 확인한 뒤 적는다 |
-
-macOS 시스템 소리를 직접 확인하는 절차: 시스템 설정 → 개인정보 보호 및 보안 → 화면 및 시스템 오디오 녹음에서 Chrome을 허용한다. 송출 화면에서 "화면 공유" → "전체 화면" → "시스템 오디오와 함께 공유"를 켜고 공유한다. 다른 앱(예: 음악 앱)에서 소리를 내고 화면 소리 미터가 움직이는지 본다.
 
 ## 사용한 오픈소스
 
@@ -1082,3 +991,122 @@ macOS 시스템 소리를 직접 확인하는 절차: 시스템 설정 → 개�
 | [OvenLiveKit-Web](https://github.com/AirenSoft/OvenLiveKit-Web) (`ovenlivekit`) | 브라우저 WHIP 송출 | MIT |
 | [hls.js](https://github.com/video-dev/hls.js) | LL-HLS 재생 | Apache-2.0 |
 | [Playwright](https://playwright.dev) | 웹 e2e 테스트 (개발용, `apps/web/e2e`) | Apache-2.0 |
+
+## 개발
+
+저장소를 받아 로컬에서 띄우고 검사하는 방법이다.
+
+### 실행 방법
+
+필요한 것: Node.js 24 (`.nvmrc`), pnpm 11 (`corepack enable` 또는 `npm i -g pnpm`), Docker, gitleaks (`brew install gitleaks`).
+
+```sh
+pnpm install
+git config core.hooksPath .githooks   # 커밋 전 비밀값 검사 훅
+cp .env.example .env                  # DATABASE_URL, SESSION_SECRET, OME_WEBHOOK_SECRET, OME_API_ACCESS_TOKEN, OME_HOST_IP를 채운다
+docker compose up -d --wait           # PostgreSQL + OME
+pnpm --filter @lsp/api db:migrate     # Prisma 마이그레이션 적용
+pnpm dev                              # API :3000, 웹 :5173
+```
+
+`.env` 예시 (compose 기본값과 맞춘 값):
+
+```sh
+DATABASE_URL=postgresql://lsp:lsp@localhost:5432/lsp
+SESSION_SECRET=<openssl rand -base64 32 결과>
+OME_WEBHOOK_SECRET=<openssl rand -base64 32 결과>
+OME_API_ACCESS_TOKEN=<openssl rand -hex 24 결과>
+OME_HOST_IP=127.0.0.1
+```
+
+`pnpm install`이 Prisma 클라이언트를 `apps/api/src/generated/`에 만든다(`postinstall`). 스키마를 바꾸면 `pnpm --filter @lsp/api db:migrate:dev --name <이름>`으로 마이그레이션 파일을 만들고 커밋한다.
+
+브라우저에서 `http://localhost:5173`을 연다. 웹은 `/api` 요청을 Vite dev proxy로 API에 넘긴다. API 상태는 `curl http://localhost:3000/api/health`로 확인한다.
+
+정리:
+
+```sh
+docker compose down      # 컨테이너만 내린다
+docker compose down -v   # DB 볼륨까지 지운다
+```
+
+#### 검사
+
+CI(GitHub Actions)가 push와 pull request마다 같은 명령을 돌린다.
+
+```sh
+pnpm typecheck   # tsc --noEmit
+pnpm lint        # ESLint + Prettier 검사
+pnpm build
+pnpm test        # API: Vitest + supertest, 웹: Vitest + Testing Library
+pnpm format      # Prettier로 고친다
+```
+
+앱 하나만 돌리려면 `pnpm --filter @lsp/api test`처럼 쓴다.
+
+**API 테스트는 실제 PostgreSQL이 필요하다.** `.env`의 `DATABASE_URL`로 접속하고, 테스트마다 모든 테이블을 비운다(`TRUNCATE`). 개발 데이터가 지워지니 필요하면 테스트용 DB를 따로 둔다. 순서:
+
+```sh
+docker compose up -d --wait postgres
+pnpm --filter @lsp/api db:migrate
+pnpm test
+```
+
+CI도 같은 순서로 GitHub Actions의 Postgres 서비스에 마이그레이션을 적용한 뒤 테스트를 돌린다. 테스트 파일은 DB를 같이 쓰므로 하나씩 차례로 돈다(`apps/api/vitest.config.ts`의 `fileParallelism: false`).
+
+### 환경변수
+
+`.env.example`에 이름과 설명이 있다. compose, API, 웹이 모두 저장소 루트의 `.env` 하나를 읽는다. 값을 비워 두면 아래 기본값을 쓴다.
+
+| 이름 | 기본값 | 쓰는 곳 |
+|---|---|---|
+| `COMPOSE_PROJECT_NAME` | `lsp` | compose 프로젝트 이름 (컨테이너·볼륨 이름 앞부분) |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `lsp` / `lsp` / `lsp` | 로컬 PostgreSQL |
+| `POSTGRES_HOST_PORT` | `5432` | PostgreSQL 호스트 포트 (127.0.0.1에만 연다) |
+| `DATABASE_URL` | 없음 (필수) | API·Prisma CLI·API 테스트의 DB 연결 |
+| `SESSION_SECRET` | 없음 (필수) | 세션 쿠키 서명. 송출 토큰 서명 키도 여기서 만든다. 바꾸면 기존 로그인과 발급된 송출 토큰이 모두 풀린다 |
+| `OME_WEBHOOK_SECRET` | 없음 (필수) | OME Admission Webhook 서명 키. API와 OME가 같은 값을 읽는다 |
+| `NODE_ENV` | 없음 | `production`이면 세션 쿠키에 `Secure`를 붙인다 |
+| `TEST_ACCOUNTS_ENABLED` | 없음 (꺼짐) | `true`면 테스트 계정 원클릭 로그인을 켠다 |
+| `TEST_ACCOUNT_A_EMAIL` / `TEST_ACCOUNT_B_EMAIL` | `streamer-a@modak.test` / `user-b@modak.test` | 테스트 계정 이메일 (시드와 API가 같이 읽는다) |
+| `TEST_ACCOUNT_A_NICKNAME` / `TEST_ACCOUNT_B_NICKNAME` | `스트리머 A` / `사용자 B` | 테스트 계정 닉네임 (시드만 읽는다) |
+| `TEST_ACCOUNT_A_PASSWORD` / `TEST_ACCOUNT_B_PASSWORD` | 없음 (시드에 필수) | 테스트 계정 비밀번호 (시드만 읽는다, 8자 이상) |
+| `API_PORT` / `WEB_PORT` | `3000` / `5173` | 개발 서버 포트 |
+| `OME_HOST_IP` | `*` | OME가 ICE 후보로 알리는 주소. 로컬 송출은 `127.0.0.1` |
+| `OME_HTTP_PORT` | `3333` | OME WebRTC 시그널링 + LL-HLS |
+| `OME_ICE_UDP_PORTS` | `10000-10003` | OME WebRTC ICE (UDP 범위) |
+| `OME_ICE_TCP_PORT` | `10000` | OME WebRTC ICE (TCP) |
+| `OME_TURN_PORT` | `3478` | OME 내장 TURN (TCP) |
+| `OME_WEBHOOK_URL` | `http://host.docker.internal:${API_PORT}/api/ome/admission` | OME가 송출 허가를 묻는 API 주소 |
+| `OME_API_ACCESS_TOKEN` | 없음 (필수) | OME 관리 API 토큰. API가 방송을 종료할 때 이 토큰으로 송출 연결을 끊는다. compose의 OME도 같은 값을 읽고, 비어 있으면 `docker compose`가 시작하지 않는다 |
+| `OME_API_PORT` | `8081` | OME 관리 API의 호스트 포트. `127.0.0.1`에만 열린다 |
+| `OME_API_URL` | `http://127.0.0.1:${OME_API_PORT}` | API가 부르는 OME 관리 API 주소 |
+
+#### 여러 worktree에서 동시에 띄우기
+
+worktree마다 `.env`에 다른 프로젝트 이름과 포트를 적으면 서로 충돌하지 않는다.
+
+```sh
+COMPOSE_PROJECT_NAME=lsp-feature-x
+POSTGRES_HOST_PORT=25433
+OME_HTTP_PORT=23333
+OME_ICE_UDP_PORTS=20000-20003
+OME_ICE_TCP_PORT=20000
+OME_TURN_PORT=23478
+API_PORT=23000
+WEB_PORT=25173
+```
+
+OME 포트는 호스트와 컨테이너가 **같은 번호**를 쓴다. OME가 ICE 후보에 자기가 듣는 포트 번호를 그대로 적어 브라우저에 알리기 때문에, `20000:10000`처럼 번호를 바꿔 연결하면 브라우저가 엉뚱한 포트로 접속한다. 그래서 compose는 위 변수로 OME 설정과 포트 연결을 함께 바꾼다.
+
+한계: `OME_HOST_IP`를 비우면 OME가 STUN으로 찾은 공인 IP와 컨테이너 내부 IP(172.x)를 ICE 후보로 알린다. 같은 Mac의 브라우저에서 WebRTC 송출을 하려면 `OME_HOST_IP=127.0.0.1`을 적는다. 비우면 ICE가 `checking`에서 멈춰 송출이 실패한다(#2 실측, #10에서 이 값으로 송출 확인). 같은 Wi-Fi의 휴대폰에서 하려면 Mac의 LAN IP를 적어야 할 것으로 보인다(미확인).
+
+### 커밋 전 비밀값 검사
+
+`.githooks/pre-commit`이 스테이징된 변경을 gitleaks로 검사하고, 토큰·키·비밀번호가 있으면 커밋을 막는다. 저장소를 받은 뒤 한 번 설정한다.
+
+```sh
+git config core.hooksPath .githooks
+```
+
+비밀값은 `.env`에만 둔다. `.env`는 `.gitignore`에 있다.
