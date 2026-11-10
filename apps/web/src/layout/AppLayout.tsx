@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router';
 import { useAuth } from '../auth/auth-context';
 import styles from './AppLayout.module.css';
+import { FollowPanel } from './FollowPanel';
 
 function AccountMenu() {
   const { state, logOut } = useAuth();
@@ -80,6 +81,11 @@ export function AppLayout() {
             방송 목록
           </NavLink>
           {loggedIn && (
+            <NavLink to="/" className={`${styles.navLink} ${styles.narrowOnly}`}>
+              팔로잉
+            </NavLink>
+          )}
+          {loggedIn && (
             <NavLink to="/studio" className={styles.navLink}>
               내 방송
             </NavLink>
@@ -87,9 +93,12 @@ export function AppLayout() {
         </nav>
         <AccountMenu />
       </header>
-      <main className={styles.main}>
-        <Outlet />
-      </main>
+      <div className={styles.body}>
+        <FollowPanel />
+        <main className={styles.main}>
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

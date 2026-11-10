@@ -60,3 +60,33 @@
   margin: var(--space-4) 0 0;
   white-space: pre-wrap;
 }
+
+.streamerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.follow,
+.following {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.follow {
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.follow:hover {
+  background: var(--color-brand-hover);
+}
+
+.following {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}

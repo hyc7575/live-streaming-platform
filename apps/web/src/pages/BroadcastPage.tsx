@@ -84,6 +84,21 @@ function useWatchedBroadcast(path: string): {
   return { broadcast, recheck };
 }
 
+// PROTOTYPE: local state until the follow API exists.
+function FollowButton() {
+  const [following, setFollowing] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-pressed={following}
+      className={following ? styles.following : styles.follow}
+      onClick={() => setFollowing((f) => !f)}
+    >
+      {following ? '팔로잉' : '팔로우'}
+    </button>
+  );
+}
+
 export function BroadcastPage() {
   const { id = '' } = useParams();
   const { state } = useAuth();
@@ -139,7 +154,10 @@ export function BroadcastPage() {
         <div className={styles.info}>
           <StatusBadge status={b.status} />
           <h1 className={styles.title}>{b.title}</h1>
-          <p className={styles.streamer}>{b.streamer.nickname}</p>
+          <div className={styles.streamerRow}>
+            <p className={styles.streamer}>{b.streamer.nickname}</p>
+            {!isOwner && <FollowButton />}
+          </div>
           {b.description && (
             <p className={styles.description}>{b.description}</p>
           )}
