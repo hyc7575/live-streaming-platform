@@ -79,18 +79,26 @@ export class PublishSweeper implements OnModuleInit, OnModuleDestroy {
     });
     // No OME DELETE as in end(): these streams are absent from the list just
     // fetched, and the webhook refuses a later reconnect once ENDED is saved.
-    const ended = await this.prisma.broadcast.updateMany({
+    const ended = await this.prisma.broadcast.updateManyAndReturn({
       where: {
         status: 'LIVE',
         id: { notIn: listed },
         disconnectedAt: graceWindow(now).past,
       },
       data: { status: 'ENDED', endedAt: now },
+      select: { id: true },
     });
-    if (reconnected.count + lostWithoutClosing.count + ended.count > 0) {
+    if (reconnected.count + lostWithoutClosing.count + ended.length > 0) {
       this.logger.log(
-        `Swept: ${reconnected.count} reconnected, ${lostWithoutClosing.count} lost without closing, ${ended.count} ended`,
+        `Swept: ${reconnected.count} reconnected, ${lostWithoutClosing.count} lost without closing, ${ended.length} ended`,
       );
+    }
+    for (const { id } of ended) {
+      await this.ome
+        .stopRecord(id)
+        .catch((error: unknown) =>
+          this.logger.error(`Stopping the recording of ${id} failed`, error),
+        );
     }
   }
 }

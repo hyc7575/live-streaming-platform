@@ -214,6 +214,18 @@ describe('reconnect grace', () => {
     });
     expect((await detailOf(id)).status).toBe('ENDED');
     expect(ome.calls).toEqual([]);
+    expect(ome.recordCalls.filter((c) => c.kind === 'stop')).toEqual([
+      { kind: 'stop', broadcastId: id, statusAtCall: 'ENDED' },
+    ]);
+  });
+
+  it('ends the broadcast even when OME cannot stop its recording', async () => {
+    const id = await liveBroadcast();
+    await drop(id);
+    ome.recordFailing = true;
+    clock.advance(GRACE_MS);
+    await sweep();
+    expect((await detailOf(id)).status).toBe('ENDED');
   });
 
   it('keeps a broadcast whose closing arrived after the reconnect', async () => {

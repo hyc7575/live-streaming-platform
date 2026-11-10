@@ -62,6 +62,11 @@ export class BroadcastsController {
     return this.broadcasts.listPublic(status);
   }
 
+  @Get('replays')
+  listReplays(): Promise<BroadcastView[]> {
+    return this.broadcasts.listReplays();
+  }
+
   @Get('broadcasts/:id')
   get(@Param('id') id: string): Promise<BroadcastView> {
     return this.broadcasts.get(id);
