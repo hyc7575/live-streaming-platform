@@ -1,0 +1,32 @@
+{
+	# The firewall opens 443/tcp only, so HTTP/3 (443/udp) would never connect.
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$DOMAIN} {
+	# The API trusts exactly one proxy hop for X-Forwarded-Proto and X-Forwarded-For.
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	# OME: WHIP signalling and LL-HLS. Blocking playlist requests and chunked
+	# partial segments must reach the player as soon as OME writes them.
+	handle /app/* {
+		reverse_proxy ome:3333 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		root * /srv
+		@hashed path /assets/*
+		@unhashed not path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		header @unhashed Cache-Control "no-cache"
+		encode zstd gzip
+		try_files {path} /index.html
+		file_server
+	}
+}

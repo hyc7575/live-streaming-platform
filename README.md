@@ -640,6 +640,16 @@ Chrome의 가짜 카메라는 전·후면(`facingMode`) 정보가 없다. 그래
 
 결과는 아래 "지원 환경" 표에 기기·OS·브라우저 버전과 함께 적는다. LTE(Wi-Fi 끔) 송출은 배포 주소에서 확인한다.
 
+## 운영 배포
+
+운영 서버는 `deploy/compose.yaml` 하나로 Caddy, API, OvenMediaEngine, PostgreSQL을 띄운다. 첫 배포, 재배포, 로그, 다운 감시는 [docs/OPERATIONS.md](docs/OPERATIONS.md)에 있다. 다운 알림을 받으면 서버 저장소 폴더에서 아래 세 줄로 복구한다.
+
+```sh
+sudo systemctl start docker
+docker compose -f deploy/compose.yaml up -d --wait
+curl -fsS https://lsp-live.duckdns.org/api/health
+```
+
 ## 지원 환경
 
 송출·시청 기능 이슈에서 실제로 확인한 환경만 적는다.
