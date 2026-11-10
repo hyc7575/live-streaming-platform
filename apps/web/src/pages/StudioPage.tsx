@@ -5,6 +5,14 @@ import { StudioTabs } from '../components/StudioTabs';
 import { useApi } from '../use-api';
 import styles from './ListPage.module.css';
 
+// A broadcast that has not started opens the publish page, since sending is
+// the next step; LIVE and ENDED ones open the watch page like the public list.
+function cardPath(b: Broadcast): string {
+  return b.status === 'READY'
+    ? `/studio/broadcasts/${b.id}`
+    : `/broadcasts/${b.id}`;
+}
+
 export function StudioPage() {
   const broadcasts = useApi<Broadcast[]>('/me/broadcasts');
 
@@ -26,7 +34,7 @@ export function StudioPage() {
             아직 만든 방송이 없습니다. 방송을 만들어 보세요.
           </p>
         ) : (
-          <BroadcastGrid broadcasts={broadcasts.data} />
+          <BroadcastGrid broadcasts={broadcasts.data} linkTo={cardPath} />
         ))}
     </section>
   );
