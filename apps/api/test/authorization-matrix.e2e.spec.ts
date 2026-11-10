@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import type { Response } from 'supertest';
@@ -13,6 +15,7 @@ import {
   createTestApp,
   resetDatabase,
   signUpAndLogIn,
+  thumbnailsDirOf,
   type TestUser,
 } from './support/app.js';
 import { fakeClockOf } from './support/fake-clock.js';
@@ -66,6 +69,7 @@ const MATRIX = {
   '방송 종료':      [401,      403,          { READY: 409, LIVE: 200, ENDED: 200 }],
   '내 방송 조회':   [401,      200,          200],
   '송출 토큰 발급': [401,      403,          { READY: 201, LIVE: 201, ENDED: 409 }],
+  '썸네일 업로드':  [401,      403,          { READY: 409, LIVE: 204, ENDED: 409 }],
   '댓글 목록 조회': [200,      200,          200],
   '댓글 작성':      [401,      201,          201],
   '댓글 수정':      [401,      403,          200],
@@ -79,7 +83,8 @@ const MATRIX = {
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
 // deleted. An ENDED broadcast never goes LIVE again, so it gets no publish
-// token. Comments follow the detail page: any broadcast that page shows,
+// token. A thumbnail is a frame of the live stream, so only a LIVE broadcast
+// takes one. Comments follow the detail page: any broadcast that page shows,
 // READY included, can be read and commented on. Donations are ordered only
 // while LIVE, and never by the streamer, whose 403 comes before the status.
 // A confirm ignores the status: the donor already paid by then.
@@ -131,6 +136,7 @@ const ACTOR_LABEL: Record<Actor, string> = {
 const EDITED = { title: '고친 제목', description: '고친 설명' };
 const ORIGINAL_COMMENT = '원래 댓글';
 const PAID_AMOUNT = 1000;
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 describe('authorization matrix (PRD §7.5)', () => {
   let app: NestExpressApplication;
@@ -301,6 +307,21 @@ describe('authorization matrix (PRD §7.5)', () => {
         );
         const detail = await anonymous().get(`/api/broadcasts/${w.targetId}`);
         expect(detail.body).toMatchObject({ status: w.status });
+      },
+    },
+    '썸네일 업로드': {
+      send: (client, w) =>
+        client
+          .put(`/api/broadcasts/${w.targetId}/thumbnail`)
+          .attach('image', JPEG, 'a.jpg'),
+      verifyAllowed: async (_res, w) => {
+        const detail = await anonymous().get(`/api/broadcasts/${w.targetId}`);
+        const { thumbnailUrl } = detail.body as BroadcastView;
+        expect(thumbnailUrl).toMatch(
+          new RegExp(`^/thumbnails/${w.targetId}/live\\.jpg\\?v=\\d+$`),
+        );
+        const file = join(thumbnailsDirOf(app), w.targetId, 'live.jpg');
+        expect(await readFile(file)).toEqual(JPEG);
       },
     },
     '댓글 목록 조회': {
@@ -640,6 +661,21 @@ describe('authorization matrix (PRD §7.5)', () => {
       await seed('LIVE');
       expect((await send('owner')).status).toBe(403);
       expect((await send('other')).status).toBe(400);
+    });
+
+    // A thumbnail is checked for login, ownership, rate (one attempt per
+    // broadcast every 10 s, invalid ones included), image, then status.
+    it('checks a thumbnail’s owner, rate and image before its status', async () => {
+      const url = `/api/broadcasts/${world.targetId}/thumbnail`;
+      const send = (actor: Actor, image: Buffer) =>
+        world.as[actor].put(url).attach('image', image, 'a.jpg');
+      const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+      expect((await send('anonymous', JPEG)).status).toBe(401);
+      expect((await send('other', JPEG)).status).toBe(403);
+      expect((await send('owner', png)).status).toBe(400);
+      expect((await send('owner', JPEG)).status).toBe(429);
+      fakeClockOf(app).advance(10_000);
+      expect((await send('owner', JPEG)).status).toBe(409);
     });
 
     // PRD §7.5 gives comment edits to the author alone, so owning the

@@ -85,6 +85,7 @@ describe('broadcasts', () => {
         endedAt: null,
         createdAt: expect.any(String) as string,
         recordingFiles: [],
+        thumbnailUrl: null,
         streamer: { id: user.id, nickname: '불씨' },
       });
     });

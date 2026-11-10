@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -8,6 +9,7 @@ import type TestAgent from 'supertest/lib/agent.js';
 import { expect } from 'vitest';
 import { AppModule } from '../../src/app.module.js';
 import type { AuthUser } from '../../src/auth/auth-user.js';
+import { THUMBNAILS_DIR } from '../../src/broadcasts/thumbnail-store.js';
 import { CLOCK } from '../../src/clock.js';
 import {
   TEST_ACCOUNTS_CONFIG,
@@ -47,7 +49,8 @@ export const TEST_OME_WEBHOOK_SECRET = 'test-ome-webhook-secret';
 // Runs the real AppModule against DATABASE_URL (migrations already applied).
 // Test accounts stay off unless a test passes a config, whatever .env says.
 // Toss always gets fake keys and a fake API; pass `toss: null` for an app
-// whose keys are missing.
+// whose keys are missing. Thumbnails go to a fresh temporary folder unless a
+// test passes one.
 export async function createTestApp(
   options: {
     cookieSecure?: boolean;
@@ -56,6 +59,7 @@ export async function createTestApp(
     recordings?: RecordingsConfig;
     reconcileIntervalMs?: number;
     toss?: TossConfig | null;
+    thumbnailsDir?: string;
   } = {},
 ): Promise<NestExpressApplication> {
   const moduleRef = await Test.createTestingModule({
@@ -86,6 +90,11 @@ export async function createTestApp(
         maxBytes: 1024 ** 3,
       },
     )
+    .overrideProvider(THUMBNAILS_DIR)
+    .useValue(
+      options.thumbnailsDir ??
+        mkdtempSync(join(tmpdir(), 'lsp-test-thumbnails-')),
+    )
     .overrideProvider(RECONCILE_INTERVAL_MS)
     .useValue(options.reconcileIntervalMs ?? null)
     .overrideProvider(TOSS_CONFIG)
@@ -106,6 +115,10 @@ export async function createTestApp(
 
 export function sweeperOf(app: NestExpressApplication): PublishSweeper {
   return app.get(PublishSweeper);
+}
+
+export function thumbnailsDirOf(app: NestExpressApplication): string {
+  return app.get<string>(THUMBNAILS_DIR);
 }
 
 export function reconcilerOf(app: NestExpressApplication): RecordingReconciler {
