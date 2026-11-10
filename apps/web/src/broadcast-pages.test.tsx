@@ -540,32 +540,92 @@ it('shows comments to an anonymous visitor with a login link instead of the form
   expect(await screen.findByLabelText('댓글 쓰기')).toBeDefined();
 });
 
-it('offers 수정 and 삭제 only on the viewer’s own comments and marks edits', async () => {
-  stubApi({
-    'GET /api/auth/me': other,
-    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-    [COMMENTS]: [
-      comment({
-        id: 'c1',
-        body: '스트리머 댓글',
-        author: { id: streamer.id, nickname: streamer.nickname },
-      }),
-      comment({
-        id: 'c2',
-        body: '내 댓글',
-        updatedAt: '2026-11-10T01:05:00.000Z',
-      }),
-    ],
-  });
-  renderAt('/broadcasts/b1');
-  const mine = (await screen.findByText('내 댓글')).closest('li')!;
-  const theirs = screen.getByText('스트리머 댓글').closest('li')!;
-  expect(within(mine).getByRole('button', { name: '댓글 수정' })).toBeDefined();
-  expect(within(mine).getByRole('button', { name: '댓글 삭제' })).toBeDefined();
-  expect(within(mine).getByText('(수정됨)')).toBeDefined();
-  expect(within(theirs).queryByRole('button')).toBeNull();
-  expect(within(theirs).queryByText('(수정됨)')).toBeNull();
+it('re-reads comments every 2 s while LIVE and every 5 s once ENDED', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  try {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+      [COMMENTS]: [comment({ body: '첫 댓글' })],
+    };
+    const calls = stubApi(routes);
+    const reads = () => calls.filter((call) => call === COMMENTS).length;
+    renderAt('/broadcasts/b1');
+    await screen.findByText('첫 댓글');
+    const first = reads();
+
+    await act(() => vi.advanceTimersByTimeAsync(1999));
+    expect(reads()).toBe(first);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(reads()).toBe(first + 1);
+
+    // The status poll answers ENDED at 5 s, after the comment read at 4 s;
+    // the new cadence starts with an immediate read.
+    routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(await screen.findByText('방송 종료')).toBeDefined();
+    expect(reads()).toBe(first + 3);
+
+    await act(() => vi.advanceTimersByTimeAsync(4999));
+    expect(reads()).toBe(first + 3);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(reads()).toBe(first + 4);
+  } finally {
+    vi.useRealTimers();
+  }
 });
+
+it('writes a LIVE comment as one chat line and an ENDED one as a board entry', async () => {
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    [COMMENTS]: [comment({ body: '안녕하세요' })],
+  };
+  stubApi(routes);
+  renderAt('/broadcasts/b1');
+  const live = (await screen.findByText('안녕하세요')).closest('p')!;
+  expect(within(live).getByText(other.nickname)).toBeDefined();
+  cleanup();
+
+  routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
+  renderAt('/broadcasts/b1');
+  const ended = (await screen.findByText('안녕하세요')).closest('p')!;
+  expect(within(ended).queryByText(other.nickname)).toBeNull();
+});
+
+it.each(['LIVE', 'ENDED'] as const)(
+  'offers 수정 and 삭제 only on the viewer’s own comments and marks edits (%s)',
+  async (status) => {
+    stubApi({
+      'GET /api/auth/me': other,
+      'GET /api/broadcasts/b1': broadcast({ status }),
+      [COMMENTS]: [
+        comment({
+          id: 'c1',
+          body: '스트리머 댓글',
+          author: { id: streamer.id, nickname: streamer.nickname },
+        }),
+        comment({
+          id: 'c2',
+          body: '내 댓글',
+          updatedAt: '2026-11-10T01:05:00.000Z',
+        }),
+      ],
+    });
+    renderAt('/broadcasts/b1');
+    const mine = (await screen.findByText('내 댓글')).closest('li')!;
+    const theirs = screen.getByText('스트리머 댓글').closest('li')!;
+    expect(
+      within(mine).getByRole('button', { name: '댓글 수정' }),
+    ).toBeDefined();
+    expect(
+      within(mine).getByRole('button', { name: '댓글 삭제' }),
+    ).toBeDefined();
+    expect(within(mine).getByText('(수정됨)')).toBeDefined();
+    expect(within(theirs).queryByRole('button')).toBeNull();
+    expect(within(theirs).queryByText('(수정됨)')).toBeNull();
+  },
+);
 
 it('posts a comment and shows it without waiting for the next poll', async () => {
   const routes: Record<string, unknown> = {
@@ -595,47 +655,55 @@ it('posts a comment and shows it without waiting for the next poll', async () =>
   expect(draft).toHaveProperty('value', '');
 });
 
-it('edits the viewer’s own comment', async () => {
-  const routes: Record<string, unknown> = {
-    'GET /api/auth/me': other,
-    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-    [COMMENTS]: [comment({ body: '오타 잇음' })],
-    'PATCH /api/comments/c1': comment({ body: '오타 있음' }),
-  };
-  const calls = stubApi(routes);
-  renderAt('/broadcasts/b1');
-  fireEvent.click(await screen.findByRole('button', { name: '댓글 수정' }));
-  routes[COMMENTS] = [
-    comment({ body: '오타 있음', updatedAt: '2026-11-10T01:05:00.000Z' }),
-  ];
-  fireEvent.change(screen.getByLabelText('댓글 수정'), {
-    target: { value: '오타 있음' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: '저장' }));
-  expect(await screen.findByText('오타 있음')).toBeDefined();
-  expect(screen.getByText('(수정됨)')).toBeDefined();
-  expect(calls.bodies['PATCH /api/comments/c1']).toEqual({ body: '오타 있음' });
-});
+it.each(['LIVE', 'ENDED'] as const)(
+  'edits the viewer’s own comment (%s)',
+  async (status) => {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': other,
+      'GET /api/broadcasts/b1': broadcast({ status }),
+      [COMMENTS]: [comment({ body: '오타 잇음' })],
+      'PATCH /api/comments/c1': comment({ body: '오타 있음' }),
+    };
+    const calls = stubApi(routes);
+    renderAt('/broadcasts/b1');
+    fireEvent.click(await screen.findByRole('button', { name: '댓글 수정' }));
+    routes[COMMENTS] = [
+      comment({ body: '오타 있음', updatedAt: '2026-11-10T01:05:00.000Z' }),
+    ];
+    fireEvent.change(screen.getByLabelText('댓글 수정'), {
+      target: { value: '오타 있음' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    expect(await screen.findByText('오타 있음')).toBeDefined();
+    expect(screen.getByText('(수정됨)')).toBeDefined();
+    expect(calls.bodies['PATCH /api/comments/c1']).toEqual({
+      body: '오타 있음',
+    });
+  },
+);
 
-it('deletes the viewer’s own comment only after confirming', async () => {
-  const routes: Record<string, unknown> = {
-    'GET /api/auth/me': other,
-    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-    [COMMENTS]: [comment({ body: '지울 댓글' })],
-    'DELETE /api/comments/c1': 204,
-  };
-  const calls = stubApi(routes);
-  renderAt('/broadcasts/b1');
-  fireEvent.click(await screen.findByRole('button', { name: '댓글 삭제' }));
-  fireEvent.click(screen.getByRole('button', { name: '취소' }));
-  expect(calls).not.toContain('DELETE /api/comments/c1');
+it.each(['LIVE', 'ENDED'] as const)(
+  'deletes the viewer’s own comment only after confirming (%s)',
+  async (status) => {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': other,
+      'GET /api/broadcasts/b1': broadcast({ status }),
+      [COMMENTS]: [comment({ body: '지울 댓글' })],
+      'DELETE /api/comments/c1': 204,
+    };
+    const calls = stubApi(routes);
+    renderAt('/broadcasts/b1');
+    fireEvent.click(await screen.findByRole('button', { name: '댓글 삭제' }));
+    fireEvent.click(screen.getByRole('button', { name: '취소' }));
+    expect(calls).not.toContain('DELETE /api/comments/c1');
 
-  fireEvent.click(screen.getByRole('button', { name: '댓글 삭제' }));
-  expect(screen.getByText('이 댓글을 삭제할까요?')).toBeDefined();
-  routes[COMMENTS] = [];
-  fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
-  expect(
-    await screen.findByText('아직 댓글이 없습니다. 첫 댓글을 남겨 보세요.'),
-  ).toBeDefined();
-  expect(calls).toContain('DELETE /api/comments/c1');
-});
+    fireEvent.click(screen.getByRole('button', { name: '댓글 삭제' }));
+    expect(screen.getByText('이 댓글을 삭제할까요?')).toBeDefined();
+    routes[COMMENTS] = [];
+    fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
+    expect(
+      await screen.findByText('아직 댓글이 없습니다. 첫 댓글을 남겨 보세요.'),
+    ).toBeDefined();
+    expect(calls).toContain('DELETE /api/comments/c1');
+  },
+);

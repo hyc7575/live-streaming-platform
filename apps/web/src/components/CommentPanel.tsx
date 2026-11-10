@@ -5,11 +5,19 @@ import { useAuth } from '../auth/auth-context';
 import { COMMENT_MAX_LENGTH, isEdited, type Comment } from '../comments';
 import type { LoginPageState } from '../pages/LoginPage';
 import { usePolledApi } from '../use-api';
+import type { BroadcastStatus } from './StatusBadge';
 import styles from './CommentPanel.module.css';
 
-// PRD §8.2: no realtime push. Comments are re-read on the same 5 s cadence
-// as the broadcast status, and right after the viewer's own change.
-const COMMENT_POLL_MS = 5000;
+// PRD §8.2: no realtime push. While LIVE the list is re-read every 2 s so
+// other viewers' comments read like chat; otherwise on the status poll's
+// 5 s cadence. The viewer's own change re-reads right away.
+const COMMENT_POLL_MS: Record<BroadcastStatus, number> = {
+  READY: 5000,
+  LIVE: 2000,
+  ENDED: 5000,
+};
+
+type Variant = 'chat' | 'board';
 
 // Stick to the newest comment unless the viewer scrolled up to read.
 const STICK_THRESHOLD_PX = 40;
@@ -19,6 +27,12 @@ const timeFormat = new Intl.DateTimeFormat('ko-KR', {
   day: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
+});
+
+const clockFormat = new Intl.DateTimeFormat('ko-KR', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
 });
 
 // Sends the viewer to log in and back here when the session ran out.
@@ -32,12 +46,19 @@ function useLoginRedirect(broadcastId: string) {
   };
 }
 
-export function CommentPanel({ broadcastId }: { broadcastId: string }) {
+export function CommentPanel({
+  broadcastId,
+  status,
+}: {
+  broadcastId: string;
+  status: BroadcastStatus;
+}) {
   const { state } = useAuth();
   const { data: comments, reload } = usePolledApi<Comment[]>(
     `/broadcasts/${encodeURIComponent(broadcastId)}/comments`,
-    COMMENT_POLL_MS,
+    COMMENT_POLL_MS[status],
   );
+  const variant: Variant = status === 'LIVE' ? 'chat' : 'board';
   const listRef = useRef<HTMLOListElement>(null);
   const stickRef = useRef(true);
   const me = state.status === 'authenticated' ? state.user : null;
@@ -76,11 +97,16 @@ export function CommentPanel({ broadcastId }: { broadcastId: string }) {
         </p>
       )}
       {loaded && loaded.length > 0 && (
-        <ol ref={listRef} className={styles.list} onScroll={onScroll}>
+        <ol
+          ref={listRef}
+          className={`${styles.list} ${variant === 'chat' ? styles.chatList : ''}`}
+          onScroll={onScroll}
+        >
           {loaded.map((c) => (
             <CommentItem
               key={c.id}
               comment={c}
+              variant={variant}
               broadcastId={broadcastId}
               mine={me?.id === c.author.id}
               onChanged={reload}
@@ -174,11 +200,13 @@ type Mode = 'view' | 'edit' | 'confirm-delete';
 
 function CommentItem({
   comment,
+  variant,
   broadcastId,
   mine,
   onChanged,
 }: {
   comment: Comment;
+  variant: Variant;
   broadcastId: string;
   mine: boolean;
   onChanged: () => void;
@@ -219,15 +247,36 @@ function CommentItem({
     }
   }
 
+  const createdAt = new Date(comment.createdAt);
+  const edited = isEdited(comment) && (
+    <span className={styles.time}>(수정됨)</span>
+  );
+
+  // Chat keeps the line visible while editing, so the form sits under it.
   return (
-    <li className={styles.item}>
-      <div className={styles.meta}>
-        <span className={styles.author}>{comment.author.nickname}</span>
-        <time dateTime={comment.createdAt} className={styles.time}>
-          {timeFormat.format(new Date(comment.createdAt))}
-        </time>
-        {isEdited(comment) && <span className={styles.time}>(수정됨)</span>}
-      </div>
+    <li className={variant === 'chat' ? styles.chatItem : styles.item}>
+      {variant === 'chat' ? (
+        <p className={styles.chatLine}>
+          <span className={styles.author}>{comment.author.nickname}</span>{' '}
+          <span className={styles.chatBody}>{comment.body}</span>{' '}
+          <time
+            dateTime={comment.createdAt}
+            title={timeFormat.format(createdAt)}
+            className={styles.time}
+          >
+            {clockFormat.format(createdAt)}
+          </time>{' '}
+          {edited}
+        </p>
+      ) : (
+        <div className={styles.meta}>
+          <span className={styles.author}>{comment.author.nickname}</span>
+          <time dateTime={comment.createdAt} className={styles.time}>
+            {timeFormat.format(createdAt)}
+          </time>
+          {edited}
+        </div>
+      )}
       {mode === 'edit' ? (
         <form
           className={styles.form}
@@ -269,7 +318,7 @@ function CommentItem({
           </div>
         </form>
       ) : (
-        <p className={styles.body}>{comment.body}</p>
+        variant === 'board' && <p className={styles.body}>{comment.body}</p>
       )}
       {mine && mode === 'view' && (
         <div className={styles.actions}>
