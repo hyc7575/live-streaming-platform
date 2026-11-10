@@ -18,6 +18,21 @@ it('sends the session cookie to the /api prefix and parses JSON', async () => {
   );
 });
 
+it('leaves the Content-Type of a FormData body to the browser', async () => {
+  const fetchMock = vi.fn<
+    (url: string, init: RequestInit) => Promise<Response>
+  >(() => Promise.resolve(new Response(null, { status: 204 })));
+  vi.stubGlobal('fetch', fetchMock);
+
+  await apiFetch('/upload', { method: 'PUT', body: new FormData() });
+  await apiFetch('/json', { method: 'POST', body: '{}' });
+
+  const contentType = (call: number) =>
+    new Headers(fetchMock.mock.calls[call]?.[1].headers).get('Content-Type');
+  expect(contentType(0)).toBeNull();
+  expect(contentType(1)).toBe('application/json');
+});
+
 it('throws ApiError with the HTTP status on a non-2xx response', async () => {
   vi.stubGlobal('fetch', () =>
     Promise.resolve(new Response(null, { status: 401 })),

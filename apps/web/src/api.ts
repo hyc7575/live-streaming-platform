@@ -16,7 +16,13 @@ export async function apiFetch<T>(
   init?: RequestInit,
 ): Promise<T> {
   const headers = new Headers(init?.headers);
-  if (init?.body !== undefined && !headers.has('Content-Type')) {
+  // A FormData body needs the multipart boundary, which only the browser
+  // knows, so its Content-Type is left for fetch to set.
+  if (
+    init?.body !== undefined &&
+    !(init.body instanceof FormData) &&
+    !headers.has('Content-Type')
+  ) {
     headers.set('Content-Type', 'application/json');
   }
   const res = await fetch(`/api${path}`, {

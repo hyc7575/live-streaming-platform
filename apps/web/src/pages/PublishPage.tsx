@@ -18,6 +18,7 @@ import type { PcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
 import { BrowserNotice, PcPreflight } from '../components/PcPreflight';
 import { PermissionGuide } from '../components/PermissionGuide';
+import { useThumbnailCapture } from '../publish/thumbnailCapture';
 import {
   usePublishSession,
   type PublishSessionState,
@@ -103,6 +104,7 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
   const [support] = useState(currentScreenAudioSupport);
   const sources = offeredSources(support);
   const videoRef = useRef<HTMLVideoElement>(null);
+  useThumbnailCapture(broadcast.id, videoRef, session.state.kind === 'live');
   // A capture that resolves after the page is gone must still be stopped, or
   // the browser keeps showing that the screen or camera is in use.
   const alive = useRef(false);
