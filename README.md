@@ -640,6 +640,66 @@ Chrome의 가짜 카메라는 전·후면(`facingMode`) 정보가 없다. 그래
 
 결과는 아래 "지원 환경" 표에 기기·OS·브라우저 버전과 함께 적는다. LTE(Wi-Fi 끔) 송출은 배포 주소에서 확인한다.
 
+### 6. 댓글 (#18)
+
+로그인한 사용자는 방송에 댓글을 쓰고, 자기 댓글만 수정·삭제한다(PRD §7.1, §7.5). 댓글은 로그인 없이 누구나 읽는다.
+
+이 기능은 `Comment` 테이블을 새로 쓴다. 이 변경을 받은 뒤에는 `pnpm --filter @lsp/api db:migrate`로 마이그레이션을 적용한다.
+
+규칙:
+
+- 댓글은 방송 상세가 보이는 방송이면 어디에나 달 수 있다(`READY`·`LIVE`·`ENDED`). 방송 상세가 404인 방송은 댓글 목록과 작성도 404다.
+- 본문은 앞뒤 공백을 자르고 1~500자다. 빈 본문, 공백만 있는 본문, 501자 이상은 400이다.
+- 목록은 최신 100개를 오래된 순으로 준다. 실시간 푸시는 없다(PRD §8.2). 시청 화면이 5초마다 다시 읽고, 내가 쓰거나 고치거나 지우면 바로 다시 읽는다.
+- 수정·삭제는 `로그인 확인 → 댓글 확인 → 작성자 확인 → 본문 검증` 순서다(`LoggedInGuard` → `CommentAuthorGuard`). 방송의 스트리머도 남의 댓글은 고치거나 지울 수 없다(403).
+- 방송을 삭제하면 그 방송의 댓글도 DB에서 함께 지워진다. 댓글 삭제도 행을 바로 지운다.
+
+| 행위 | API | 비로그인 | 로그인(타인) | 작성자 |
+|---|---|---|---|---|
+| 댓글 목록 조회 | `GET /api/broadcasts/:id/comments` | 200 | 200 | 200 |
+| 댓글 작성 | `POST /api/broadcasts/:id/comments` | 401 | 201 | 201 (스트리머 포함) |
+| 댓글 수정 | `PATCH /api/comments/:commentId` | 401 | 403 | 200 |
+| 댓글 삭제 | `DELETE /api/comments/:commentId` | 401 | 403 | 204 |
+
+자동 테스트:
+
+- `apps/api/test/authorization-matrix.e2e.spec.ts`: 위 네 행을 2절의 `MATRIX`에 넣었다. 대상 방송이 `READY`·`LIVE`·`ENDED`일 때 모두 돌린다. 수정·삭제 행의 "소유자" 칸은 소유자가 쓴 댓글이라 작성자 칸이다. 거절된 칸은 `Broadcast`와 `Comment` 테이블이 요청 전과 같은지 확인한다. 순서 확인: 없는 댓글과 형식이 틀린 id에 비로그인 401, 로그인 404. 틀린 본문에 비로그인 401, 타인 403, 작성자 400. 스트리머가 자기 방송에 달린 시청자 댓글을 고치거나 지우면 403이다.
+- `apps/api/test/comments.e2e.spec.ts`: 목록 순서와 100개 상한, 본문 검증, 없는 방송 404, 수정 뒤 `updatedAt`만 바뀜, 방송 삭제 시 댓글 삭제, 지운 댓글에 다시 부르면 404.
+- `apps/web/src/broadcast-pages.test.tsx`: 비로그인은 입력창 대신 로그인 링크를 보고, 로그인하면 시청 화면으로 돌아온다. 수정·삭제 버튼은 내 댓글에만 있다. 등록·수정·삭제 뒤 목록을 바로 다시 읽는다. 삭제는 한 번 더 확인한다.
+
+화면에서 확인 (2절처럼 "스트리머 A"와 "사용자 B"를 쓴다):
+
+1. A로 방송을 만들고, 2절 3번처럼 `ENDED`로 바꾼다. 로그아웃 상태로 상세를 연다. 넓은 화면에서는 플레이어 오른쪽에, 좁은 화면에서는 방송 정보 아래에 "댓글"이 보인다. 입력창 대신 "로그인하고 댓글을 남겨 보세요"가 보인다.
+2. 그 링크를 눌러 B로 로그인한다. 같은 상세로 돌아오고 "댓글 쓰기" 입력창이 보인다. 댓글을 쓰고 "등록"을 누른다. 목록 맨 아래에 바로 나타나고 입력창이 비워진다.
+3. 내 댓글 아래 "수정"을 눌러 고치고 "저장"을 누른다. 시각 옆에 "(수정됨)"이 붙는다.
+4. A 창에서 같은 상세를 연다. 5초 안에 B의 댓글이 보인다. B의 댓글에는 "수정"·"삭제"가 없다. A도 댓글을 쓸 수 있다.
+5. B 창에서 "삭제"를 누르면 "이 댓글을 삭제할까요?"가 뜬다. "삭제하기"를 누르면 목록에서 사라진다.
+
+API로 확인 (2절의 `a-jar.txt`·`b-jar.txt`):
+
+```sh
+API=http://localhost:3000/api
+ID=$(curl -s -b a-jar.txt -X POST $API/broadcasts -H 'Content-Type: application/json' \
+  -d '{"title":"댓글 확인"}' | sed -E 's/^\{"id":"([^"]+)".*/\1/')
+
+curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts/$ID/comments \
+  -H 'Content-Type: application/json' -d '{"body":"안녕하세요"}'                       # 401
+CID=$(curl -s -b b-jar.txt -X POST $API/broadcasts/$ID/comments \
+  -H 'Content-Type: application/json' -d '{"body":"안녕하세요"}' | sed -E 's/^\{"id":"([^"]+)".*/\1/')
+curl -s $API/broadcasts/$ID/comments                                                # B의 댓글 1개
+
+# 스트리머 A도 B의 댓글은 고치거나 지울 수 없다
+curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X PATCH $API/comments/$CID \
+  -H 'Content-Type: application/json' -d '{"body":"바꿈"}'                             # 403
+curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X DELETE $API/comments/$CID   # 403
+
+# 작성자 B는 고치고 지울 수 있다
+curl -s -b b-jar.txt -X PATCH $API/comments/$CID -H 'Content-Type: application/json' \
+  -d '{"body":"반갑습니다"}'                                                            # 200, 새 본문
+curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X DELETE $API/comments/$CID   # 204
+curl -s $API/broadcasts/$ID/comments                                                # []
+```
+
 ## 운영 배포
 
 운영 서버는 `deploy/compose.yaml` 하나로 Caddy, API, OvenMediaEngine, PostgreSQL을 띄운다. 첫 배포, 재배포, 로그, 다운 감시는 [docs/OPERATIONS.md](docs/OPERATIONS.md)에 있다. 다운 알림을 받으면 서버 저장소 폴더에서 아래 세 줄로 복구한다.
