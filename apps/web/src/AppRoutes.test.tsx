@@ -27,7 +27,7 @@ function renderAt(path: string) {
 
 it('shows the service name and the broadcast list on the home route', () => {
   renderAt('/');
-  expect(screen.getByRole('link', { name: '모닥' })).toBeDefined();
+  expect(screen.getByRole('link', { name: 'Lime' })).toBeDefined();
   expect(screen.getByRole('heading', { name: '방송 목록' })).toBeDefined();
 });
 

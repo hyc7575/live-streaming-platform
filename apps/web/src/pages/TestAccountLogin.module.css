@@ -30,7 +30,7 @@
 }
 
 .button:hover {
-  border-color: var(--color-brand);
+  border-color: var(--color-brand-strong);
 }
 
 .button:disabled {

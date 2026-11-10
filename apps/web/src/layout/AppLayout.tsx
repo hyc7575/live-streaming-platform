@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router';
 import { useAuth } from '../auth/auth-context';
 import styles from './AppLayout.module.css';
@@ -40,15 +41,40 @@ function AccountMenu() {
   );
 }
 
+// "Lime" with a dotless ı; the dot is a separate lime circle that bounces once
+// on load and again on hover or focus. Removing the class on animationend lets
+// the next hover restart it.
+function Logo() {
+  const [bouncing, setBouncing] = useState(true);
+  return (
+    <Link
+      to="/"
+      className={styles.logo}
+      aria-label="Lime"
+      onMouseEnter={() => setBouncing(true)}
+      onFocus={() => setBouncing(true)}
+    >
+      <span className={styles.wordmark} aria-hidden="true">
+        L
+        <span className={styles.stem}>
+          ı
+          <span
+            className={bouncing ? `${styles.dot} ${styles.bounce}` : styles.dot}
+            onAnimationEnd={() => setBouncing(false)}
+          />
+        </span>
+        me
+      </span>
+    </Link>
+  );
+}
+
 export function AppLayout() {
   const loggedIn = useAuth().state.status === 'authenticated';
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
-        <Link to="/" className={styles.logo}>
-          <span className={styles.logoMark} aria-hidden="true" />
-          모닥
-        </Link>
+        <Logo />
         <nav className={styles.nav}>
           <NavLink to="/" end className={styles.navLink}>
             방송 목록
