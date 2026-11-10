@@ -573,7 +573,7 @@ it('mutes and unmutes the mic', async () => {
   await shareScreen();
   fireEvent.click(screen.getByRole('button', { name: '마이크 끄기' }));
   expect(page.screen.capture.setMicMuted).toHaveBeenLastCalledWith(true);
-  const unmute = screen.getByRole('button', { name: '마이크 켜기' });
+  const unmute = await screen.findByRole('button', { name: '마이크 켜기' });
   expect(unmute.getAttribute('aria-pressed')).toBe('true');
   fireEvent.click(unmute);
   expect(page.screen.capture.setMicMuted).toHaveBeenLastCalledWith(false);
