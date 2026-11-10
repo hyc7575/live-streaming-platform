@@ -1,22 +1,26 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  --color-bg: #0f0f12;
-  --color-surface: #18181d;
-  --color-surface-raised: #222229;
-  --color-border: #2e2e36;
-  --color-text: #f1f1f3;
-  --color-text-muted: #a0a0ab;
+  --color-bg: #f7f7f8;
+  --color-surface: #ffffff;
+  --color-surface-raised: #efeff1;
+  --color-border: #dedee3;
+  --color-text: #0e0e10;
+  --color-text-muted: #53535f;
 
-  --color-brand: #ff7a45;
-  --color-brand-hover: #ff9466;
-  --color-on-brand: #1a0d06;
+  /* Lime fills buttons and the logo dot. On white it is too faint for text or
+     thin lines, so links, focus rings and outlines use --color-brand-strong. */
+  --color-brand: #c4f04d;
+  --color-brand-hover: #b2e02f;
+  --color-brand-strong: #4a7a0c;
+  --color-on-brand: #142000;
 
   --color-live: #e5484d;
   --color-ready: #4c8dff;
   --color-ended: #5c5c66;
   --color-on-status: #ffffff;
   --color-danger: #e5484d;
+  --color-video-bg: #000000;
 
   --font-sans:
     'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,

@@ -37,7 +37,7 @@
 }
 
 .input:focus {
-  outline: 2px solid var(--color-brand);
+  outline: 2px solid var(--color-brand-strong);
   outline-offset: -1px;
 }
 
@@ -87,6 +87,6 @@
 }
 
 .footer a {
-  color: var(--color-brand);
+  color: var(--color-brand-strong);
   font-weight: 600;
 }
