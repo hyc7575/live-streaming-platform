@@ -9,6 +9,8 @@ export interface Broadcast {
   startedAt: string | null;
   endedAt: string | null;
   createdAt: string;
+  // Paths under /recordings, oldest first. Empty means no replay.
+  recordingFiles: string[];
   streamer: { id: string; nickname: string };
 }
 

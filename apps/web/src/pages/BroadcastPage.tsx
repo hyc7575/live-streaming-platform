@@ -7,6 +7,7 @@ import type { BroadcastStatus } from '../components/StatusBadge';
 import { CommentPanel } from '../components/CommentPanel';
 import { LivePlayer } from '../components/LivePlayer';
 import { OwnerActions } from '../components/OwnerActions';
+import { ReplayPlayer } from '../components/ReplayPlayer';
 import { StatusBadge } from '../components/StatusBadge';
 import type { Loadable } from '../use-api';
 import styles from './BroadcastPage.module.css';
@@ -106,17 +107,21 @@ export function BroadcastPage() {
   return (
     <section className={styles.page}>
       <div className={styles.main}>
-        <div className={styles.player}>
-          {b.status === 'LIVE' ? (
-            <LivePlayer
-              broadcastId={b.id}
-              startMuted={isOwner}
-              onPlaybackError={recheck}
-            />
-          ) : (
-            <p className={styles.notice}>{PLAYER_NOTICE[b.status]}</p>
-          )}
-        </div>
+        {b.status === 'ENDED' && b.recordingFiles.length > 0 ? (
+          <ReplayPlayer files={b.recordingFiles} />
+        ) : (
+          <div className={styles.player}>
+            {b.status === 'LIVE' ? (
+              <LivePlayer
+                broadcastId={b.id}
+                startMuted={isOwner}
+                onPlaybackError={recheck}
+              />
+            ) : (
+              <p className={styles.notice}>{PLAYER_NOTICE[b.status]}</p>
+            )}
+          </div>
+        )}
         {b.status === 'LIVE' && isOwner && (
           <p className={styles.howling}>
             내 방송이라 소리를 끄고 재생합니다. 송출하는 기기에서 소리를 켜면
