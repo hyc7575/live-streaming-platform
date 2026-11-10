@@ -10,7 +10,9 @@ if (!root) throw new Error('#root element is missing from index.html');
 
 createRoot(root).render(
   <StrictMode>
-    <BrowserRouter>
+    {/* The list search box takes its value from ?q=. In a transition the
+        input lags behind the keys and drops characters and IME input. */}
+    <BrowserRouter useTransitions={false}>
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
