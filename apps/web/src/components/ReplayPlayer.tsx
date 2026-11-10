@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import { PlayerControls } from './player/PlayerControls';
 import styles from './ReplayPlayer.module.css';
 
 // `files` are paths under the recordings root, served same-origin at
 // /recordings (Vite proxy in development, Caddy in production). A broadcast
 // whose publish connection dropped and reconnected has one file per
-// connection, played back to back.
+// connection, played back to back. The parts share one video element, so
+// the controls' subscriptions, volume and mute carry over between them.
 export function ReplayPlayer({ files }: { files: string[] }) {
   const [current, setCurrent] = useState({ part: 0, play: false });
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -21,18 +23,20 @@ export function ReplayPlayer({ files }: { files: string[] }) {
 
   return (
     <div>
-      <video
-        key={file}
-        ref={videoRef}
-        className={styles.video}
-        src={`/recordings/${file}`}
-        controls
-        playsInline
-        aria-label="다시보기 화면"
-        onEnded={() => {
-          if (!last) setCurrent({ part: current.part + 1, play: true });
-        }}
-      />
+      <div className={styles.screen}>
+        <PlayerControls videoRef={videoRef}>
+          <video
+            ref={videoRef}
+            className={styles.video}
+            src={`/recordings/${file}`}
+            playsInline
+            aria-label="다시보기 화면"
+            onEnded={() => {
+              if (!last) setCurrent({ part: current.part + 1, play: true });
+            }}
+          />
+        </PlayerControls>
+      </div>
       {files.length > 1 && (
         <div className={styles.parts}>
           <div className={styles.buttons} role="group" aria-label="녹화 부분">

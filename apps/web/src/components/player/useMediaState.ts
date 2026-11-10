@@ -7,6 +7,9 @@ export type MediaState = {
   // readyState >= HAVE_METADATA: there is a picture to resume, not a load.
   ready: boolean;
   fullscreen: boolean;
+  currentTime: number;
+  // NaN before metadata, Infinity for a live source.
+  duration: number;
 };
 
 const VIDEO_EVENTS = [
@@ -15,6 +18,9 @@ const VIDEO_EVENTS = [
   'volumechange',
   'loadedmetadata',
   'emptied',
+  'timeupdate',
+  'durationchange',
+  'seeked',
 ] as const;
 
 const INITIAL: MediaState = {
@@ -23,6 +29,8 @@ const INITIAL: MediaState = {
   volume: 1,
   ready: false,
   fullscreen: false,
+  currentTime: 0,
+  duration: NaN,
 };
 
 // useSyncExternalStore needs the same object back while nothing changed.
@@ -35,12 +43,14 @@ function read(video: HTMLVideoElement): MediaState {
     volume: video.volume,
     ready: video.readyState >= HTMLMediaElement.HAVE_METADATA,
     fullscreen: document.fullscreenElement?.contains(video) ?? false,
+    currentTime: video.currentTime,
+    duration: video.duration,
   };
   const previous = snapshots.get(video);
   if (
     previous &&
-    (Object.keys(next) as (keyof MediaState)[]).every(
-      (key) => previous[key] === next[key],
+    (Object.keys(next) as (keyof MediaState)[]).every((key) =>
+      Object.is(previous[key], next[key]),
     )
   ) {
     return previous;

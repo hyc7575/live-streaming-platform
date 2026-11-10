@@ -8,7 +8,12 @@ import {
 } from '@testing-library/react';
 import { useRef } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { HIDE_DELAY_MS, PlayerControls, VOLUME_KEY } from './PlayerControls';
+import {
+  HIDE_DELAY_MS,
+  PlayerControls,
+  SEEK_STEP_S,
+  VOLUME_KEY,
+} from './PlayerControls';
 
 function Player({ muted = false }: { muted?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -214,4 +219,58 @@ it('stays up while a control has focus, and hides once that control is gone', ()
     vi.advanceTimersByTime(HIDE_DELAY_MS * 2);
   });
   expect(touchTapPauses()).toBe(false);
+});
+
+function setDuration(video: HTMLVideoElement, duration: number) {
+  Object.defineProperty(video, 'duration', {
+    value: duration,
+    configurable: true,
+  });
+  fireEvent(video, new Event('durationchange'));
+}
+
+it('offers a seek bar and the time for a recording, not for live', () => {
+  render(<Player />);
+  expect(screen.queryByRole('slider', { name: '재생 위치' })).toBeNull();
+  act(() => setDuration(video(), 3725));
+  const seek = screen.getByRole<HTMLInputElement>('slider', {
+    name: '재생 위치',
+  });
+  expect(screen.getByText('0:00 / 1:02:05')).toBeDefined();
+
+  fireEvent.change(seek, { target: { value: '65' } });
+  expect(video().currentTime).toBe(65);
+  act(() => {
+    fireEvent(video(), new Event('timeupdate'));
+  });
+  expect(screen.getByText('1:05 / 1:02:05')).toBeDefined();
+  expect(seek.getAttribute('aria-valuetext')).toBe('1:05 / 1:02:05');
+});
+
+it('hides the seek bar while a live source has no end', () => {
+  function Live() {
+    const ref = useRef<HTMLVideoElement>(null);
+    return (
+      <PlayerControls videoRef={ref} live={{ position: () => 0, seek() {} }}>
+        <video ref={ref} aria-label="화면" />
+      </PlayerControls>
+    );
+  }
+  render(<Live />);
+  act(() => setDuration(video(), 100));
+  expect(screen.queryByRole('slider', { name: '재생 위치' })).toBeNull();
+});
+
+it('seeks a recording with the arrow keys, within its length', () => {
+  render(<Player />);
+  act(() => setDuration(video(), 7));
+  const player = video().parentElement!;
+  player.focus();
+  fireEvent.keyDown(player, { key: 'ArrowRight', code: 'ArrowRight' });
+  expect(video().currentTime).toBe(SEEK_STEP_S);
+  fireEvent.keyDown(player, { key: 'ArrowRight', code: 'ArrowRight' });
+  expect(video().currentTime).toBe(7);
+  fireEvent.keyDown(player, { key: 'ArrowLeft', code: 'ArrowLeft' });
+  fireEvent.keyDown(player, { key: 'ArrowLeft', code: 'ArrowLeft' });
+  expect(video().currentTime).toBe(0);
 });

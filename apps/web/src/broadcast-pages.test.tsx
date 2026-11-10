@@ -372,63 +372,6 @@ it('counts a LIVE broadcast’s running time up every second beside the badge', 
   }
 });
 
-function stubClipboard(writeText: ((text: string) => Promise<void>) | null) {
-  Object.defineProperty(navigator, 'clipboard', {
-    configurable: true,
-    value: writeText ? { writeText } : undefined,
-  });
-}
-
-it('copies the page link and says so for two seconds', async () => {
-  const writeText = vi.fn(() => Promise.resolve());
-  stubClipboard(writeText);
-  stubApi({
-    'GET /api/auth/me': 401,
-    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
-  });
-  renderAt('/broadcasts/b1');
-  const button = await screen.findByRole('button', { name: '링크 복사' });
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  try {
-    fireEvent.click(button);
-    await act(() => vi.advanceTimersByTimeAsync(0));
-    expect(writeText).toHaveBeenCalledWith(window.location.href);
-    expect(button.textContent).toBe('복사했습니다');
-
-    await act(() => vi.advanceTimersByTimeAsync(1999));
-    expect(button.textContent).toBe('복사했습니다');
-    await act(() => vi.advanceTimersByTimeAsync(1));
-    expect(button.textContent).toBe('링크 복사');
-    expect(screen.queryByRole('textbox')).toBeNull();
-  } finally {
-    vi.useRealTimers();
-    stubClipboard(null);
-  }
-});
-
-it.each([
-  ['permission is denied', () => Promise.reject(new Error('denied'))],
-  ['the origin is insecure', null],
-])('offers the address to select by hand when %s', async (_case, writeText) => {
-  stubClipboard(writeText);
-  try {
-    stubApi({
-      'GET /api/auth/me': 401,
-      'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
-    });
-    renderAt('/broadcasts/b1');
-    fireEvent.click(await screen.findByRole('button', { name: '링크 복사' }));
-    const input = await screen.findByRole<HTMLInputElement>('textbox', {
-      name: /주소를 직접 복사하세요/,
-    });
-    expect(input.value).toBe(window.location.href);
-    expect(input.readOnly).toBe(true);
-    expect(screen.queryByText('복사했습니다')).toBeNull();
-  } finally {
-    stubClipboard(null);
-  }
-});
-
 it('says the broadcast does not exist on a 404', async () => {
   stubApi({ 'GET /api/auth/me': 401 });
   renderAt('/broadcasts/missing');

@@ -22,6 +22,7 @@
   bottom: 0;
   left: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-8) var(--space-2) var(--space-2);
@@ -64,7 +65,8 @@
 .live:focus-visible,
 .unmuteHint:focus-visible,
 .bigPlay:focus-visible,
-.volume:focus-visible {
+.volume:focus-visible,
+.seek:focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }
@@ -96,6 +98,21 @@
   .volume {
     display: none;
   }
+}
+
+/* A row of its own above the buttons. */
+.seek {
+  flex: 1 0 100%;
+  margin: 0 0 var(--space-1);
+  accent-color: var(--color-brand);
+  cursor: pointer;
+}
+
+.time {
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .live {
