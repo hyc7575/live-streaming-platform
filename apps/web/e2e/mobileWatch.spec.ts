@@ -174,6 +174,7 @@ test.describe('narrow screen', () => {
     await openBroadcast(page, { status: 'LIVE' });
     let sent: unknown = null;
     await page.route('**/api/broadcasts/b1/chat', (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
       sent = route.request().postDataJSON();
       return route.fulfill({
         json: { ...messages(1)[0], body: '안녕하세요', id: 'mine' },
