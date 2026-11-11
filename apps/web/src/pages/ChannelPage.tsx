@@ -125,8 +125,8 @@ export function ChannelPage() {
           {confirming && (
             <div className={styles.confirm} role="group" aria-label="삭제 확인">
               <p className={styles.confirmText}>
-                대기 이미지를 삭제할까요? 방송 준비 중 카드와 시청 화면에 첫 글자
-                그림이 보입니다.
+                대기 이미지를 삭제할까요? 방송 준비 중 카드와 시청 화면에 첫
+                글자 그림이 보입니다.
               </p>
               <div className={styles.row}>
                 <button
@@ -155,7 +155,9 @@ export function ChannelPage() {
           )}
         </div>
       </div>
-      <p className={styles.note}>방송 준비 중(READY) 카드와 시청 화면에 보입니다</p>
+      <p className={styles.note}>
+        방송 준비 중(READY) 카드와 시청 화면에 보입니다
+      </p>
     </section>
   );
 }
