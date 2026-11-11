@@ -4,7 +4,7 @@
 
 ## 심사자용 확인
 
-- 서비스: https://lsp-live.duckdns.org
+- 서비스: https://lime-live.duckdns.org
 - 테스트 계정: 홈이나 로그인 화면의 "테스트 계정으로 로그인"에서 "스트리머 A" 또는 "사용자 B"를 누른다. 비밀번호를 입력하지 않는다.
 - 권장 환경: PC Chrome + 휴대폰 1대. Edge, Windows, 휴대폰 브라우저 앱(Android Chrome, iOS Safari)은 미검증이다. 확인한 환경은 [지원 환경](#지원-환경)에 있다.
 
