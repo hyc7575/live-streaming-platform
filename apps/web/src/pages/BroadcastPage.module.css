@@ -4,13 +4,13 @@
   gap: var(--space-4);
 }
 
-/* Wide screens put the comments beside the player. Narrow ones stack
-   player, info, then comments. */
+/* Wide screens put the chat or comments beside the player. Narrow ones
+   stack player, info, then chat or comments. */
 @media (min-width: 1024px) {
   .page {
     grid-template-columns:
       minmax(0, var(--player-max-width))
-      var(--comment-column-width);
+      var(--side-panel-width);
     align-items: start;
     gap: var(--space-6);
   }

@@ -101,6 +101,30 @@ it('opens the login page when posting a comment answers 401, then returns to the
   expect(screen.getByRole('button', { name: '로그아웃' })).toBeDefined();
 });
 
+it('opens the login page when sending chat answers 401, then returns to the broadcast', async () => {
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': { ...endedBroadcast, status: 'LIVE' },
+    'GET /api/broadcasts/b1/chat': [],
+    'POST /api/broadcasts/b1/chat': 401,
+    'POST /api/auth/login': viewer,
+  });
+  renderAt('/broadcasts/b1');
+
+  fireEvent.change(await screen.findByLabelText('채팅 쓰기'), {
+    target: { value: '안녕하세요' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '보내기' }));
+  expect(await screen.findByRole('heading', { name: '로그인' })).toBeDefined();
+
+  await logInFromForm();
+  expect(
+    await screen.findByRole('heading', { name: '지난 방송' }),
+  ).toBeDefined();
+  expect(await screen.findByLabelText('채팅 쓰기')).toBeDefined();
+});
+
 it('keeps the comment being typed when another request answers 401', async () => {
   stubApi({
     'GET /api/auth/me': viewer,

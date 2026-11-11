@@ -184,10 +184,10 @@ test('custom controls pause, fall behind, and catch up to live', async ({
   await showControls(owner);
   await screenshot(owner, 'player-pc-owner-muted');
 
-  const comment = owner.getByRole('textbox').first();
-  await comment.click();
-  await comment.press('Space');
-  await comment.press('m');
+  const chat = owner.getByLabel('채팅 쓰기');
+  await chat.click();
+  await chat.press('Space');
+  await chat.press('m');
   expect(
     await ownerVideo.evaluate((v: HTMLVideoElement) => ({
       paused: v.paused,

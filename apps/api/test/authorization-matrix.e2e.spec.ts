@@ -6,6 +6,7 @@ import type { Response } from 'supertest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { BroadcastView } from '../src/broadcasts/broadcasts.service.js';
+import type { ChatMessageView } from '../src/chat/chat.service.js';
 import type { CommentView } from '../src/comments/comments.service.js';
 import { PrismaService } from '../src/database/database.module.js';
 import type { DonationOrder } from '../src/donations/donations.service.js';
@@ -47,6 +48,8 @@ interface World {
   // A comment the owner wrote on the target, so for the comment rows the
   // owner column is the comment's author and 'other' is anyone else.
   targetCommentId: string;
+  // Likewise a chat message the owner sent on the target.
+  targetChatId: string;
   // An unpaid order by the other user on the target, so for '후원 승인' the
   // owner column is the streamer, not the donor: someone else's order.
   pendingOrder: { paymentKey: string; orderId: string; amount: number };
@@ -71,8 +74,11 @@ const MATRIX = {
   '내 방송 조회':   [401,      200,          200],
   '송출 토큰 발급': [401,      403,          { READY: 201, LIVE: 201, ENDED: 409 }],
   '썸네일 업로드':  [401,      403,          { READY: 409, LIVE: 204, ENDED: 409 }],
+  '채팅 조회':      [200,      200,          200],
+  '채팅 작성':      [401,      { READY: 201, LIVE: 201, ENDED: 409 }, { READY: 201, LIVE: 201, ENDED: 409 }],
+  '채팅 삭제':      [404,      404,          404],
   '댓글 목록 조회': [200,      200,          200],
-  '댓글 작성':      [401,      201,          201],
+  '댓글 작성':      [401,      { READY: 409, LIVE: 409, ENDED: 201 }, { READY: 409, LIVE: 409, ENDED: 201 }],
   '댓글 수정':      [401,      403,          200],
   '댓글 삭제':      [401,      403,          204],
   '후원':           [401,      { READY: 409, LIVE: 201, ENDED: 409 }, 403],
@@ -87,8 +93,10 @@ const MATRIX = {
 // §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
 // deleted. An ENDED broadcast never goes LIVE again, so it gets no publish
 // token. A thumbnail is a frame of the live stream, so only a LIVE broadcast
-// takes one. Comments follow the detail page: any broadcast that page shows,
-// READY included, can be read and commented on. Donations are ordered only
+// takes one. Chat and comments are read wherever the detail page is, but
+// written by status: chat before the broadcast ends (READY and LIVE),
+// comments after it (ENDED). Chat has no edit or delete route for anyone,
+// its author included, so that row is 404 in every cell. Donations are ordered only
 // while LIVE, and never by the streamer, whose 403 comes before the status.
 // A confirm ignores the status: the donor already paid by then.
 // The PRD's one row "팔로우·언팔로우" is two rows here, one per request. The
@@ -140,6 +148,7 @@ const ACTOR_LABEL: Record<Actor, string> = {
 
 const EDITED = { title: '고친 제목', description: '고친 설명' };
 const ORIGINAL_COMMENT = '원래 댓글';
+const ORIGINAL_CHAT = '원래 채팅';
 const PAID_AMOUNT = 1000;
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
@@ -166,6 +175,9 @@ describe('authorization matrix (PRD §7.5)', () => {
   const rows = async () => ({
     broadcasts: await broadcastRows(),
     comments: await prisma.comment.findMany({ orderBy: { id: 'asc' } }),
+    chatMessages: await prisma.chatMessage.findMany({
+      orderBy: { id: 'asc' },
+    }),
     donations: await prisma.donation.findMany({ orderBy: { id: 'asc' } }),
     follows: await prisma.follow.findMany({
       orderBy: [{ followerId: 'asc' }, { streamerId: 'asc' }],
@@ -179,6 +191,10 @@ describe('authorization matrix (PRD §7.5)', () => {
   const comments = async (w: World) =>
     (await anonymous().get(`/api/broadcasts/${w.targetId}/comments`))
       .body as CommentView[];
+
+  const chat = async (w: World) =>
+    (await anonymous().get(`/api/broadcasts/${w.targetId}/chat`))
+      .body as ChatMessageView[];
 
   const donations = async (w: World) =>
     (await anonymous().get(`/api/broadcasts/${w.targetId}/donations`)).body as {
@@ -336,6 +352,43 @@ describe('authorization matrix (PRD §7.5)', () => {
         );
         const file = join(thumbnailsDirOf(app), w.targetId, 'live.jpg');
         expect(await readFile(file)).toEqual(JPEG);
+      },
+    },
+    '채팅 조회': {
+      send: (client, w) => client.get(`/api/broadcasts/${w.targetId}/chat`),
+      verifyAllowed: (res, w) => {
+        expect(res.body).toEqual([
+          expect.objectContaining({
+            id: w.targetChatId,
+            body: ORIGINAL_CHAT,
+            author: { id: w.owner.id, nickname: w.owner.nickname },
+          }),
+        ]);
+      },
+    },
+    '채팅 작성': {
+      // `authorId` rides along to prove a client cannot speak in someone
+      // else's name.
+      send: (client, w) =>
+        client
+          .post(`/api/broadcasts/${w.targetId}/chat`)
+          .send({ body: '새 채팅', authorId: w.owner.id }),
+      verifyAllowed: async (res, w, actor) => {
+        const author = actor === 'owner' ? w.owner : w.other;
+        expect(res.body).toMatchObject({
+          body: '새 채팅',
+          author: { id: author.id, nickname: author.nickname },
+        });
+        expect((await chat(w)).map((m) => m.id)).toEqual([
+          w.targetChatId,
+          (res.body as ChatMessageView).id,
+        ]);
+      },
+    },
+    '채팅 삭제': {
+      send: (client, w) => client.delete(`/api/chat/${w.targetChatId}`),
+      verifyAllowed: () => {
+        throw new Error('No caller may delete a chat message');
       },
     },
     '댓글 목록 조회': {
@@ -539,6 +592,7 @@ describe('authorization matrix (PRD §7.5)', () => {
       targetId: '',
       targetEndedAt: null,
       targetCommentId: '',
+      targetChatId: '',
       pendingOrder: { paymentKey: '', orderId: '', amount: 0 },
       othersId: '',
       as: { anonymous: anonymous(), other: other.agent, owner: owner.agent },
@@ -588,6 +642,13 @@ describe('authorization matrix (PRD §7.5)', () => {
         body: ORIGINAL_COMMENT,
       },
     });
+    const chatMessage = await prisma.chatMessage.create({
+      data: {
+        broadcastId: target.id,
+        authorId: world.owner.id,
+        body: ORIGINAL_CHAT,
+      },
+    });
     await prisma.donation.create({
       data: {
         orderId: 'don_matrix_paid',
@@ -613,6 +674,7 @@ describe('authorization matrix (PRD §7.5)', () => {
       targetId: target.id,
       targetEndedAt: target.endedAt,
       targetCommentId: comment.id,
+      targetChatId: chatMessage.id,
       pendingOrder: {
         paymentKey: 'pay_matrix_pending',
         orderId: pending.orderId,
@@ -675,6 +737,10 @@ describe('authorization matrix (PRD §7.5)', () => {
         client.patch(`/api/comments/${id}`).send({ body: '고친 댓글' }),
       'DELETE comment': (client: TestAgent, id: string) =>
         client.delete(`/api/comments/${id}`),
+      'POST chat': (client: TestAgent, id: string) =>
+        client.post(`/api/broadcasts/${id}/chat`).send({ body: '채팅' }),
+      'POST comment': (client: TestAgent, id: string) =>
+        client.post(`/api/broadcasts/${id}/comments`).send({ body: '댓글' }),
       'POST donation': (client: TestAgent, id: string) =>
         client.post(`/api/broadcasts/${id}/donations`).send({ amount: 1000 }),
     };
@@ -707,6 +773,34 @@ describe('authorization matrix (PRD §7.5)', () => {
       expect((await world.as.anonymous.patch(url).send(bad)).status).toBe(401);
       expect((await world.as.other.patch(url).send(bad)).status).toBe(403);
       expect((await world.as.owner.patch(url).send(bad)).status).toBe(400);
+    });
+
+    // Chat and comment writes check login, then the body (a parameter pipe,
+    // which Nest runs before the handler), then the broadcast, then its
+    // status: 401 → 400 → 404 → 409.
+    it('checks a chat message’s body before the broadcast and its status', async () => {
+      await seed('ENDED');
+      const send = (actor: Actor, body: string, id = world.targetId) =>
+        world.as[actor].post(`/api/broadcasts/${id}/chat`).send({ body });
+      const before = await rows();
+      expect((await send('anonymous', '')).status).toBe(401);
+      expect((await send('other', '', unknownId)).status).toBe(400);
+      expect((await send('other', '채팅', unknownId)).status).toBe(404);
+      expect((await send('other', '')).status).toBe(400);
+      expect((await send('other', '채팅')).status).toBe(409);
+      expect(await rows()).toEqual(before);
+    });
+
+    it('checks a comment’s body before the broadcast and its status', async () => {
+      const send = (actor: Actor, body: string, id = world.targetId) =>
+        world.as[actor].post(`/api/broadcasts/${id}/comments`).send({ body });
+      const before = await rows();
+      expect((await send('anonymous', '')).status).toBe(401);
+      expect((await send('other', '', unknownId)).status).toBe(400);
+      expect((await send('other', '댓글', unknownId)).status).toBe(404);
+      expect((await send('other', '')).status).toBe(400);
+      expect((await send('other', '댓글')).status).toBe(409);
+      expect(await rows()).toEqual(before);
     });
 
     it('checks a donation’s streamer and status before its body', async () => {
@@ -761,6 +855,7 @@ describe('authorization matrix (PRD §7.5)', () => {
     // PRD §7.5 gives comment edits to the author alone, so owning the
     // broadcast does not let the streamer change a viewer's comment.
     it('refuses the streamer a viewer’s comment on their own broadcast', async () => {
+      await seed('ENDED');
       const posted = await world.as.other
         .post(`/api/broadcasts/${world.targetId}/comments`)
         .send({ body: '시청자 댓글' });

@@ -11,6 +11,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
 import type { Broadcast } from './broadcasts';
+import { CHAT_PAGE_LIMIT, type ChatMessage } from './chat';
 import type { Comment } from './comments';
 import { renderInDataRouter } from './testing/renderInDataRouter';
 
@@ -45,6 +46,7 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
 }
 
 // Answers each `METHOD /api/path` from the table; anything else is a 404.
+// A function value builds the whole Response, for an error with a body.
 // `bodies` keeps the request body each call sent, keyed the same way.
 function stubApi(routes: Record<string, unknown>) {
   const calls: string[] = [];
@@ -58,9 +60,11 @@ function stubApi(routes: Record<string, unknown>) {
     }
     const body = routes[key];
     return Promise.resolve(
-      typeof body === 'number'
-        ? new Response(null, { status: body })
-        : Response.json(body),
+      typeof body === 'function'
+        ? (body as () => Response)()
+        : typeof body === 'number'
+          ? new Response(null, { status: body })
+          : Response.json(body),
     );
   });
   return Object.assign(calls, { bodies });
@@ -920,12 +924,293 @@ function comment(overrides: Partial<Comment>): Comment {
   };
 }
 
-const COMMENTS = 'GET /api/broadcasts/b1/comments';
+function chat(id: string, overrides: Partial<ChatMessage> = {}): ChatMessage {
+  return {
+    id,
+    body: `채팅 ${id}`,
+    createdAt: '2026-11-10T01:00:00.000Z',
+    author: { id: other.id, nickname: other.nickname },
+    ...overrides,
+  };
+}
 
-it('shows comments to an anonymous visitor with a login link instead of the form', async () => {
+const COMMENTS = 'GET /api/broadcasts/b1/comments';
+const CHAT = 'GET /api/broadcasts/b1/chat';
+
+// The chat poll waits on setTimeout, so these tests fake it too and step
+// time by hand instead of using findBy, whose own waiting would stall.
+const fakeAllTimers = () =>
+  vi.useFakeTimers({
+    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+  });
+const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
+
+it.each(['READY', 'LIVE'] as const)(
+  'shows live chat and no tabs while %s, with a login link for an anonymous visitor',
+  async (status) => {
+    const calls = stubApi({
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ status }),
+      [CHAT]: [chat('m1', { body: '안녕하세요' })],
+    });
+    renderAt('/broadcasts/b1');
+    const panel = await screen.findByRole('complementary', { name: '채팅' });
+    const line = (await within(panel).findByText('안녕하세요')).closest('p')!;
+    expect(within(line).getByText(other.nickname)).toBeDefined();
+    const time = line.querySelector('time')!;
+    expect(time.getAttribute('dateTime')).toBe('2026-11-10T01:00:00.000Z');
+    expect(time.textContent).toMatch(/^\d{2}:\d{2}$/);
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(within(panel).queryByRole('textbox')).toBeNull();
+    expect(
+      within(panel).getByRole('link', {
+        name: '로그인하고 채팅에 참여해 보세요',
+      }),
+    ).toBeDefined();
+    expect(calls).not.toContain(COMMENTS);
+  },
+);
+
+it('polls chat every second for only what came after the last message', async () => {
+  fakeAllTimers();
+  try {
+    const calls = stubApi({
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+      [CHAT]: [chat('m1'), chat('m2')],
+      [`${CHAT}?after=m2`]: [
+        chat('m3', { createdAt: '2026-11-10T01:00:05.000Z' }),
+      ],
+      [`${CHAT}?after=m3`]: [],
+    });
+    renderAt('/broadcasts/b1');
+    await flush();
+    expect(screen.getByText('채팅 m2')).toBeDefined();
+    expect(calls.filter((c) => c.startsWith(CHAT))).toEqual([CHAT]);
+
+    await act(() => vi.advanceTimersByTimeAsync(999));
+    expect(calls).not.toContain(`${CHAT}?after=m2`);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByText('채팅 m3')).toBeDefined();
+
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(calls.filter((c) => c.startsWith(CHAT))).toEqual([
+      CHAT,
+      `${CHAT}?after=m2`,
+      `${CHAT}?after=m3`,
+    ]);
+    expect(screen.getAllByText(/^채팅 m/).map((el) => el.textContent)).toEqual([
+      '채팅 m1',
+      '채팅 m2',
+      '채팅 m3',
+    ]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('reads the next page at once when a chat page comes back full', async () => {
+  fakeAllTimers();
+  try {
+    const page = Array.from({ length: CHAT_PAGE_LIMIT }, (_, i) =>
+      chat(`m${String(i).padStart(3, '0')}`),
+    );
+    const last = page.at(-1)!.id;
+    const calls = stubApi({
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+      [CHAT]: page,
+      [`${CHAT}?after=${last}`]: [chat('n1', { body: '마지막' })],
+    });
+    renderAt('/broadcasts/b1');
+    await flush();
+    expect(screen.getByText('마지막')).toBeDefined();
+    expect(calls.filter((c) => c.startsWith(CHAT))).toEqual([
+      CHAT,
+      `${CHAT}?after=${last}`,
+    ]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('sends a chat message and shows it before the next poll', async () => {
+  fakeAllTimers();
+  try {
+    const calls = stubApi({
+      'GET /api/auth/me': other,
+      'GET /api/me/follows': [],
+      'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+      [CHAT]: [],
+      'POST /api/broadcasts/b1/chat': chat('m1', { body: '안녕하세요' }),
+    });
+    renderAt('/broadcasts/b1');
+    await flush();
+    expect(
+      screen.getByText('아직 채팅이 없습니다. 첫 채팅을 남겨 보세요.'),
+    ).toBeDefined();
+    const draft = screen.getByLabelText('채팅 쓰기');
+    expect(screen.getByRole('button', { name: '보내기' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    fireEvent.change(draft, { target: { value: '안녕하세요' } });
+    expect(screen.getByText('5/200')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: '보내기' }));
+    await flush();
+    expect(screen.getByText('안녕하세요')).toBeDefined();
+    expect(calls.bodies['POST /api/broadcasts/b1/chat']).toEqual({
+      body: '안녕하세요',
+    });
+    expect(draft).toHaveProperty('value', '');
+    expect(calls).not.toContain(`${CHAT}?after=m1`);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('shows the API’s message when chat refuses a message with 409', async () => {
+  stubApi({
+    'GET /api/auth/me': other,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    [CHAT]: [],
+    'POST /api/broadcasts/b1/chat': () =>
+      Response.json(
+        { message: '끝난 방송에는 채팅을 보낼 수 없습니다.' },
+        { status: 409 },
+      ),
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.change(await screen.findByLabelText('채팅 쓰기'), {
+    target: { value: '늦었나요' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '보내기' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '끝난 방송에는 채팅을 보낼 수 없습니다.',
+  );
+});
+
+it('offers no edit or delete on chat, not even on the viewer’s own message', async () => {
+  stubApi({
+    'GET /api/auth/me': other,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    [CHAT]: [
+      chat('m1', {
+        body: '스트리머 채팅',
+        author: { id: streamer.id, nickname: streamer.nickname },
+      }),
+      chat('m2', { body: '내 채팅' }),
+    ],
+  });
+  renderAt('/broadcasts/b1');
+  const mine = (await screen.findByText('내 채팅')).closest('li')!;
+  const theirs = screen.getByText('스트리머 채팅').closest('li')!;
+  expect(within(mine).queryByRole('button')).toBeNull();
+  expect(within(theirs).queryByRole('button')).toBeNull();
+});
+
+it('switches from chat to the 댓글 and 채팅 기록 tabs when the broadcast ends, without a reload', async () => {
+  fakeAllTimers();
+  try {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+      [CHAT]: [chat('m1', { body: '방송 중 채팅' })],
+      [`${CHAT}?after=m1`]: [],
+      [COMMENTS]: [comment({ body: '잘 봤습니다' })],
+    };
+    stubApi(routes);
+    renderAt('/broadcasts/b1');
+    await flush();
+    expect(screen.getByRole('complementary', { name: '채팅' })).toBeDefined();
+
+    routes['GET /api/broadcasts/b1'] = broadcast({
+      status: 'ENDED',
+      endedAt: '2026-11-09T00:00:00.000Z',
+    });
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    await flush();
+    expect(screen.queryByRole('complementary', { name: '채팅' })).toBeNull();
+    const tab = screen.getByRole('tab', { name: '댓글' });
+    expect(tab.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByText('잘 봤습니다')).toBeDefined();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('opens an ended broadcast on the 댓글 tab, with the chat log read-only behind the other tab', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': other,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+    [COMMENTS]: [comment({ body: '잘 봤습니다' })],
+    [CHAT]: [chat('m1', { body: '방송 중 채팅' })],
+  });
+  renderAt('/broadcasts/b1');
+  const comments = await screen.findByRole('tab', { name: '댓글' });
+  const log = screen.getByRole('tab', { name: '채팅 기록' });
+  expect(comments.getAttribute('aria-selected')).toBe('true');
+  expect(log.getAttribute('aria-selected')).toBe('false');
+  const commentPanel = screen.getByRole('tabpanel', { name: '댓글' });
+  expect(comments.getAttribute('aria-controls')).toBe(commentPanel.id);
+  expect(await within(commentPanel).findByText('잘 봤습니다')).toBeDefined();
+  expect(within(commentPanel).getByLabelText('댓글 쓰기')).toBeDefined();
+  expect(calls).not.toContain(CHAT);
+
+  fireEvent.click(log);
+  const logPanel = screen.getByRole('tabpanel', { name: '채팅 기록' });
+  const line = (await within(logPanel).findByText('방송 중 채팅')).closest(
+    'li',
+  )!;
+  expect(within(line).getByText(other.nickname)).toBeDefined();
+  expect(within(logPanel).queryByRole('textbox')).toBeNull();
+  expect(within(logPanel).queryByRole('button')).toBeNull();
+  expect(screen.queryByRole('tabpanel', { name: '댓글' })).toBeNull();
+});
+
+it('moves between the ended broadcast’s tabs with the arrow, Home and End keys', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+    [COMMENTS]: [],
+    [CHAT]: [],
+  });
+  renderAt('/broadcasts/b1');
+  const comments = await screen.findByRole('tab', { name: '댓글' });
+  const log = screen.getByRole('tab', { name: '채팅 기록' });
+  const selected = () =>
+    screen
+      .getAllByRole('tab')
+      .filter((t) => t.getAttribute('aria-selected') === 'true')
+      .map((t) => t.textContent);
+  expect([comments.tabIndex, log.tabIndex]).toEqual([0, -1]);
+
+  comments.focus();
+  fireEvent.keyDown(comments, { key: 'ArrowRight' });
+  expect(selected()).toEqual(['채팅 기록']);
+  expect(document.activeElement).toBe(log);
+  expect([comments.tabIndex, log.tabIndex]).toEqual([-1, 0]);
+
+  fireEvent.keyDown(log, { key: 'ArrowRight' });
+  expect(selected()).toEqual(['댓글']);
+  expect(document.activeElement).toBe(comments);
+  fireEvent.keyDown(comments, { key: 'ArrowLeft' });
+  expect(selected()).toEqual(['채팅 기록']);
+  fireEvent.keyDown(log, { key: 'Home' });
+  expect(selected()).toEqual(['댓글']);
+  fireEvent.keyDown(comments, { key: 'End' });
+  expect(selected()).toEqual(['채팅 기록']);
+  expect(document.activeElement).toBe(log);
+});
+
+it('shows comments on an ended broadcast to an anonymous visitor with a login link instead of the form', async () => {
   stubApi({
     'GET /api/auth/me': 401,
     'POST /api/auth/login': other,
+    'GET /api/me/follows': [],
     'GET /api/broadcasts/b1': broadcast({
       status: 'ENDED',
       title: '지난 방송',
@@ -933,7 +1218,7 @@ it('shows comments to an anonymous visitor with a login link instead of the form
     [COMMENTS]: [comment({ body: '잘 봤습니다' })],
   });
   renderAt('/broadcasts/b1');
-  const panel = await screen.findByRole('complementary', { name: '댓글' });
+  const panel = await screen.findByRole('tabpanel', { name: '댓글' });
   expect(await within(panel).findByText('잘 봤습니다')).toBeDefined();
   expect(within(panel).queryByRole('textbox')).toBeNull();
   expect(within(panel).queryByRole('button', { name: '댓글 수정' })).toBeNull();
@@ -954,97 +1239,61 @@ it('shows comments to an anonymous visitor with a login link instead of the form
   expect(await screen.findByLabelText('댓글 쓰기')).toBeDefined();
 });
 
-it('re-reads comments every 1 s while LIVE and every 5 s once ENDED', async () => {
+it('re-reads comments every 5 s', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
   try {
-    const routes: Record<string, unknown> = {
+    const calls = stubApi({
       'GET /api/auth/me': 401,
-      'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+      'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
       [COMMENTS]: [comment({ body: '첫 댓글' })],
-    };
-    const calls = stubApi(routes);
+    });
     const reads = () => calls.filter((call) => call === COMMENTS).length;
     renderAt('/broadcasts/b1');
     await screen.findByText('첫 댓글');
     const first = reads();
-
-    await act(() => vi.advanceTimersByTimeAsync(999));
+    await act(() => vi.advanceTimersByTimeAsync(4999));
     expect(reads()).toBe(first);
     await act(() => vi.advanceTimersByTimeAsync(1));
     expect(reads()).toBe(first + 1);
-
-    // The status poll answers ENDED at 5 s, after the comment reads at 2, 3,
-    // 4 and 5 s; the new cadence starts with an immediate read.
-    routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
-    await act(() => vi.advanceTimersByTimeAsync(4000));
-    expect(await screen.findByText('방송 종료')).toBeDefined();
-    expect(reads()).toBe(first + 6);
-
-    await act(() => vi.advanceTimersByTimeAsync(4999));
-    expect(reads()).toBe(first + 6);
-    await act(() => vi.advanceTimersByTimeAsync(1));
-    expect(reads()).toBe(first + 7);
   } finally {
     vi.useRealTimers();
   }
 });
 
-it('writes a LIVE comment as one chat line and an ENDED one as a board entry', async () => {
-  const routes: Record<string, unknown> = {
-    'GET /api/auth/me': 401,
-    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-    [COMMENTS]: [comment({ body: '안녕하세요' })],
-  };
-  stubApi(routes);
+it('offers 수정 and 삭제 only on the viewer’s own comments and marks edits', async () => {
+  stubApi({
+    'GET /api/auth/me': other,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+    [COMMENTS]: [
+      comment({
+        id: 'c1',
+        body: '스트리머 댓글',
+        author: { id: streamer.id, nickname: streamer.nickname },
+      }),
+      comment({
+        id: 'c2',
+        body: '내 댓글',
+        updatedAt: '2026-11-10T01:05:00.000Z',
+      }),
+    ],
+  });
   renderAt('/broadcasts/b1');
-  const live = (await screen.findByText('안녕하세요')).closest('p')!;
-  expect(within(live).getByText(other.nickname)).toBeDefined();
-  cleanup();
-
-  routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
-  renderAt('/broadcasts/b1');
-  const ended = (await screen.findByText('안녕하세요')).closest('p')!;
-  expect(within(ended).queryByText(other.nickname)).toBeNull();
+  const mine = (await screen.findByText('내 댓글')).closest('li')!;
+  const theirs = screen.getByText('스트리머 댓글').closest('li')!;
+  expect(within(mine).getByRole('button', { name: '댓글 수정' })).toBeDefined();
+  expect(within(mine).getByRole('button', { name: '댓글 삭제' })).toBeDefined();
+  expect(within(mine).getByText('(수정됨)')).toBeDefined();
+  expect(within(mine).getByText(other.nickname)).toBeDefined();
+  expect(within(theirs).queryByRole('button')).toBeNull();
+  expect(within(theirs).queryByText('(수정됨)')).toBeNull();
 });
-
-it.each(['LIVE', 'ENDED'] as const)(
-  'offers 수정 and 삭제 only on the viewer’s own comments and marks edits (%s)',
-  async (status) => {
-    stubApi({
-      'GET /api/auth/me': other,
-      'GET /api/broadcasts/b1': broadcast({ status }),
-      [COMMENTS]: [
-        comment({
-          id: 'c1',
-          body: '스트리머 댓글',
-          author: { id: streamer.id, nickname: streamer.nickname },
-        }),
-        comment({
-          id: 'c2',
-          body: '내 댓글',
-          updatedAt: '2026-11-10T01:05:00.000Z',
-        }),
-      ],
-    });
-    renderAt('/broadcasts/b1');
-    const mine = (await screen.findByText('내 댓글')).closest('li')!;
-    const theirs = screen.getByText('스트리머 댓글').closest('li')!;
-    expect(
-      within(mine).getByRole('button', { name: '댓글 수정' }),
-    ).toBeDefined();
-    expect(
-      within(mine).getByRole('button', { name: '댓글 삭제' }),
-    ).toBeDefined();
-    expect(within(mine).getByText('(수정됨)')).toBeDefined();
-    expect(within(theirs).queryByRole('button')).toBeNull();
-    expect(within(theirs).queryByText('(수정됨)')).toBeNull();
-  },
-);
 
 it('posts a comment and shows it without waiting for the next poll', async () => {
   const routes: Record<string, unknown> = {
     'GET /api/auth/me': other,
-    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
     [COMMENTS]: [],
     'POST /api/broadcasts/b1/comments': comment({ body: '안녕하세요' }),
   };
@@ -1069,55 +1318,51 @@ it('posts a comment and shows it without waiting for the next poll', async () =>
   expect(draft).toHaveProperty('value', '');
 });
 
-it.each(['LIVE', 'ENDED'] as const)(
-  'edits the viewer’s own comment (%s)',
-  async (status) => {
-    const routes: Record<string, unknown> = {
-      'GET /api/auth/me': other,
-      'GET /api/broadcasts/b1': broadcast({ status }),
-      [COMMENTS]: [comment({ body: '오타 잇음' })],
-      'PATCH /api/comments/c1': comment({ body: '오타 있음' }),
-    };
-    const calls = stubApi(routes);
-    renderAt('/broadcasts/b1');
-    fireEvent.click(await screen.findByRole('button', { name: '댓글 수정' }));
-    routes[COMMENTS] = [
-      comment({ body: '오타 있음', updatedAt: '2026-11-10T01:05:00.000Z' }),
-    ];
-    fireEvent.change(screen.getByLabelText('댓글 수정'), {
-      target: { value: '오타 있음' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: '저장' }));
-    expect(await screen.findByText('오타 있음')).toBeDefined();
-    expect(screen.getByText('(수정됨)')).toBeDefined();
-    expect(calls.bodies['PATCH /api/comments/c1']).toEqual({
-      body: '오타 있음',
-    });
-  },
-);
+it('edits the viewer’s own comment', async () => {
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': other,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+    [COMMENTS]: [comment({ body: '오타 잇음' })],
+    'PATCH /api/comments/c1': comment({ body: '오타 있음' }),
+  };
+  const calls = stubApi(routes);
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '댓글 수정' }));
+  routes[COMMENTS] = [
+    comment({ body: '오타 있음', updatedAt: '2026-11-10T01:05:00.000Z' }),
+  ];
+  fireEvent.change(screen.getByLabelText('댓글 수정'), {
+    target: { value: '오타 있음' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '저장' }));
+  expect(await screen.findByText('오타 있음')).toBeDefined();
+  expect(screen.getByText('(수정됨)')).toBeDefined();
+  expect(calls.bodies['PATCH /api/comments/c1']).toEqual({
+    body: '오타 있음',
+  });
+});
 
-it.each(['LIVE', 'ENDED'] as const)(
-  'deletes the viewer’s own comment only after confirming (%s)',
-  async (status) => {
-    const routes: Record<string, unknown> = {
-      'GET /api/auth/me': other,
-      'GET /api/broadcasts/b1': broadcast({ status }),
-      [COMMENTS]: [comment({ body: '지울 댓글' })],
-      'DELETE /api/comments/c1': 204,
-    };
-    const calls = stubApi(routes);
-    renderAt('/broadcasts/b1');
-    fireEvent.click(await screen.findByRole('button', { name: '댓글 삭제' }));
-    fireEvent.click(screen.getByRole('button', { name: '취소' }));
-    expect(calls).not.toContain('DELETE /api/comments/c1');
+it('deletes the viewer’s own comment only after confirming', async () => {
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': other,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+    [COMMENTS]: [comment({ body: '지울 댓글' })],
+    'DELETE /api/comments/c1': 204,
+  };
+  const calls = stubApi(routes);
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '댓글 삭제' }));
+  fireEvent.click(screen.getByRole('button', { name: '취소' }));
+  expect(calls).not.toContain('DELETE /api/comments/c1');
 
-    fireEvent.click(screen.getByRole('button', { name: '댓글 삭제' }));
-    expect(screen.getByText('이 댓글을 삭제할까요?')).toBeDefined();
-    routes[COMMENTS] = [];
-    fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
-    expect(
-      await screen.findByText('아직 댓글이 없습니다. 첫 댓글을 남겨 보세요.'),
-    ).toBeDefined();
-    expect(calls).toContain('DELETE /api/comments/c1');
-  },
-);
+  fireEvent.click(screen.getByRole('button', { name: '댓글 삭제' }));
+  expect(screen.getByText('이 댓글을 삭제할까요?')).toBeDefined();
+  routes[COMMENTS] = [];
+  fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
+  expect(
+    await screen.findByText('아직 댓글이 없습니다. 첫 댓글을 남겨 보세요.'),
+  ).toBeDefined();
+  expect(calls).toContain('DELETE /api/comments/c1');
+});

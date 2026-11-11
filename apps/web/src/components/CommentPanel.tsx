@@ -1,26 +1,18 @@
-import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
 import { COMMENT_MAX_LENGTH, isEdited, type Comment } from '../comments';
 import type { LoginPageState } from '../pages/LoginPage';
 import { usePolledApi } from '../use-api';
-import type { BroadcastStatus } from './StatusBadge';
-import styles from './CommentPanel.module.css';
+import { useLoginRedirect } from '../use-login-redirect';
+import { useStickToBottom } from '../use-stick-to-bottom';
+import styles from './SidePanel.module.css';
 
-// PRD §8.2: no realtime push. While LIVE the list is re-read every 1 s so
-// other viewers' comments read like chat; otherwise on the status poll's
-// 5 s cadence. The viewer's own change re-reads right away.
-const COMMENT_POLL_MS: Record<BroadcastStatus, number> = {
-  READY: 5000,
-  LIVE: 1000,
-  ENDED: 5000,
-};
-
-type Variant = 'chat' | 'board';
-
-// Stick to the newest comment unless the viewer scrolled up to read.
-const STICK_THRESHOLD_PX = 40;
+// Comments are written once the broadcast has ended, so nobody expects them
+// to read like chat (PRD §8.2: no realtime push). The viewer's own change
+// re-reads right away.
+const COMMENT_POLL_MS = 5000;
 
 const timeFormat = new Intl.DateTimeFormat('ko-KR', {
   month: 'numeric',
@@ -29,68 +21,25 @@ const timeFormat = new Intl.DateTimeFormat('ko-KR', {
   minute: '2-digit',
 });
 
-const clockFormat = new Intl.DateTimeFormat('ko-KR', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-});
-
-// Sends the viewer to log in and back here when the session ran out.
-function useLoginRedirect(broadcastId: string) {
-  const navigate = useNavigate();
-  return (err: unknown): boolean => {
-    if (!(err instanceof ApiError && err.status === 401)) return false;
-    const next: LoginPageState = { from: `/broadcasts/${broadcastId}` };
-    void navigate('/login', { state: next });
-    return true;
-  };
-}
-
-export function CommentPanel({
-  broadcastId,
-  status,
-}: {
-  broadcastId: string;
-  status: BroadcastStatus;
-}) {
+// The board of an ended broadcast: every comment with its author and time,
+// and 수정·삭제 on the viewer's own.
+export function CommentPanel({ broadcastId }: { broadcastId: string }) {
   const { state } = useAuth();
   const { data: comments, reload } = usePolledApi<Comment[]>(
     `/broadcasts/${encodeURIComponent(broadcastId)}/comments`,
-    COMMENT_POLL_MS[status],
+    COMMENT_POLL_MS,
   );
-  const variant: Variant = status === 'LIVE' ? 'chat' : 'board';
-  const listRef = useRef<HTMLOListElement>(null);
-  const stickRef = useRef(true);
+  const loaded = comments.status === 'loaded' ? comments.data : null;
+  const { listRef, onScroll, stick } =
+    useStickToBottom<HTMLOListElement>(loaded);
   const me = state.status === 'authenticated' ? state.user : null;
   // Kept here, not in the form, so a 401 elsewhere (the follow poll) that
   // logs the viewer out does not throw away what they were typing.
   const [draft, setDraft] = useState('');
   const loginState: LoginPageState = { from: `/broadcasts/${broadcastId}` };
 
-  const loaded = comments.status === 'loaded' ? comments.data : null;
-  useLayoutEffect(() => {
-    const list = listRef.current;
-    if (list && stickRef.current) list.scrollTop = list.scrollHeight;
-  }, [loaded]);
-
-  function onScroll() {
-    const list = listRef.current;
-    if (!list) return;
-    stickRef.current =
-      list.scrollHeight - list.scrollTop - list.clientHeight <
-      STICK_THRESHOLD_PX;
-  }
-
-  function afterOwnPost() {
-    stickRef.current = true;
-    reload();
-  }
-
   return (
-    <aside className={styles.panel} aria-labelledby="comments-heading">
-      <h2 id="comments-heading" className={styles.heading}>
-        댓글
-      </h2>
+    <>
       {comments.status === 'failed' && (
         <p className={styles.empty}>댓글을 불러오지 못했습니다.</p>
       )}
@@ -100,16 +49,11 @@ export function CommentPanel({
         </p>
       )}
       {loaded && loaded.length > 0 && (
-        <ol
-          ref={listRef}
-          className={`${styles.list} ${variant === 'chat' ? styles.chatList : ''}`}
-          onScroll={onScroll}
-        >
+        <ol ref={listRef} className={styles.list} onScroll={onScroll}>
           {loaded.map((c) => (
             <CommentItem
               key={c.id}
               comment={c}
-              variant={variant}
               broadcastId={broadcastId}
               mine={me?.id === c.author.id}
               onChanged={reload}
@@ -127,10 +71,13 @@ export function CommentPanel({
           broadcastId={broadcastId}
           draft={draft}
           setDraft={setDraft}
-          onPosted={afterOwnPost}
+          onPosted={() => {
+            stick();
+            reload();
+          }}
         />
       )}
-    </aside>
+    </>
   );
 }
 
@@ -213,13 +160,11 @@ type Mode = 'view' | 'edit' | 'confirm-delete';
 
 function CommentItem({
   comment,
-  variant,
   broadcastId,
   mine,
   onChanged,
 }: {
   comment: Comment;
-  variant: Variant;
   broadcastId: string;
   mine: boolean;
   onChanged: () => void;
@@ -260,36 +205,15 @@ function CommentItem({
     }
   }
 
-  const createdAt = new Date(comment.createdAt);
-  const edited = isEdited(comment) && (
-    <span className={styles.time}>(수정됨)</span>
-  );
-
-  // Chat keeps the line visible while editing, so the form sits under it.
   return (
-    <li className={variant === 'chat' ? styles.chatItem : styles.item}>
-      {variant === 'chat' ? (
-        <p className={styles.chatLine}>
-          <span className={styles.author}>{comment.author.nickname}</span>{' '}
-          <span className={styles.chatBody}>{comment.body}</span>{' '}
-          <time
-            dateTime={comment.createdAt}
-            title={timeFormat.format(createdAt)}
-            className={styles.time}
-          >
-            {clockFormat.format(createdAt)}
-          </time>{' '}
-          {edited}
-        </p>
-      ) : (
-        <div className={styles.meta}>
-          <span className={styles.author}>{comment.author.nickname}</span>
-          <time dateTime={comment.createdAt} className={styles.time}>
-            {timeFormat.format(createdAt)}
-          </time>
-          {edited}
-        </div>
-      )}
+    <li className={styles.item}>
+      <div className={styles.meta}>
+        <span className={styles.author}>{comment.author.nickname}</span>
+        <time dateTime={comment.createdAt} className={styles.time}>
+          {timeFormat.format(new Date(comment.createdAt))}
+        </time>
+        {isEdited(comment) && <span className={styles.time}>(수정됨)</span>}
+      </div>
       {mode === 'edit' ? (
         <form
           className={styles.form}
@@ -331,7 +255,7 @@ function CommentItem({
           </div>
         </form>
       ) : (
-        variant === 'board' && <p className={styles.body}>{comment.body}</p>
+        <p className={styles.body}>{comment.body}</p>
       )}
       {mine && mode === 'view' && (
         <div className={styles.actions}>

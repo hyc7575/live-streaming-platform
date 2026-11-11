@@ -22,9 +22,10 @@ model User {
   standbyImageExt       String?
   standbyImageUpdatedAt DateTime?
 
-  broadcasts Broadcast[]
-  comments   Comment[]
-  donations  Donation[]
+  broadcasts   Broadcast[]
+  comments     Comment[]
+  chatMessages ChatMessage[]
+  donations    Donation[]
   following  Follow[]    @relation("Follower")
   followers  Follow[]    @relation("Followed")
 }
@@ -56,8 +57,9 @@ model Broadcast {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  comments  Comment[]
-  donations Donation[]
+  comments     Comment[]
+  chatMessages ChatMessage[]
+  donations    Donation[]
 
   // PRD §7.4 one LIVE broadcast per streamer, held by the database so two
   // admissions racing for different broadcasts cannot both win.
@@ -77,6 +79,21 @@ model Comment {
   body        String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([broadcastId, createdAt])
+}
+
+// A line of chat sent while the broadcast is READY or LIVE. Chat is never
+// edited, so it has no updatedAt. Deleting a broadcast or a user takes their
+// chat with it, and an author's delete removes the row.
+model ChatMessage {
+  id          String    @id @default(uuid()) @db.Uuid
+  broadcastId String    @db.Uuid
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  authorId    String    @db.Uuid
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body        String
+  createdAt   DateTime  @default(now())
 
   @@index([broadcastId, createdAt])
 }

@@ -5,9 +5,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   COMMENT_LIST_LIMIT,
   COMMENT_MAX_LENGTH,
+  COMMENT_NOT_ENDED_MESSAGE,
   type CommentView,
 } from '../src/comments/comments.service.js';
 import { PrismaService } from '../src/database/database.module.js';
+import type { BroadcastStatus } from '../src/generated/prisma/client.js';
 import {
   createTestApp,
   resetDatabase,
@@ -51,8 +53,9 @@ describe('comments', () => {
       data: {
         streamerId: streamer.user.id,
         title: '방송',
-        status: 'LIVE',
+        status: 'ENDED',
         startedAt: now,
+        endedAt: now,
       },
     });
     broadcastId = row.id;
@@ -95,6 +98,22 @@ describe('comments', () => {
     expect(bodies[0]).toBe('댓글 1');
     expect(bodies.at(-1)).toBe(`댓글 ${COMMENT_LIST_LIMIT}`);
   });
+
+  it.each<BroadcastStatus>(['READY', 'LIVE'])(
+    'refuses a comment while the broadcast is %s with 409 and a message for the viewer',
+    async (status) => {
+      await prisma.broadcast.update({
+        where: { id: broadcastId },
+        data: { status, endedAt: null },
+      });
+      const res = await post(viewer.agent, { body: '안녕' });
+      expect(res.status).toBe(409);
+      expect((res.body as { message: string }).message).toBe(
+        COMMENT_NOT_ENDED_MESSAGE,
+      );
+      expect(await prisma.comment.count()).toBe(0);
+    },
+  );
 
   it('trims the body and accepts exactly the maximum length', async () => {
     const res = await post(viewer.agent, { body: '  안녕하세요  ' });
