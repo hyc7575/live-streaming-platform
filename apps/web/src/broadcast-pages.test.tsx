@@ -957,7 +957,9 @@ it.each(['READY', 'LIVE'] as const)(
     const panel = await screen.findByRole('complementary', { name: '채팅' });
     const line = (await within(panel).findByText('안녕하세요')).closest('p')!;
     expect(within(line).getByText(other.nickname)).toBeDefined();
-    expect(within(line).getByText('10:00')).toBeDefined();
+    const time = line.querySelector('time')!;
+    expect(time.getAttribute('dateTime')).toBe('2026-11-10T01:00:00.000Z');
+    expect(time.textContent).toMatch(/^\d{2}:\d{2}$/);
     expect(screen.queryByRole('tablist')).toBeNull();
     expect(within(panel).queryByRole('textbox')).toBeNull();
     expect(
