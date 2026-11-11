@@ -7,7 +7,7 @@ import {
   within,
 } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
 import type { Broadcast, RecordingPart } from './broadcasts';
@@ -1516,4 +1516,83 @@ it.each([
   } finally {
     vi.useRealTimers();
   }
+});
+
+// jsdom has neither matchMedia nor a modal <dialog>. The page reads the
+// screen width through matchMedia, and the sheet needs only showModal and
+// close to toggle `open` and fire close, as a browser does.
+function narrowScreen() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  const dialog = HTMLDialogElement.prototype;
+  dialog.showModal = function (this: HTMLDialogElement) {
+    this.open = true;
+  };
+  dialog.close = function (this: HTMLDialogElement) {
+    this.open = false;
+    this.dispatchEvent(new Event('close'));
+  };
+  onTestFinished(() => {
+    delete (dialog as Partial<HTMLDialogElement>).showModal;
+    delete (dialog as Partial<HTMLDialogElement>).close;
+  });
+}
+
+const sheet = () => screen.queryByRole('dialog', { name: '방송' });
+
+it('puts the details in a 더 보기 sheet on a narrow screen and returns focus on close', async () => {
+  narrowScreen();
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({
+      status: 'LIVE',
+      description: '오늘은 보드게임',
+    }),
+  });
+  renderAt('/broadcasts/b1');
+  const more = await screen.findByRole('button', { name: '더 보기' });
+  expect(screen.getByRole('heading', { level: 1, name: '방송' })).toBeDefined();
+  expect(more.getAttribute('aria-haspopup')).toBe('dialog');
+  expect(more.getAttribute('aria-expanded')).toBe('false');
+  expect(sheet()).toBeNull();
+
+  fireEvent.click(more);
+  const opened = sheet()!;
+  expect(more.getAttribute('aria-expanded')).toBe('true');
+  expect(within(opened).getByText('오늘은 보드게임')).toBeDefined();
+  expect(within(opened).getByRole('heading', { name: '후원' })).toBeDefined();
+
+  fireEvent.click(within(opened).getByRole('button', { name: '닫기' }));
+  expect(sheet()).toBeNull();
+  expect(document.activeElement).toBe(more);
+
+  fireEvent.click(more);
+  fireEvent.click(sheet()!.closest('dialog')!);
+  expect(sheet(), 'a tap on the backdrop closes it').toBeNull();
+  expect(document.activeElement).toBe(more);
+});
+
+it('plays the part picked in the sheet and closes it', async () => {
+  narrowScreen();
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({
+      status: 'ENDED',
+      recordingFiles: REPLAY_PARTS.map((p) => p.file),
+      recordingParts: REPLAY_PARTS,
+    }),
+    [COMMENTS]: [],
+  });
+  renderAt('/broadcasts/b1');
+  const video = await screen.findByLabelText<HTMLVideoElement>('다시보기 화면');
+  expect(screen.queryByRole('group', { name: '녹화 부분' })).toBeNull();
+
+  fireEvent.click(screen.getByRole('button', { name: '더 보기' }));
+  fireEvent.click(within(sheet()!).getByRole('button', { name: '2부' }));
+  expect(video.getAttribute('src')).toBe('/recordings/b1/1_1.mp4');
+  expect(sheet()).toBeNull();
 });

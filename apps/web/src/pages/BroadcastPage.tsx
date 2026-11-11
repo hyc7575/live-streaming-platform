@@ -3,6 +3,7 @@ import { useParams } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
+import { ActionSheet } from '../components/ActionSheet';
 import { BroadcastSidePanel } from '../components/BroadcastSidePanel';
 import type { BroadcastStatus } from '../components/StatusBadge';
 import { DonationPanel } from '../components/DonationPanel';
@@ -15,6 +16,7 @@ import { FollowButton } from '../follows/FollowButton';
 import { partStarts, type Playhead } from '../replay-chat';
 import type { Loadable } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
+import { useWideScreen } from '../use-wide-screen';
 import styles from './BroadcastPage.module.css';
 
 const PLAYER_NOTICE: Record<Exclude<BroadcastStatus, 'LIVE'>, string> = {
@@ -139,6 +141,8 @@ export function BroadcastPage() {
     broadcastId: string;
     part: number;
   } | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const wide = useWideScreen();
 
   // Until we know whether this is the owner, the player cannot know whether
   // to start muted (T7).
@@ -161,16 +165,57 @@ export function BroadcastPage() {
   const standbyImageUrl = b.status === 'READY' ? b.standbyImageUrl : null;
   const playhead = heard?.broadcastId === b.id ? heard.playhead : null;
   const part = picked?.broadcastId === b.id ? picked.part : 0;
-  const pickPart = (p: number) => setPicked({ broadcastId: b.id, part: p });
+  const hasReplay = b.status === 'ENDED' && b.recordingFiles.length > 0;
+  const pickPart = (p: number) => {
+    setPicked({ broadcastId: b.id, part: p });
+    setSheetOpen(false);
+  };
+
+  // Each piece below is drawn once: around the player on a wide screen, or
+  // in the 더 보기 sheet on a narrow one, where the chat takes the space.
+  const parts = hasReplay && (
+    <ReplayParts files={b.recordingFiles} part={part} onPart={pickPart} />
+  );
+  const notes = (
+    <>
+      {hasReplay && <p className={styles.playerNote}>{REPLAY_NOTICE}</p>}
+      {b.status === 'LIVE' && isOwner && (
+        <p className={styles.playerNote}>
+          내 방송이라 소리를 끄고 재생합니다. 송출하는 기기에서 소리를 켜면
+          하울링이 생길 수 있습니다. 소리는 플레이어에서 켤 수 있습니다.
+        </p>
+      )}
+    </>
+  );
+  const status = (
+    <>
+      <StatusBadge status={b.status} />
+      {b.status === 'LIVE' && b.startedAt && (
+        <ElapsedTime
+          startedAt={b.startedAt}
+          precision="second"
+          className={styles.elapsed}
+        />
+      )}
+    </>
+  );
+  const follow = !isOwner && <FollowButton streamerId={b.streamer.id} />;
+  const streamer = <p className={styles.streamer}>{b.streamer.nickname}</p>;
+  const description = b.description && (
+    <p className={styles.description}>{b.description}</p>
+  );
+  const owner = isOwner && <OwnerActions broadcast={b} onEnded={recheck} />;
+  const donation = <DonationPanel broadcast={b} />;
+
   return (
     <section className={styles.page}>
       <div className={styles.main}>
-        {b.status === 'ENDED' && b.recordingFiles.length > 0 ? (
+        {hasReplay ? (
           <ReplayPlayer
             key={b.id}
             files={b.recordingFiles}
             part={part}
-            onPart={pickPart}
+            onPart={(p) => setPicked({ broadcastId: b.id, part: p })}
             onPlayhead={(p) => setHeard({ broadcastId: b.id, playhead: p })}
           />
         ) : (
@@ -206,44 +251,42 @@ export function BroadcastPage() {
             )}
           </div>
         )}
-        {b.status === 'ENDED' && b.recordingFiles.length > 0 && (
+        {wide ? (
           <>
-            <ReplayParts
-              files={b.recordingFiles}
-              part={part}
-              onPart={pickPart}
-            />
-            <p className={styles.playerNote}>{REPLAY_NOTICE}</p>
+            {parts}
+            {notes}
+            <div className={styles.info}>
+              <div className={styles.status}>{status}</div>
+              <h1 className={styles.title}>{b.title}</h1>
+              <div className={styles.streamerRow}>
+                {streamer}
+                {follow}
+              </div>
+              {description}
+              {owner}
+            </div>
+            {donation}
           </>
-        )}
-        {b.status === 'LIVE' && isOwner && (
-          <p className={styles.playerNote}>
-            내 방송이라 소리를 끄고 재생합니다. 송출하는 기기에서 소리를 켜면
-            하울링이 생길 수 있습니다. 소리는 플레이어에서 켤 수 있습니다.
-          </p>
-        )}
-        <div className={styles.info}>
-          <div className={styles.status}>
-            <StatusBadge status={b.status} />
-            {b.status === 'LIVE' && b.startedAt && (
-              <ElapsedTime
-                startedAt={b.startedAt}
-                precision="second"
-                className={styles.elapsed}
-              />
-            )}
+        ) : (
+          <div className={styles.summary}>
+            <h1 className={styles.summaryTitle}>{b.title}</h1>
+            {status}
+            {follow}
+            <ActionSheet
+              label="더 보기"
+              title={b.title}
+              open={sheetOpen}
+              onOpenChange={setSheetOpen}
+            >
+              {streamer}
+              {description}
+              {donation}
+              {parts}
+              {owner}
+              {notes}
+            </ActionSheet>
           </div>
-          <h1 className={styles.title}>{b.title}</h1>
-          <div className={styles.streamerRow}>
-            <p className={styles.streamer}>{b.streamer.nickname}</p>
-            {!isOwner && <FollowButton streamerId={b.streamer.id} />}
-          </div>
-          {b.description && (
-            <p className={styles.description}>{b.description}</p>
-          )}
-          {isOwner && <OwnerActions broadcast={b} onEnded={recheck} />}
-        </div>
-        <DonationPanel broadcast={b} />
+        )}
       </div>
       <BroadcastSidePanel
         key={b.id}

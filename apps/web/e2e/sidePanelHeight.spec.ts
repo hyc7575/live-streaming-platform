@@ -144,22 +144,3 @@ test.describe('wide screen', () => {
     });
   }
 });
-
-test.describe('narrow screen', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
-
-  test('the panel stacks under the player and caps its list at 60vh', async ({
-    page,
-  }) => {
-    const panel = await openView(page, VIEWS[0], 200);
-    const list = panel.locator('ol:visible');
-    const height = (await list.boundingBox())!.height;
-    expect(height).toBeLessThanOrEqual(844 * 0.6 + 1);
-    expect(height).toBeGreaterThan(844 * 0.6 - 1);
-    if (SCREENSHOT_DIR)
-      await page.screenshot({
-        path: `${SCREENSHOT_DIR}/narrow-live-chat.png`,
-        fullPage: true,
-      });
-  });
-});

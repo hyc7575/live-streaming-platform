@@ -1,5 +1,7 @@
 .shell {
-  min-height: 100vh;
+  /* dvh, not vh: on a phone, 100vh counts the space under the address bar
+     and would let a screen-filling page scroll by that much. */
+  min-height: 100dvh;
 }
 
 .header {
