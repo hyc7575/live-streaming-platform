@@ -24,6 +24,12 @@ const FILTERS = [
     empty: '지금 LIVE인 방송이 없습니다.',
   },
   {
+    status: 'READY',
+    label: '방송 준비 중',
+    path: '/broadcasts?status=READY',
+    empty: '준비 중인 방송이 없습니다.',
+  },
+  {
     status: 'ENDED',
     label: '방송 종료',
     path: '/broadcasts?status=ENDED',

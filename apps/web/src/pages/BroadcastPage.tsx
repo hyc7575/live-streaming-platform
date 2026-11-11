@@ -17,7 +17,7 @@ import { useDocumentTitle } from '../use-document-title';
 import styles from './BroadcastPage.module.css';
 
 const PLAYER_NOTICE: Record<Exclude<BroadcastStatus, 'LIVE'>, string> = {
-  READY: '방송 전입니다. 스트리머가 방송을 시작하면 자동으로 재생합니다.',
+  READY: '방송 준비 중입니다.',
   ENDED: '방송이 끝났습니다.',
 };
 

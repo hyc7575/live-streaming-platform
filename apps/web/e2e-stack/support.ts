@@ -102,3 +102,34 @@ export async function watchUntilPlaying(viewer: Page) {
     })
     .toBeGreaterThan(1);
 }
+
+// A real, decodable image drawn by the browser, so the static server and
+// the <img> both see what a streamer's file would be.
+export async function drawImage(
+  page: Page,
+  type: 'image/png' | 'image/webp',
+  color: string,
+): Promise<Buffer> {
+  const base64 = await page.evaluate(
+    async ({ type, color }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 360;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, 640, 360);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 72px sans-serif';
+      ctx.fillText('곧 시작합니다', 80, 200);
+      const blob = await new Promise<Blob>((done) =>
+        canvas.toBlob((b) => done(b!), type),
+      );
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let text = '';
+      for (const byte of bytes) text += String.fromCharCode(byte);
+      return btoa(text);
+    },
+    { type, color },
+  );
+  return Buffer.from(base64, 'base64');
+}

@@ -98,6 +98,33 @@ it('lists public broadcasts and refetches when a status filter is picked', async
   expect(calls).toContain('GET /api/broadcasts?status=ENDED');
 });
 
+it('lists READY broadcasts under the 방송 준비 중 tab, searchable, linking to the watch page', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts': [],
+    'GET /api/broadcasts?status=READY': [
+      broadcast({ id: 'b3', title: '곧 시작', status: 'READY' }),
+      broadcast({ id: 'b4', title: '저녁 방송', status: 'READY' }),
+    ],
+  });
+  renderAt('/?q=곧');
+  fireEvent.click(await screen.findByRole('link', { name: '방송 준비 중' }));
+  const card = await screen.findByRole('link', { name: /곧 시작/ });
+  expect(within(card).getByText('방송 준비 중')).toBeDefined();
+  expect(card.getAttribute('href')).toBe('/broadcasts/b3');
+  expect(screen.queryByRole('link', { name: /저녁 방송/ })).toBeNull();
+  expect(calls).toContain('GET /api/broadcasts?status=READY');
+});
+
+it('says so when no broadcast is getting ready', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts?status=READY': [],
+  });
+  renderAt('/?status=READY');
+  expect(await screen.findByText('준비 중인 방송이 없습니다.')).toBeDefined();
+});
+
 it('lists replays under the 다시보기 tab', async () => {
   const calls = stubApi({
     'GET /api/auth/me': 401,
@@ -358,7 +385,7 @@ it('returns to the create form after logging in from it', async () => {
   ).toBeDefined();
 });
 
-it('shows the logged-in streamer’s READY broadcast as 방송 전', async () => {
+it('shows the logged-in streamer’s READY broadcast as 방송 준비 중', async () => {
   stubApi({
     'GET /api/auth/me': streamer,
     'GET /api/me/broadcasts': [
@@ -367,10 +394,10 @@ it('shows the logged-in streamer’s READY broadcast as 방송 전', async () =>
   });
   renderAt('/studio');
   const card = await screen.findByRole('link', { name: /준비 중인 방송/ });
-  expect(within(card).getByText('방송 전')).toBeDefined();
+  expect(within(card).getByText('방송 준비 중')).toBeDefined();
 });
 
-it('opens the publish page from a 방송 전 card and the watch page from the others', async () => {
+it('opens the publish page from a 방송 준비 중 card and the watch page from the others', async () => {
   const mine = [
     broadcast({ id: 'b3', title: '준비 중인 방송', status: 'READY' }),
     broadcast({ id: 'b4', title: '송출 중인 방송', status: 'LIVE' }),
@@ -449,15 +476,11 @@ it('tells a visitor that a READY broadcast has not started', async () => {
     'GET /api/broadcasts/b3': broadcast({ id: 'b3', status: 'READY' }),
   });
   renderAt('/broadcasts/b3');
-  expect(
-    await screen.findByText(
-      '방송 전입니다. 스트리머가 방송을 시작하면 자동으로 재생합니다.',
-    ),
-  ).toBeDefined();
-  expect(screen.getByText('방송 전')).toBeDefined();
+  expect(await screen.findByText('방송 준비 중입니다.')).toBeDefined();
+  expect(screen.getByText('방송 준비 중')).toBeDefined();
 });
 
-it('lays the 방송 전 notice over the streamer’s standby image', async () => {
+it('lays the 방송 준비 중 notice over the streamer’s standby image', async () => {
   stubApi({
     'GET /api/auth/me': 401,
     'GET /api/broadcasts/b3': broadcast({
@@ -467,15 +490,13 @@ it('lays the 방송 전 notice over the streamer’s standby image', async () =>
     }),
   });
   const { container } = renderAt('/broadcasts/b3');
-  await screen.findByText(
-    '방송 전입니다. 스트리머가 방송을 시작하면 자동으로 재생합니다.',
-  );
+  await screen.findByText('방송 준비 중입니다.');
   const img = container.querySelector('img');
   expect(img?.getAttribute('src')).toBe('/thumbnails/users/u1/standby.png?v=1');
   expect(img?.getAttribute('alt')).toBe('');
 });
 
-it('swaps the 방송 전 notice for the player once a status poll says LIVE', async () => {
+it('swaps the 방송 준비 중 notice for the player once a status poll says LIVE', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
   try {
     const routes: Record<string, unknown> = {
@@ -484,8 +505,7 @@ it('swaps the 방송 전 notice for the player once a status poll says LIVE', as
     };
     stubApi(routes);
     renderAt('/broadcasts/b1');
-    const notice =
-      '방송 전입니다. 스트리머가 방송을 시작하면 자동으로 재생합니다.';
+    const notice = '방송 준비 중입니다.';
     await screen.findByText(notice);
     expect(screen.queryByLabelText('방송 화면')).toBeNull();
 
