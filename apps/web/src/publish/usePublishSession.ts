@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import type { Broadcast } from '../broadcasts';
 import type { LoginPageState } from '../pages/LoginPage';
+import { requestPublishTicket } from './publishTicket';
 import {
   startWhipPublish,
   type PublishEvent,
@@ -37,27 +38,6 @@ export interface PublishSession {
   end: () => void;
   /** Drops a publish that has not been ended, leaving the broadcast as it is. */
   cancel: () => void;
-}
-
-interface PublishTicket {
-  publishUrl: string;
-  expiresAt: string;
-}
-
-function tokenErrorMessage(error: unknown): string {
-  if (!(error instanceof ApiError)) {
-    return '송출을 시작하지 못했습니다. 잠시 후 다시 시도하세요.';
-  }
-  switch (error.status) {
-    case 403:
-      return '권한이 없습니다.';
-    case 404:
-      return '방송을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.';
-    case 409:
-      return error.serverMessage ?? '지금은 이 방송을 송출할 수 없습니다.';
-    default:
-      return '송출을 시작하지 못했습니다. 잠시 후 다시 시도하세요.';
-  }
 }
 
 function publishErrorMessage(
@@ -123,22 +103,16 @@ export function usePublishSession(broadcastId: string): PublishSession {
       setState({ kind: 'requesting' });
 
       void (async () => {
-        let ticket: PublishTicket;
-        try {
-          ticket = await apiFetch<PublishTicket>(
-            `/broadcasts/${broadcastId}/publish-token`,
-            { method: 'POST' },
-          );
-        } catch (error) {
-          if (!current()) return;
-          if (error instanceof ApiError && error.status === 401) {
-            goToLogin();
-            return;
-          }
-          setState({ kind: 'idle', error: tokenErrorMessage(error) });
+        const ticket = await requestPublishTicket(broadcastId, 'browser');
+        if (!current()) return;
+        if (ticket.kind === 'unauthorized') {
+          goToLogin();
           return;
         }
-        if (!current()) return;
+        if (ticket.kind === 'refused') {
+          setState({ kind: 'idle', error: ticket.error });
+          return;
+        }
         publisher.current = startWhipPublish(
           stream,
           ticket.publishUrl,
