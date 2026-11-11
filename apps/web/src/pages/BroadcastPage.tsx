@@ -3,8 +3,8 @@ import { useParams } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
+import { BroadcastSidePanel } from '../components/BroadcastSidePanel';
 import type { BroadcastStatus } from '../components/StatusBadge';
-import { CommentPanel } from '../components/CommentPanel';
 import { DonationPanel } from '../components/DonationPanel';
 import { ElapsedTime } from '../components/ElapsedTime';
 import { LivePlayer } from '../components/LivePlayer';
@@ -218,7 +218,7 @@ export function BroadcastPage() {
         </div>
         <DonationPanel broadcast={b} />
       </div>
-      <CommentPanel broadcastId={b.id} status={b.status} />
+      <BroadcastSidePanel key={b.id} broadcastId={b.id} status={b.status} />
     </section>
   );
 }

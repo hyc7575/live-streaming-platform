@@ -126,13 +126,13 @@ it('takes keys only while the player has focus', () => {
   render(
     <>
       <Player />
-      <textarea aria-label="댓글" />
+      <textarea aria-label="채팅" />
     </>,
   );
-  const comment = screen.getByRole('textbox', { name: '댓글' });
-  comment.focus();
-  fireEvent.keyDown(comment, { key: ' ', code: 'Space' });
-  fireEvent.keyDown(comment, { key: 'm', code: 'KeyM' });
+  const chat = screen.getByRole('textbox', { name: '채팅' });
+  chat.focus();
+  fireEvent.keyDown(chat, { key: ' ', code: 'Space' });
+  fireEvent.keyDown(chat, { key: 'm', code: 'KeyM' });
   expect(play).not.toHaveBeenCalled();
   expect(video().muted).toBe(false);
 
