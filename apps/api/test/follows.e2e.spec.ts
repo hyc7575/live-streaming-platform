@@ -138,7 +138,7 @@ describe('follows', () => {
   it('shows no READY or ENDED broadcast as live', async () => {
     await viewer.agent.put(followUrl(streamer.user.id));
     await prisma.broadcast.create({
-      data: { streamerId: streamer.user.id, title: '방송 전' },
+      data: { streamerId: streamer.user.id, title: '방송 준비 중' },
     });
     await prisma.broadcast.create({
       data: {

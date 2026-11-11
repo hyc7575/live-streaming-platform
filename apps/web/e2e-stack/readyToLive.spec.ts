@@ -12,14 +12,12 @@ test('a viewer waiting on a READY broadcast gets the player once it goes LIVE', 
   browser,
 }) => {
   await signUpAndLogIn(page.request);
-  const id = await createBroadcast(page.request, '방송 전 안내');
+  const id = await createBroadcast(page.request, '방송 준비 중 안내');
 
   const viewerContext = await browser.newContext();
   const viewer = await viewerContext.newPage();
   await viewer.goto(`/broadcasts/${id}`);
-  const notice = viewer.getByText(
-    '방송 전입니다. 스트리머가 방송을 시작하면 자동으로 재생합니다.',
-  );
+  const notice = viewer.getByText('방송 준비 중입니다.');
   await expect(notice).toBeVisible();
   await screenshot(viewer, 'viewer-ready');
   let reloaded = false;

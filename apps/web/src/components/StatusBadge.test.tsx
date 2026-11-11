@@ -5,7 +5,7 @@ import { type BroadcastStatus, StatusBadge } from './StatusBadge';
 afterEach(cleanup);
 
 it.each<[BroadcastStatus, string]>([
-  ['READY', '방송 전'],
+  ['READY', '방송 준비 중'],
   ['LIVE', 'LIVE'],
   ['ENDED', '방송 종료'],
 ])('labels %s as %s', (status, label) => {

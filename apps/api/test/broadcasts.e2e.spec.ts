@@ -6,6 +6,8 @@ import {
   DROP_STREAM_FAILED_MESSAGE,
   END_READY_MESSAGE,
   type BroadcastView,
+  PUBLIC_LIST_LIMIT,
+  READY_LISTED_MS,
   type PublicStatus,
 } from '../src/broadcasts/broadcasts.service.js';
 import type { BroadcastStatus as Status } from '../src/generated/prisma/client.js';
@@ -15,17 +17,20 @@ import {
   signUpAndLogIn,
   type TestUser,
 } from './support/app.js';
+import { fakeClockOf, type FakeClock } from './support/fake-clock.js';
 import { fakeOmeApiOf, type FakeOmeApi } from './support/fake-ome-api.js';
 
 describe('broadcasts', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
   let ome: FakeOmeApi;
+  let clock: FakeClock;
 
   beforeAll(async () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
     ome = fakeOmeApiOf(app);
+    clock = fakeClockOf(app);
   });
 
   beforeEach(async () => {
@@ -44,12 +49,14 @@ describe('broadcasts', () => {
     title: string,
     status: Status,
     startedAt?: Date,
+    createdAt?: Date,
   ): Promise<string> {
     const row = await prisma.broadcast.create({
       data: {
         streamerId: streamer.id,
         title,
         status,
+        createdAt,
         startedAt: status === 'READY' ? null : (startedAt ?? new Date()),
         endedAt: status === 'ENDED' ? new Date() : null,
       },
@@ -115,38 +122,80 @@ describe('broadcasts', () => {
   });
 
   describe('GET /api/broadcasts', () => {
-    it('lists LIVE then ENDED, newest first, and never READY', async () => {
+    // Relative to the injected clock, which READY_LISTED_MS is measured on.
+    function ago(ms: number): Date {
+      return new Date(clock.now().getTime() - ms);
+    }
+
+    it('lists LIVE, then READY made in the last day, then ENDED, newest first', async () => {
       const { user: a } = await signUpAndLogIn(app, { nickname: 'A' });
       const { user: b } = await signUpAndLogIn(app, { nickname: 'B' });
-      await seed(a, 'A 준비', 'READY');
-      await seed(b, 'B 준비', 'READY');
       await seed(a, 'A 종료', 'ENDED', new Date('2026-11-01T10:00:00Z'));
+      await seed(a, 'A 준비', 'READY', undefined, ago(60_000));
+      await seed(b, 'B 지난 준비', 'READY', undefined, ago(READY_LISTED_MS));
       await seed(a, 'A 옛 LIVE', 'LIVE', new Date('2026-11-01T09:00:00Z'));
+      await seed(b, 'B 준비', 'READY', undefined, ago(1_000));
       await seed(b, 'B 새 LIVE', 'LIVE', new Date('2026-11-01T11:00:00Z'));
 
       const res = await request(app.getHttpServer()).get('/api/broadcasts');
       expect(res.status).toBe(200);
-      expect(titles(res.body)).toEqual(['B 새 LIVE', 'A 옛 LIVE', 'A 종료']);
+      expect(titles(res.body)).toEqual([
+        'B 새 LIVE',
+        'A 옛 LIVE',
+        'B 준비',
+        'A 준비',
+        'A 종료',
+      ]);
       expect((res.body as BroadcastView[])[0]?.streamer).toEqual({
         id: b.id,
         nickname: 'B',
       });
     });
 
-    it('hides even the caller’s own READY broadcasts', async () => {
+    it('drops a READY broadcast from the list a day after it was made, and keeps it in 내 방송', async () => {
       const { user, agent } = await signUpAndLogIn(app);
-      await seed(user, '내 준비', 'READY');
-      const res = await agent.get('/api/broadcasts');
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual([]);
+      await seed(user, '내 준비', 'READY', undefined, clock.now());
+
+      clock.advance(READY_LISTED_MS - 1_000);
+      expect(titles((await agent.get('/api/broadcasts')).body)).toEqual([
+        '내 준비',
+      ]);
+
+      clock.advance(1_000);
+      expect((await agent.get('/api/broadcasts')).body).toEqual([]);
+      expect(titles((await agent.get('/api/me/broadcasts')).body)).toEqual([
+        '내 준비',
+      ]);
+    });
+
+    it('fills the list cap in LIVE, READY, ENDED order', async () => {
+      const { user } = await signUpAndLogIn(app);
+      await prisma.broadcast.createMany({
+        data: Array.from({ length: PUBLIC_LIST_LIMIT }, (_, i) => ({
+          streamerId: user.id,
+          title: `종료 ${i}`,
+          status: 'ENDED' as const,
+          startedAt: new Date(),
+          endedAt: new Date(),
+        })),
+      });
+      await seed(user, '준비', 'READY', undefined, clock.now());
+      await seed(user, 'LIVE', 'LIVE');
+
+      const res = await request(app.getHttpServer()).get('/api/broadcasts');
+      const body = res.body as BroadcastView[];
+      expect(body).toHaveLength(PUBLIC_LIST_LIMIT);
+      expect(body.slice(0, 2).map((v) => v.title)).toEqual(['LIVE', '준비']);
     });
 
     it.each<[PublicStatus, string[]]>([
       ['LIVE', ['LIVE 방송']],
+      ['READY', ['준비 방송']],
       ['ENDED', ['종료 방송']],
     ])('filters by status=%s', async (status, expected) => {
       const { user } = await signUpAndLogIn(app);
-      await seed(user, '준비 방송', 'READY');
+      await seed(user, '준비 방송', 'READY', undefined, clock.now());
+      await seed(user, '지난 준비', 'READY', undefined, ago(READY_LISTED_MS));
       await seed(user, 'LIVE 방송', 'LIVE');
       await seed(user, '종료 방송', 'ENDED');
       const res = await request(app.getHttpServer()).get(
@@ -156,7 +205,7 @@ describe('broadcasts', () => {
       expect(titles(res.body)).toEqual(expected);
     });
 
-    it.each(['READY', 'live', 'BOGUS'])(
+    it.each(['live', 'BOGUS', 'REPLAY'])(
       'rejects status=%s with 400',
       async (status) => {
         const res = await request(app.getHttpServer()).get(

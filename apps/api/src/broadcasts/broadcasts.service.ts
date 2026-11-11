@@ -34,7 +34,7 @@ export const DROP_STREAM_FAILED_MESSAGE =
 export const THUMBNAIL_NOT_LIVE_MESSAGE =
   '방송 중일 때만 썸네일을 올릴 수 있습니다.';
 
-export type PublicStatus = Extract<BroadcastStatus, 'LIVE' | 'ENDED'>;
+export type PublicStatus = Extract<BroadcastStatus, 'LIVE' | 'READY' | 'ENDED'>;
 
 // What the API reveals about a broadcast. The streamer appears by nickname
 // only, never by email.
@@ -94,7 +94,18 @@ function toView({
 // fixed cap keeps the response bounded without a cursor API.
 export const PUBLIC_LIST_LIMIT = 100;
 
-const PUBLIC_STATUSES: PublicStatus[] = ['LIVE', 'ENDED'];
+// List order. The enum declares READY first, so ordering by status cannot
+// give this.
+const PUBLIC_STATUSES = [
+  'LIVE',
+  'READY',
+  'ENDED',
+] as const satisfies readonly PublicStatus[];
+
+// A READY broadcast is listed for a day after creation so viewers can gather
+// before it starts. Abandoned ones drop out of the list but are never ended
+// or deleted.
+export const READY_LISTED_MS = 24 * 60 * 60 * 1000;
 
 const uuid = z.uuid();
 
@@ -122,18 +133,24 @@ export class BroadcastsService {
   }
 
   async listPublic(status?: PublicStatus): Promise<BroadcastView[]> {
-    const rows = await this.prisma.broadcast.findMany({
-      where: { status: status ?? { in: PUBLIC_STATUSES } },
-      // Enum declaration order puts LIVE before ENDED.
-      orderBy: [
-        { status: 'asc' },
-        { startedAt: { sort: 'desc', nulls: 'last' } },
-        { createdAt: 'desc' },
-      ],
-      take: PUBLIC_LIST_LIMIT,
-      select: broadcastSelect,
-    });
-    return rows.map(toView);
+    const listedSince = new Date(this.clock.now().getTime() - READY_LISTED_MS);
+    const groups = await Promise.all(
+      (status ? [status] : PUBLIC_STATUSES).map((s) =>
+        this.prisma.broadcast.findMany({
+          where:
+            s === 'READY'
+              ? { status: s, createdAt: { gt: listedSince } }
+              : { status: s },
+          orderBy: [
+            { startedAt: { sort: 'desc', nulls: 'last' } },
+            { createdAt: 'desc' },
+          ],
+          take: PUBLIC_LIST_LIMIT,
+          select: broadcastSelect,
+        }),
+      ),
+    );
+    return groups.flat().slice(0, PUBLIC_LIST_LIMIT).map(toView);
   }
 
   async listReplays(): Promise<BroadcastView[]> {
