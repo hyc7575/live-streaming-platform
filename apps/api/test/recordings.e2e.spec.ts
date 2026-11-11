@@ -33,6 +33,7 @@ import {
   type TestUser,
 } from './support/app.js';
 import { fakeOmeApiOf, type FakeOmeApi } from './support/fake-ome-api.js';
+import { omeMp4 } from './support/mp4.js';
 
 describe('recording reconciler', () => {
   let app: NestExpressApplication;
@@ -96,6 +97,49 @@ describe('recording reconciler', () => {
     await writeFile(path, Buffer.alloc(bytes));
     await utimes(path, mtime, mtime);
   }
+
+  // A part OME finished, with a video track of the given length.
+  async function recordPart(
+    id: string,
+    name: string,
+    mtime: number,
+    videoSeconds: number,
+  ): Promise<void> {
+    await mkdir(join(config.dir, id), { recursive: true });
+    const path = join(config.dir, id, name);
+    await writeFile(path, omeMp4(videoSeconds));
+    await utimes(path, mtime, mtime);
+  }
+
+  async function writeInfo(
+    id: string,
+    transaction: string,
+    parts: { recordTime: number; startTime: string }[],
+  ): Promise<void> {
+    const files = parts.map(
+      ({ recordTime, startTime }, sequence) => `  <file>
+    <transactionId>${transaction}</transactionId>
+    <stream>${id}</stream>
+    <filePath><![CDATA[/${id}/${transaction}_${sequence}.mp4]]></filePath>
+    <recordTime>${recordTime}</recordTime>
+    <sequence>${sequence}</sequence>
+    <startTime>${startTime}</startTime>
+    <finishTime>2026-11-11T06:40:00.000+00:00</finishTime>
+  </file>`,
+    );
+    await writeFile(
+      join(config.dir, id, `${transaction}.xml`),
+      `<?xml version="1.0" encoding="utf-8"?>\n<files>\n${files.join('\n')}\n</files>\n`,
+    );
+  }
+
+  const viewOf = async (target: NestExpressApplication, id: string) => {
+    const res = await request(target.getHttpServer()).get(
+      `/api/broadcasts/${id}`,
+    );
+    expect(res.status).toBe(200);
+    return res.body as BroadcastView;
+  };
 
   const filesOf = async (id: string) =>
     (await prisma.broadcast.findUniqueOrThrow({ where: { id } }))
@@ -199,6 +243,111 @@ describe('recording reconciler', () => {
       await rm(config.dir, { recursive: true });
       await reconciler.reconcile();
       expect(await filesOf(id)).toEqual([]);
+    });
+  });
+
+  describe('starts', () => {
+    async function recordTwoParts(id: string): Promise<void> {
+      await recordPart(id, 'Tx_0.mp4', 1000, 13.248);
+      await recordPart(id, 'Tx_1.mp4', 2000, 13.271);
+    }
+
+    it('shows when each part’s video starts and keeps the file list', async () => {
+      const id = await seed('ENDED');
+      await recordTwoParts(id);
+      await writeInfo(id, 'Tx', [
+        { recordTime: 15347, startTime: '2026-11-11T06:37:51.739+00:00' },
+        { recordTime: 15480, startTime: '2026-11-11T06:38:49.479+00:00' },
+      ]);
+      await reconciler.reconcile();
+      const view = await viewOf(app, id);
+      expect(view.recordingFiles).toEqual([`${id}/Tx_0.mp4`, `${id}/Tx_1.mp4`]);
+      expect(view.recordingParts).toEqual([
+        { file: `${id}/Tx_0.mp4`, startedAt: '2026-11-11T06:37:53.838Z' },
+        { file: `${id}/Tx_1.mp4`, startedAt: '2026-11-11T06:38:51.688Z' },
+      ]);
+      expect(view).not.toHaveProperty('recordingStartedAt');
+    });
+
+    it('shows no start for any part when a part is missing from the XML', async () => {
+      const id = await seed('ENDED');
+      await recordTwoParts(id);
+      await writeInfo(id, 'Tx', [
+        { recordTime: 15347, startTime: '2026-11-11T06:37:51.739+00:00' },
+      ]);
+      await reconciler.reconcile();
+      expect((await viewOf(app, id)).recordingParts).toEqual([
+        { file: `${id}/Tx_0.mp4`, startedAt: null },
+        { file: `${id}/Tx_1.mp4`, startedAt: null },
+      ]);
+    });
+
+    it('fills the starts in once the XML shows up', async () => {
+      const id = await seed('ENDED');
+      await recordTwoParts(id);
+      await reconciler.reconcile();
+      expect((await viewOf(app, id)).recordingParts).toEqual([
+        { file: `${id}/Tx_0.mp4`, startedAt: null },
+        { file: `${id}/Tx_1.mp4`, startedAt: null },
+      ]);
+
+      await writeInfo(id, 'Tx', [
+        { recordTime: 15347, startTime: '2026-11-11T06:37:51.739+00:00' },
+        { recordTime: 15480, startTime: '2026-11-11T06:38:49.479+00:00' },
+      ]);
+      await reconciler.reconcile();
+      expect(
+        (await viewOf(app, id)).recordingParts.map((part) => part.startedAt),
+      ).toEqual(['2026-11-11T06:37:53.838Z', '2026-11-11T06:38:51.688Z']);
+    });
+
+    it('keeps the starts across a restart without the disk', async () => {
+      const id = await seed('ENDED');
+      await recordTwoParts(id);
+      await writeInfo(id, 'Tx', [
+        { recordTime: 15347, startTime: '2026-11-11T06:37:51.739+00:00' },
+        { recordTime: 15480, startTime: '2026-11-11T06:38:49.479+00:00' },
+      ]);
+      await reconciler.reconcile();
+      await rm(join(config.dir, id), { recursive: true });
+      const restarted = await createTestApp({ recordings: config });
+      try {
+        expect(
+          (await viewOf(restarted, id)).recordingParts.map(
+            (part) => part.startedAt,
+          ),
+        ).toEqual(['2026-11-11T06:37:53.838Z', '2026-11-11T06:38:51.688Z']);
+      } finally {
+        await restarted.close();
+      }
+    });
+
+    it('clears the starts with the files when the recording is evicted', async () => {
+      const id = await seed('ENDED');
+      await recordTwoParts(id);
+      await writeInfo(id, 'Tx', [
+        { recordTime: 15347, startTime: '2026-11-11T06:37:51.739+00:00' },
+        { recordTime: 15480, startTime: '2026-11-11T06:38:49.479+00:00' },
+      ]);
+      await reconciler.reconcile();
+      config.maxBytes = 10;
+      await reconciler.reconcile();
+      const row = await prisma.broadcast.findUniqueOrThrow({ where: { id } });
+      expect(row.recordingFiles).toEqual([]);
+      expect(row.recordingStartedAt).toEqual([]);
+    });
+
+    it('refuses starts that do not match the files one for one', async () => {
+      const id = await seed('ENDED');
+      await expect(
+        prisma.broadcast.update({
+          where: { id },
+          data: {
+            recordingFiles: [`${id}/Tx_0.mp4`, `${id}/Tx_1.mp4`],
+            recordingStartedAt: [new Date()],
+          },
+        }),
+      ).rejects.toThrow();
     });
   });
 
