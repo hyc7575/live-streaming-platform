@@ -30,7 +30,7 @@ const heldFor = (tagged: Tagged, broadcastId: string): Tagged =>
 // Reads a broadcast's chat with the `after` cursor (PRD §8.2: no realtime
 // push). A full page is followed at once; otherwise the next poll waits
 // `pollMs`. With `pollMs: null` it reads to the end once and stops.
-// `added` and `removed` show the viewer's own post or delete right away.
+// `added` shows the viewer's own post right away.
 export function useChatFeed(
   broadcastId: string,
   { pollMs }: { pollMs: number | null },
@@ -38,7 +38,6 @@ export function useChatFeed(
   messages: ChatMessage[];
   status: ChatFeedStatus;
   added: (message: ChatMessage) => void;
-  removed: (id: string) => void;
 } {
   const [state, setState] = useState(() => initial(broadcastId));
   // The poll loop needs the cursor of the latest feed, not the one its
@@ -97,10 +96,6 @@ export function useChatFeed(
     (message: ChatMessage) => update({ type: 'added', message }),
     [update],
   );
-  const removed = useCallback(
-    (id: string) => update({ type: 'removed', id }),
-    [update],
-  );
   const { feed, status } = heldFor(state, broadcastId);
-  return { messages: feed.messages, status, added, removed };
+  return { messages: feed.messages, status, added };
 }

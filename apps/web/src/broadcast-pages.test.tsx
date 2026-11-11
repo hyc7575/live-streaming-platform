@@ -1089,47 +1089,24 @@ it('shows the API’s message when chat refuses a message with 409', async () =>
   );
 });
 
-it('deletes only the viewer’s own chat message, after confirming, right away', async () => {
-  fakeAllTimers();
-  try {
-    const calls = stubApi({
-      'GET /api/auth/me': other,
-      'GET /api/me/follows': [],
-      'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-      [CHAT]: [
-        chat('m1', {
-          body: '스트리머 채팅',
-          author: { id: streamer.id, nickname: streamer.nickname },
-        }),
-        chat('m2', { body: '내 채팅' }),
-      ],
-      [`${CHAT}?after=m2`]: [],
-      [`${CHAT}?after=m1`]: [],
-      'DELETE /api/chat/m2': 204,
-    });
-    renderAt('/broadcasts/b1');
-    await flush();
-    const mine = screen.getByText('내 채팅').closest('li')!;
-    const theirs = screen.getByText('스트리머 채팅').closest('li')!;
-    expect(within(theirs).queryByRole('button')).toBeNull();
-    expect(screen.queryByRole('button', { name: '채팅 수정' })).toBeNull();
-
-    fireEvent.click(within(mine).getByRole('button', { name: '채팅 삭제' }));
-    fireEvent.click(within(mine).getByRole('button', { name: '취소' }));
-    expect(calls).not.toContain('DELETE /api/chat/m2');
-
-    fireEvent.click(within(mine).getByRole('button', { name: '채팅 삭제' }));
-    expect(within(mine).getByText('이 채팅을 삭제할까요?')).toBeDefined();
-    fireEvent.click(within(mine).getByRole('button', { name: '삭제하기' }));
-    await flush();
-    expect(screen.queryByText('내 채팅')).toBeNull();
-    expect(calls).toContain('DELETE /api/chat/m2');
-
-    await act(() => vi.advanceTimersByTimeAsync(1000));
-    expect(calls.at(-1)).toBe(`${CHAT}?after=m1`);
-  } finally {
-    vi.useRealTimers();
-  }
+it('offers no edit or delete on chat, not even on the viewer’s own message', async () => {
+  stubApi({
+    'GET /api/auth/me': other,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    [CHAT]: [
+      chat('m1', {
+        body: '스트리머 채팅',
+        author: { id: streamer.id, nickname: streamer.nickname },
+      }),
+      chat('m2', { body: '내 채팅' }),
+    ],
+  });
+  renderAt('/broadcasts/b1');
+  const mine = (await screen.findByText('내 채팅')).closest('li')!;
+  const theirs = screen.getByText('스트리머 채팅').closest('li')!;
+  expect(within(mine).queryByRole('button')).toBeNull();
+  expect(within(theirs).queryByRole('button')).toBeNull();
 });
 
 it('switches from chat to the 댓글 and 채팅 기록 tabs when the broadcast ends, without a reload', async () => {

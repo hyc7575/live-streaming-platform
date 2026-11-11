@@ -76,7 +76,7 @@ const MATRIX = {
   '썸네일 업로드':  [401,      403,          { READY: 409, LIVE: 204, ENDED: 409 }],
   '채팅 조회':      [200,      200,          200],
   '채팅 작성':      [401,      { READY: 201, LIVE: 201, ENDED: 409 }, { READY: 201, LIVE: 201, ENDED: 409 }],
-  '채팅 삭제':      [401,      403,          204],
+  '채팅 삭제':      [404,      404,          404],
   '댓글 목록 조회': [200,      200,          200],
   '댓글 작성':      [401,      { READY: 409, LIVE: 409, ENDED: 201 }, { READY: 409, LIVE: 409, ENDED: 201 }],
   '댓글 수정':      [401,      403,          200],
@@ -95,8 +95,8 @@ const MATRIX = {
 // token. A thumbnail is a frame of the live stream, so only a LIVE broadcast
 // takes one. Chat and comments are read wherever the detail page is, but
 // written by status: chat before the broadcast ends (READY and LIVE),
-// comments after it (ENDED). Deleting chat ignores the status, like editing
-// or deleting a comment. Donations are ordered only
+// comments after it (ENDED). Chat has no edit or delete route for anyone,
+// its author included, so that row is 404 in every cell. Donations are ordered only
 // while LIVE, and never by the streamer, whose 403 comes before the status.
 // A confirm ignores the status: the donor already paid by then.
 // The PRD's one row "팔로우·언팔로우" is two rows here, one per request. The
@@ -387,8 +387,8 @@ describe('authorization matrix (PRD §7.5)', () => {
     },
     '채팅 삭제': {
       send: (client, w) => client.delete(`/api/chat/${w.targetChatId}`),
-      verifyAllowed: async (_res, w) => {
-        expect(await chat(w)).toEqual([]);
+      verifyAllowed: () => {
+        throw new Error('No caller may delete a chat message');
       },
     },
     '댓글 목록 조회': {
@@ -739,8 +739,6 @@ describe('authorization matrix (PRD §7.5)', () => {
         client.delete(`/api/comments/${id}`),
       'POST chat': (client: TestAgent, id: string) =>
         client.post(`/api/broadcasts/${id}/chat`).send({ body: '채팅' }),
-      'DELETE chat': (client: TestAgent, id: string) =>
-        client.delete(`/api/chat/${id}`),
       'POST comment': (client: TestAgent, id: string) =>
         client.post(`/api/broadcasts/${id}/comments`).send({ body: '댓글' }),
       'POST donation': (client: TestAgent, id: string) =>

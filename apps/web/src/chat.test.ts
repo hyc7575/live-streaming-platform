@@ -66,22 +66,3 @@ it('shows the viewer’s own post without moving the cursor past unpolled messag
   expect(ids(next)).toEqual(['a', 'b', 'mine']);
   expect(next.cursor).toBe('mine');
 });
-
-it('steps the cursor back when the last message is removed', () => {
-  const feed = run(
-    { type: 'polled', page: [message('a', T1), message('b', T2)] },
-    { type: 'removed', id: 'b' },
-  );
-  expect(ids(feed)).toEqual(['a']);
-  expect(feed.cursor).toBe('a');
-  expect(chatFeed(feed, { type: 'removed', id: 'a' })).toEqual(EMPTY_CHAT_FEED);
-});
-
-it('keeps the cursor when an earlier message is removed, and ignores an unknown id', () => {
-  const feed = run(
-    { type: 'polled', page: [message('a', T1), message('b', T2)] },
-    { type: 'removed', id: 'a' },
-  );
-  expect(feed).toEqual({ messages: [message('b', T2)], cursor: 'b' });
-  expect(chatFeed(feed, { type: 'removed', id: 'zz' })).toBe(feed);
-});

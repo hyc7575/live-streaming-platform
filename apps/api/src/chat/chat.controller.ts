@@ -2,9 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
-  Delete,
   Get,
-  HttpCode,
   Param,
   Post,
   Query,
@@ -14,7 +12,6 @@ import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
 import { ZodBodyPipe } from '../zod-body.pipe.js';
-import { ChatAuthorGuard } from './chat-author.guard.js';
 import {
   CHAT_MAX_LENGTH,
   ChatService,
@@ -51,12 +48,5 @@ export class ChatController {
     @Body(new ZodBodyPipe(bodySchema)) input: ChatInput,
   ): Promise<ChatMessageView> {
     return this.chat.create(broadcastId, user.id, input.body);
-  }
-
-  @Delete('chat/:messageId')
-  @HttpCode(204)
-  @UseGuards(LoggedInGuard, ChatAuthorGuard)
-  remove(@Param('messageId') id: string): Promise<void> {
-    return this.chat.remove(id);
   }
 }

@@ -154,43 +154,19 @@ describe('chat', () => {
     );
   });
 
-  describe('deleting', () => {
-    let messageId: string;
-    const url = () => `/api/chat/${messageId}`;
-
-    beforeEach(async () => {
-      messageId = (
-        (await post(viewer.agent, { body: '지울 채팅' })).body as ChatJson
-      ).id;
-    });
-
-    it('lets the author delete their message', async () => {
-      expect((await viewer.agent.delete(url())).status).toBe(204);
-      expect(await list()).toEqual([]);
-    });
-
-    it('lets the author delete after the broadcast ended', async () => {
-      await setStatus('ENDED');
-      expect((await viewer.agent.delete(url())).status).toBe(204);
-      expect(await list()).toEqual([]);
-    });
-
-    it('refuses anyone else, the streamer included, with 403', async () => {
-      expect((await streamer.agent.delete(url())).status).toBe(403);
-      expect((await list()).map((m) => m.id)).toEqual([messageId]);
-    });
-
-    it('answers 401 when anonymous', async () => {
-      expect((await anonymous().delete(url())).status).toBe(401);
-      expect((await list()).map((m) => m.id)).toEqual([messageId]);
-    });
-
-    it.each([UNKNOWN_ID, 'not-a-uuid'])(
-      'answers 404 for a missing message %s',
-      async (id) => {
-        expect((await viewer.agent.delete(`/api/chat/${id}`)).status).toBe(404);
-      },
-    );
+  // Chat is not edited or deleted by its author; moderation may come later.
+  it('has no way to edit or delete a message', async () => {
+    const id = (
+      (await post(viewer.agent, { body: '남는 채팅' })).body as ChatJson
+    ).id;
+    expect((await viewer.agent.delete(`/api/chat/${id}`)).status).toBe(404);
+    expect(
+      (await viewer.agent.patch(`/api/chat/${id}`).send({ body: '고침' }))
+        .status,
+    ).toBe(404);
+    expect((await list()).map((m) => [m.id, m.body])).toEqual([
+      [id, '남는 채팅'],
+    ]);
   });
 
   describe('reading', () => {

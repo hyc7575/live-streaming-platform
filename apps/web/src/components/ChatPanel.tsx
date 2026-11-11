@@ -30,7 +30,7 @@ const clockFormat = new Intl.DateTimeFormat('ko-KR', {
 // the bottom, and a box to send one.
 export function ChatPanel({ broadcastId }: { broadcastId: string }) {
   const { state } = useAuth();
-  const { messages, status, added, removed } = useChatFeed(broadcastId, {
+  const { messages, status, added } = useChatFeed(broadcastId, {
     pollMs: CHAT_POLL_MS,
   });
   const { listRef, onScroll, stick } =
@@ -58,13 +58,7 @@ export function ChatPanel({ broadcastId }: { broadcastId: string }) {
           onScroll={onScroll}
         >
           {messages.map((m) => (
-            <ChatLine
-              key={m.id}
-              message={m}
-              broadcastId={broadcastId}
-              mine={me?.id === m.author.id}
-              onRemoved={removed}
-            />
+            <ChatLine key={m.id} message={m} />
           ))}
         </ol>
       )}
@@ -100,7 +94,7 @@ export function ChatHistory({ broadcastId }: { broadcastId: string }) {
   return (
     <ol className={`${styles.list} ${styles.chatList}`}>
       {messages.map((m) => (
-        <ChatLine key={m.id} message={m} broadcastId={broadcastId} />
+        <ChatLine key={m.id} message={m} />
       ))}
     </ol>
   );
@@ -183,48 +177,10 @@ function ChatForm({
   );
 }
 
-// One message as a line: nickname, body, then the time. With `onRemoved`,
-// the viewer's own line offers 삭제 behind one more confirm.
-function ChatLine({
-  message,
-  broadcastId,
-  mine = false,
-  onRemoved,
-}: {
-  message: ChatMessage;
-  broadcastId: string;
-  mine?: boolean;
-  onRemoved?: (id: string) => void;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const toLogin = useLoginRedirect(broadcastId);
+// One message as a line: nickname, body, then the time. Chat is neither
+// edited nor deleted by its author.
+function ChatLine({ message }: { message: ChatMessage }) {
   const createdAt = new Date(message.createdAt);
-
-  async function remove() {
-    setBusy(true);
-    setError(null);
-    try {
-      await apiFetch<unknown>(`/chat/${message.id}`, { method: 'DELETE' });
-      onRemoved?.(message.id);
-    } catch (err) {
-      if (toLogin(err)) return;
-      // Already deleted, say from another tab.
-      if (err instanceof ApiError && err.status === 404) {
-        onRemoved?.(message.id);
-        return;
-      }
-      setError(
-        err instanceof ApiError && err.status === 403
-          ? '권한이 없습니다.'
-          : '채팅을 삭제하지 못했습니다. 다시 시도해 주세요.',
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <li className={styles.chatItem}>
       <p className={styles.chatLine}>
@@ -238,48 +194,6 @@ function ChatLine({
           {clockFormat.format(createdAt)}
         </time>
       </p>
-      {mine && onRemoved && !confirming && (
-        <button
-          type="button"
-          className={styles.textButton}
-          aria-label="채팅 삭제"
-          onClick={() => setConfirming(true)}
-        >
-          삭제
-        </button>
-      )}
-      {confirming && (
-        <div
-          className={styles.confirm}
-          role="group"
-          aria-label="채팅 삭제 확인"
-        >
-          <p className={styles.confirmText}>이 채팅을 삭제할까요?</p>
-          <div className={styles.actions}>
-            <button
-              type="button"
-              className={styles.danger}
-              disabled={busy}
-              onClick={() => void remove()}
-            >
-              삭제하기
-            </button>
-            <button
-              type="button"
-              className={styles.button}
-              disabled={busy}
-              onClick={() => setConfirming(false)}
-            >
-              취소
-            </button>
-          </div>
-        </div>
-      )}
-      {error && (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
     </li>
   );
 }

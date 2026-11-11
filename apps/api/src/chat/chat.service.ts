@@ -3,7 +3,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { z } from 'zod';
 import { BroadcastsService } from '../broadcasts/broadcasts.service.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma } from '../generated/prisma/client.js';
@@ -29,8 +28,6 @@ const chatSelect = {
 export type ChatMessageView = Prisma.ChatMessageGetPayload<{
   select: typeof chatSelect;
 }>;
-
-const uuid = z.uuid();
 
 @Injectable()
 export class ChatService {
@@ -90,21 +87,6 @@ export class ChatService {
       }
       throw error;
     }
-  }
-
-  async authorIdOf(id: string): Promise<string> {
-    const message = uuid.safeParse(id).success
-      ? await this.prisma.chatMessage.findUnique({
-          where: { id },
-          select: { authorId: true },
-        })
-      : null;
-    if (!message) throw new NotFoundException('Chat message not found');
-    return message.authorId;
-  }
-
-  async remove(id: string): Promise<void> {
-    await this.prisma.chatMessage.deleteMany({ where: { id } });
   }
 }
 

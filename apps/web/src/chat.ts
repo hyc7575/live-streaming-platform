@@ -23,8 +23,7 @@ export interface ChatFeed {
 
 export type ChatFeedAction =
   | { type: 'polled'; page: ChatMessage[] }
-  | { type: 'added'; message: ChatMessage }
-  | { type: 'removed'; id: string };
+  | { type: 'added'; message: ChatMessage };
 
 export const EMPTY_CHAT_FEED: ChatFeed = { messages: [], cursor: null };
 
@@ -53,18 +52,5 @@ export function chatFeed(feed: ChatFeed, action: ChatFeedAction): ChatFeed {
     }
     case 'added':
       return { ...feed, messages: merge(feed.messages, [action.message]) };
-    case 'removed': {
-      const index = feed.messages.findIndex((m) => m.id === action.id);
-      if (index === -1) return feed;
-      const messages = feed.messages.filter((m) => m.id !== action.id);
-      // Everything before the removed cursor was polled too, so the cursor
-      // steps back one. With nothing before it, the next poll starts over
-      // and the merge drops what is already here.
-      const cursor =
-        feed.cursor === action.id
-          ? (feed.messages[index - 1]?.id ?? null)
-          : feed.cursor;
-      return { messages, cursor };
-    }
   }
 }
