@@ -1462,3 +1462,58 @@ it('deletes the viewer’s own comment only after confirming', async () => {
   ).toBeDefined();
   expect(calls).toContain('DELETE /api/comments/c1');
 });
+
+async function openChatToSend() {
+  fakeAllTimers();
+  const calls = stubApi({
+    'GET /api/auth/me': other,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    [CHAT]: [],
+    'POST /api/broadcasts/b1/chat': chat('m1', { body: '안녕하세요' }),
+  });
+  renderAt('/broadcasts/b1');
+  await flush();
+  const draft = screen.getByLabelText('채팅 쓰기');
+  fireEvent.change(draft, { target: { value: '안녕하세요' } });
+  const sent = () =>
+    calls.filter((c) => c === 'POST /api/broadcasts/b1/chat').length;
+  return { draft, sent };
+}
+
+it('sends chat on Enter, with the keyboard’s Enter key labelled send', async () => {
+  try {
+    const { draft, sent } = await openChatToSend();
+    expect(draft.getAttribute('enterkeyhint')).toBe('send');
+    fireEvent.keyDown(draft, { key: 'Enter' });
+    await flush();
+    expect(sent()).toBe(1);
+    expect(screen.getByText('안녕하세요')).toBeDefined();
+    expect(draft).toHaveProperty('value', '');
+
+    fireEvent.keyDown(draft, { key: 'Enter' });
+    await flush();
+    expect(sent(), 'an empty draft is not sent').toBe(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it.each([
+  ['Shift+Enter', { key: 'Enter', shiftKey: true }],
+  [
+    'an Enter that commits a Hangul syllable',
+    { key: 'Enter', isComposing: true },
+  ],
+  ['Safari’s Enter right after composing', { key: 'Enter', keyCode: 229 }],
+])('does not send chat on %s', async (_what, key) => {
+  try {
+    const { draft, sent } = await openChatToSend();
+    fireEvent.keyDown(draft, key);
+    await flush();
+    expect(sent()).toBe(0);
+    expect(draft).toHaveProperty('value', '안녕하세요');
+  } finally {
+    vi.useRealTimers();
+  }
+});

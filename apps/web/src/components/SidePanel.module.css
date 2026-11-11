@@ -298,3 +298,11 @@
     max-height: none;
   }
 }
+
+/* Enter sends on a phone's keyboard (enterKeyHint), so the button only
+   takes room there. */
+@media (max-width: 1023.98px) {
+  .send {
+    display: none;
+  }
+}
