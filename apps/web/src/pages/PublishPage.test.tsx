@@ -1107,7 +1107,9 @@ it('follows the OBS publish in the OBS tab, through a drop, and ends it there', 
     });
     await within(obsPanel).findByText('송출이 연결되어 있습니다.');
     expect(within(obsPanel).getByText('LIVE')).toBeDefined();
-    expect(within(obsPanel).getByText('송출이 연결되어 있습니다.')).toBeDefined();
+    expect(
+      within(obsPanel).getByText('송출이 연결되어 있습니다.'),
+    ).toBeDefined();
 
     page.routes['GET /api/broadcasts/b1'] = LIVE_DROPPED;
     act(() => {
