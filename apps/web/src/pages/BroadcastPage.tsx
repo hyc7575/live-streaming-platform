@@ -9,7 +9,7 @@ import { DonationPanel } from '../components/DonationPanel';
 import { ElapsedTime } from '../components/ElapsedTime';
 import { LivePlayer } from '../components/LivePlayer';
 import { OwnerActions } from '../components/OwnerActions';
-import { ReplayPlayer } from '../components/ReplayPlayer';
+import { ReplayParts, ReplayPlayer } from '../components/ReplayPlayer';
 import { StatusBadge } from '../components/StatusBadge';
 import { FollowButton } from '../follows/FollowButton';
 import { partStarts, type Playhead } from '../replay-chat';
@@ -135,6 +135,10 @@ export function BroadcastPage() {
     broadcastId: string;
     playhead: Playhead;
   } | null>(null);
+  const [picked, setPicked] = useState<{
+    broadcastId: string;
+    part: number;
+  } | null>(null);
 
   // Until we know whether this is the owner, the player cannot know whether
   // to start muted (T7).
@@ -156,6 +160,8 @@ export function BroadcastPage() {
     state.status === 'authenticated' && state.user.id === b.streamer.id;
   const standbyImageUrl = b.status === 'READY' ? b.standbyImageUrl : null;
   const playhead = heard?.broadcastId === b.id ? heard.playhead : null;
+  const part = picked?.broadcastId === b.id ? picked.part : 0;
+  const pickPart = (p: number) => setPicked({ broadcastId: b.id, part: p });
   return (
     <section className={styles.page}>
       <div className={styles.main}>
@@ -163,6 +169,8 @@ export function BroadcastPage() {
           <ReplayPlayer
             key={b.id}
             files={b.recordingFiles}
+            part={part}
+            onPart={pickPart}
             onPlayhead={(p) => setHeard({ broadcastId: b.id, playhead: p })}
           />
         ) : (
@@ -199,7 +207,14 @@ export function BroadcastPage() {
           </div>
         )}
         {b.status === 'ENDED' && b.recordingFiles.length > 0 && (
-          <p className={styles.playerNote}>{REPLAY_NOTICE}</p>
+          <>
+            <ReplayParts
+              files={b.recordingFiles}
+              part={part}
+              onPart={pickPart}
+            />
+            <p className={styles.playerNote}>{REPLAY_NOTICE}</p>
+          </>
         )}
         {b.status === 'LIVE' && isOwner && (
           <p className={styles.playerNote}>
