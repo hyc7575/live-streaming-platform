@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
+import type { Playhead } from '../replay-chat';
 import { ChatHistory, ChatPanel } from './ChatPanel';
 import { CommentPanel } from './CommentPanel';
 import type { BroadcastStatus } from './StatusBadge';
@@ -12,12 +13,18 @@ const SIDE_PANEL: Record<BroadcastStatus, 'chat' | 'after'> = {
   ENDED: 'after',
 };
 
+// `partStarts` and `playhead` line the chat log up with the replay; see
+// ChatHistory.
 export function BroadcastSidePanel({
   broadcastId,
   status,
+  partStarts,
+  playhead,
 }: {
   broadcastId: string;
   status: BroadcastStatus;
+  partStarts: number[] | null;
+  playhead: Playhead | null;
 }) {
   if (SIDE_PANEL[status] === 'chat') {
     return (
@@ -31,7 +38,11 @@ export function BroadcastSidePanel({
   }
   return (
     <aside className={styles.panel} aria-label="댓글과 채팅 기록">
-      <AfterTabs broadcastId={broadcastId} />
+      <AfterTabs
+        broadcastId={broadcastId}
+        partStarts={partStarts}
+        playhead={playhead}
+      />
     </aside>
   );
 }
@@ -45,7 +56,15 @@ type Tab = (typeof TABS)[number]['key'];
 
 // WAI-ARIA tabs with automatic activation: ←/→ move to the previous or next
 // tab (wrapping), Home/End to the first or last, and focus follows.
-function AfterTabs({ broadcastId }: { broadcastId: string }) {
+function AfterTabs({
+  broadcastId,
+  partStarts,
+  playhead,
+}: {
+  broadcastId: string;
+  partStarts: number[] | null;
+  playhead: Playhead | null;
+}) {
   const [selected, setSelected] = useState<Tab>('comments');
   // The chat log is read when its tab is first opened, then kept so the
   // comment draft and the log both survive switching back and forth.
@@ -109,7 +128,11 @@ function AfterTabs({ broadcastId }: { broadcastId: string }) {
             (t.key === 'comments' ? (
               <CommentPanel broadcastId={broadcastId} />
             ) : (
-              <ChatHistory broadcastId={broadcastId} />
+              <ChatHistory
+                broadcastId={broadcastId}
+                partStarts={partStarts}
+                playhead={playhead}
+              />
             ))}
         </div>
       ))}

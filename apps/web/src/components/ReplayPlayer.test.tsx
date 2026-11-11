@@ -94,3 +94,47 @@ it('leaves the controls to the viewer when the browser blocks playback', async (
   await Promise.resolve();
   expect(video().getAttribute('src')).toBe('/recordings/b1/1_1.mp4');
 });
+
+it('reports the playhead once the viewer plays or seeks', () => {
+  const onPlayhead = vi.fn();
+  render(
+    <ReplayPlayer
+      files={['b1/1_0.mp4', 'b1/1_1.mp4']}
+      onPlayhead={onPlayhead}
+    />,
+  );
+  video().currentTime = 12;
+  fireEvent.timeUpdate(video());
+  expect(onPlayhead).not.toHaveBeenCalled();
+
+  fireEvent.play(video());
+  fireEvent.timeUpdate(video());
+  expect(onPlayhead).toHaveBeenLastCalledWith({ part: 0, seconds: 12 });
+
+  video().currentTime = 3;
+  fireEvent.seeked(video());
+  expect(onPlayhead).toHaveBeenLastCalledWith({ part: 0, seconds: 3 });
+
+  fireEvent.click(screen.getByRole('button', { name: '2부' }));
+  expect(onPlayhead).toHaveBeenLastCalledWith({ part: 1, seconds: 0 });
+});
+
+it('starts reporting on a seek before any playback', () => {
+  const onPlayhead = vi.fn();
+  render(<ReplayPlayer files={['b1/1_0.mp4']} onPlayhead={onPlayhead} />);
+  video().currentTime = 40;
+  fireEvent.seeked(video());
+  expect(onPlayhead).toHaveBeenLastCalledWith({ part: 0, seconds: 40 });
+});
+
+it('reports the next part at 0 s when one ends', () => {
+  const onPlayhead = vi.fn();
+  render(
+    <ReplayPlayer
+      files={['b1/1_0.mp4', 'b1/1_1.mp4']}
+      onPlayhead={onPlayhead}
+    />,
+  );
+  fireEvent.ended(video());
+  expect(onPlayhead).toHaveBeenLastCalledWith({ part: 1, seconds: 0 });
+});
