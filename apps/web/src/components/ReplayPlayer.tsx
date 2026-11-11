@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { Playhead } from '../replay-chat';
 import { PlayerControls } from './player/PlayerControls';
 import styles from './ReplayPlayer.module.css';
 
@@ -7,9 +8,18 @@ import styles from './ReplayPlayer.module.css';
 // whose publish connection dropped and reconnected has one file per
 // connection, played back to back. The parts share one video element, so
 // the controls' subscriptions, volume and mute carry over between them.
-export function ReplayPlayer({ files }: { files: string[] }) {
+// `onPlayhead` hears where playback is once the viewer has played or
+// seeked; until then nothing has been watched, so it hears nothing.
+export function ReplayPlayer({
+  files,
+  onPlayhead,
+}: {
+  files: string[];
+  onPlayhead?: (playhead: Playhead) => void;
+}) {
   const [current, setCurrent] = useState({ part: 0, play: false });
   const videoRef = useRef<HTMLVideoElement>(null);
+  const started = useRef(false);
 
   useEffect(() => {
     if (!current.play) return;
@@ -21,6 +31,19 @@ export function ReplayPlayer({ files }: { files: string[] }) {
   if (file === undefined) return null;
   const last = current.part === files.length - 1;
 
+  function report() {
+    const video = videoRef.current;
+    if (started.current && video) {
+      onPlayhead?.({ part: current.part, seconds: video.currentTime });
+    }
+  }
+
+  function playPart(part: number) {
+    started.current = true;
+    setCurrent({ part, play: true });
+    onPlayhead?.({ part, seconds: 0 });
+  }
+
   return (
     <div>
       <div className={styles.screen}>
@@ -31,8 +54,16 @@ export function ReplayPlayer({ files }: { files: string[] }) {
             src={`/recordings/${file}`}
             playsInline
             aria-label="다시보기 화면"
+            onPlay={() => {
+              started.current = true;
+            }}
+            onTimeUpdate={report}
+            onSeeked={() => {
+              started.current = true;
+              report();
+            }}
             onEnded={() => {
-              if (!last) setCurrent({ part: current.part + 1, play: true });
+              if (!last) playPart(current.part + 1);
             }}
           />
         </PlayerControls>
@@ -46,7 +77,7 @@ export function ReplayPlayer({ files }: { files: string[] }) {
                 type="button"
                 className={styles.part}
                 aria-pressed={i === current.part}
-                onClick={() => setCurrent({ part: i, play: true })}
+                onClick={() => playPart(i)}
               >
                 {i + 1}부
               </button>

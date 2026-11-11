@@ -4,6 +4,7 @@ import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
 import { CHAT_MAX_LENGTH, type ChatMessage } from '../chat';
 import type { LoginPageState } from '../pages/LoginPage';
+import { chatUpTo, type Playhead } from '../replay-chat';
 import { useChatFeed } from '../use-chat-feed';
 import { useLoginRedirect } from '../use-login-redirect';
 import { useStickToBottom } from '../use-stick-to-bottom';
@@ -82,18 +83,44 @@ export function ChatPanel({ broadcastId }: { broadcastId: string }) {
   );
 }
 
-// The chat an ended broadcast had, oldest first, to read only.
-export function ChatHistory({ broadcastId }: { broadcastId: string }) {
+// The chat an ended broadcast had, oldest first, to read only. While the
+// replay plays, only what was sent by that point in it, as if watching
+// live; with no playhead or no part starts, all of it.
+export function ChatHistory({
+  broadcastId,
+  partStarts,
+  playhead,
+}: {
+  broadcastId: string;
+  partStarts: number[] | null;
+  playhead: Playhead | null;
+}) {
   const { messages, status } = useChatFeed(broadcastId, { pollMs: null });
+  const shown =
+    partStarts && playhead
+      ? chatUpTo(messages, partStarts, playhead)
+      : messages;
+  // The playhead moves several times a second; only a change in what is
+  // shown should move the scroll.
+  const { listRef, onScroll } = useStickToBottom<HTMLOListElement>(
+    shown.length,
+  );
   if (status === 'failed') {
     return <p className={styles.empty}>채팅 기록을 불러오지 못했습니다.</p>;
   }
   if (status === 'loaded' && messages.length === 0) {
     return <p className={styles.empty}>이 방송에는 채팅이 없었습니다.</p>;
   }
+  if (status === 'loaded' && shown.length === 0) {
+    return <p className={styles.empty}>이 장면까지 오간 채팅이 없습니다.</p>;
+  }
   return (
-    <ol className={`${styles.list} ${styles.chatList}`}>
-      {messages.map((m) => (
+    <ol
+      ref={listRef}
+      className={`${styles.list} ${styles.chatList}`}
+      onScroll={onScroll}
+    >
+      {shown.map((m) => (
         <ChatLine key={m.id} message={m} />
       ))}
     </ol>

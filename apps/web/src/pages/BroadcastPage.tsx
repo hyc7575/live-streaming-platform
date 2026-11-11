@@ -12,6 +12,7 @@ import { OwnerActions } from '../components/OwnerActions';
 import { ReplayPlayer } from '../components/ReplayPlayer';
 import { StatusBadge } from '../components/StatusBadge';
 import { FollowButton } from '../follows/FollowButton';
+import { partStarts, type Playhead } from '../replay-chat';
 import type { Loadable } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
 import styles from './BroadcastPage.module.css';
@@ -128,6 +129,12 @@ export function BroadcastPage() {
     `/broadcasts/${encodeURIComponent(id)}`,
   );
   useDocumentTitle(broadcast.status === 'loaded' ? broadcast.data.title : null);
+  // Tagged with the broadcast it was heard on, so moving to another
+  // broadcast starts its chat log from no playhead.
+  const [heard, setHeard] = useState<{
+    broadcastId: string;
+    playhead: Playhead;
+  } | null>(null);
 
   // Until we know whether this is the owner, the player cannot know whether
   // to start muted (T7).
@@ -148,11 +155,16 @@ export function BroadcastPage() {
   const isOwner =
     state.status === 'authenticated' && state.user.id === b.streamer.id;
   const standbyImageUrl = b.status === 'READY' ? b.standbyImageUrl : null;
+  const playhead = heard?.broadcastId === b.id ? heard.playhead : null;
   return (
     <section className={styles.page}>
       <div className={styles.main}>
         {b.status === 'ENDED' && b.recordingFiles.length > 0 ? (
-          <ReplayPlayer files={b.recordingFiles} />
+          <ReplayPlayer
+            key={b.id}
+            files={b.recordingFiles}
+            onPlayhead={(p) => setHeard({ broadcastId: b.id, playhead: p })}
+          />
         ) : (
           <div
             className={`${styles.player} ${b.status === 'READY' ? styles.waiting : ''}`}
@@ -218,7 +230,13 @@ export function BroadcastPage() {
         </div>
         <DonationPanel broadcast={b} />
       </div>
-      <BroadcastSidePanel key={b.id} broadcastId={b.id} status={b.status} />
+      <BroadcastSidePanel
+        key={b.id}
+        broadcastId={b.id}
+        status={b.status}
+        partStarts={partStarts(b.recordingParts)}
+        playhead={playhead}
+      />
     </section>
   );
 }

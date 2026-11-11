@@ -47,6 +47,7 @@ const broadcastSelect = {
   endedAt: true,
   createdAt: true,
   recordingFiles: true,
+  recordingStartedAt: true,
   thumbnailUpdatedAt: true,
   streamer: {
     select: {
@@ -62,24 +63,37 @@ type BroadcastRow = Prisma.BroadcastGetPayload<{
   select: typeof broadcastSelect;
 }>;
 
+// startedAt is the moment the part's video at 0 s shows. It is null for
+// every part when any part's start is unknown.
+export interface RecordingPart {
+  file: string;
+  startedAt: Date | null;
+}
+
 // Upload times and extensions only exist to build URLs, so clients get the
 // URLs. The standby image is the streamer's, shared by all their broadcasts.
 export type BroadcastView = Omit<
   BroadcastRow,
-  'thumbnailUpdatedAt' | 'streamer'
+  'recordingStartedAt' | 'thumbnailUpdatedAt' | 'streamer'
 > & {
+  recordingParts: RecordingPart[];
   streamer: { id: string; nickname: string };
   thumbnailUrl: string | null;
   standbyImageUrl: string | null;
 };
 
 function toView({
+  recordingStartedAt,
   thumbnailUpdatedAt,
   streamer: { standbyImageExt, standbyImageUpdatedAt, ...streamer },
   ...row
 }: BroadcastRow): BroadcastView {
   return {
     ...row,
+    recordingParts: row.recordingFiles.map((file, i) => ({
+      file,
+      startedAt: recordingStartedAt[i] ?? null,
+    })),
     streamer,
     thumbnailUrl: thumbnailUrl(row.id, thumbnailUpdatedAt),
     standbyImageUrl: standbyImageUrl(

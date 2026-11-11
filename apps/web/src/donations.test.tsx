@@ -67,6 +67,7 @@ function broadcast(overrides: Partial<Broadcast> = {}): Broadcast {
     endedAt: null,
     createdAt: '2026-11-09T00:00:00.000Z',
     recordingFiles: [],
+    recordingParts: [],
     thumbnailUrl: null,
     standbyImageUrl: null,
     streamer: { id: streamer.id, nickname: streamer.nickname },

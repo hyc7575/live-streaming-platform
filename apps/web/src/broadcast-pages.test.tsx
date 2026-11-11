@@ -10,7 +10,7 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
-import type { Broadcast } from './broadcasts';
+import type { Broadcast, RecordingPart } from './broadcasts';
 import { CHAT_PAGE_LIMIT, type ChatMessage } from './chat';
 import type { Comment } from './comments';
 import { renderInDataRouter } from './testing/renderInDataRouter';
@@ -38,6 +38,7 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
     endedAt: null,
     createdAt: '2026-11-09T00:00:00.000Z',
     recordingFiles: [],
+    recordingParts: [],
     thumbnailUrl: null,
     standbyImageUrl: null,
     streamer: { id: streamer.id, nickname: streamer.nickname },
@@ -1169,6 +1170,101 @@ it('opens an ended broadcast on the 댓글 tab, with the chat log read-only behi
   expect(within(logPanel).queryByRole('textbox')).toBeNull();
   expect(within(logPanel).queryByRole('button')).toBeNull();
   expect(screen.queryByRole('tabpanel', { name: '댓글' })).toBeNull();
+});
+
+// Part 1 starts at 01:00:00 and runs ten minutes, the publisher drops, and
+// part 2 starts at 01:12:00. Chat placement subtracts the 3 s viewer delay.
+const REPLAY_PARTS: RecordingPart[] = [
+  { file: 'b1/1_0.mp4', startedAt: '2026-11-10T01:00:00.000Z' },
+  { file: 'b1/1_1.mp4', startedAt: '2026-11-10T01:12:00.000Z' },
+];
+const REPLAY_CHAT = [
+  chat('ready', { createdAt: '2026-11-10T00:59:00.000Z' }),
+  chat('part1', { createdAt: '2026-11-10T01:01:43.000Z' }),
+  chat('gap', { createdAt: '2026-11-10T01:11:00.000Z' }),
+  chat('part2', { createdAt: '2026-11-10T01:12:13.000Z' }),
+];
+
+async function openReplayChat(parts: RecordingPart[]) {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({
+      status: 'ENDED',
+      recordingFiles: parts.map((p) => p.file),
+      recordingParts: parts,
+    }),
+    [COMMENTS]: [],
+    [CHAT]: REPLAY_CHAT,
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('tab', { name: '채팅 기록' }));
+  const logPanel = screen.getByRole('tabpanel', { name: '채팅 기록' });
+  await within(logPanel).findByText('채팅 ready');
+  const video = screen.getByLabelText<HTMLVideoElement>('다시보기 화면');
+  const shown = () =>
+    within(logPanel)
+      .queryAllByText(/^채팅 /)
+      .map((e) => e.textContent);
+  const at = (seconds: number, event: 'timeUpdate' | 'seeked') => {
+    video.currentTime = seconds;
+    fireEvent[event](video);
+  };
+  return { logPanel, video, shown, at };
+}
+
+it('shows the chat log up to where the replay is, following seeks and parts', async () => {
+  const { video, shown, at } = await openReplayChat(REPLAY_PARTS);
+  expect(shown()).toEqual([
+    '채팅 ready',
+    '채팅 part1',
+    '채팅 gap',
+    '채팅 part2',
+  ]);
+
+  fireEvent.play(video);
+  at(0, 'timeUpdate');
+  expect(shown()).toEqual(['채팅 ready']);
+  at(100, 'timeUpdate');
+  expect(shown()).toEqual(['채팅 ready', '채팅 part1']);
+  at(50, 'seeked');
+  expect(shown()).toEqual(['채팅 ready']);
+
+  fireEvent.click(screen.getByRole('button', { name: '2부' }));
+  expect(shown()).toEqual(['채팅 ready', '채팅 part1', '채팅 gap']);
+  at(10, 'timeUpdate');
+  expect(shown()).toEqual([
+    '채팅 ready',
+    '채팅 part1',
+    '채팅 gap',
+    '채팅 part2',
+  ]);
+  at(2, 'seeked');
+  expect(shown()).toEqual(['채팅 ready', '채팅 part1', '채팅 gap']);
+});
+
+it('says no chat was sent yet when the replay is before the first message', async () => {
+  const { logPanel, shown, at } = await openReplayChat([
+    { file: 'b1/1_0.mp4', startedAt: '2026-11-10T00:50:00.000Z' },
+  ]);
+  at(0, 'seeked');
+  expect(shown()).toEqual([]);
+  expect(
+    within(logPanel).getByText('이 장면까지 오간 채팅이 없습니다.'),
+  ).toBeDefined();
+});
+
+it('shows the whole chat log when the recording has no start times', async () => {
+  const { video, shown, at } = await openReplayChat(
+    REPLAY_PARTS.map((p) => ({ ...p, startedAt: null })),
+  );
+  fireEvent.play(video);
+  at(0, 'timeUpdate');
+  expect(shown()).toEqual([
+    '채팅 ready',
+    '채팅 part1',
+    '채팅 gap',
+    '채팅 part2',
+  ]);
 });
 
 it('moves between the ended broadcast’s tabs with the arrow, Home and End keys', async () => {

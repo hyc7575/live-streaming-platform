@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
@@ -30,6 +36,7 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
     endedAt: null,
     createdAt: '2026-11-09T00:00:00.000Z',
     recordingFiles: [],
+    recordingParts: [],
     thumbnailUrl: null,
     standbyImageUrl: null,
     streamer: { id: streamerA.id, nickname: streamerA.nickname },
@@ -64,6 +71,8 @@ function stubApi({
       return reply(accounts === 'error' ? 500 : { accounts });
     if (url === '/api/auth/test-login') return reply(streamerA);
     if (url in routes) return reply(routes[url]);
+    if (url.endsWith('/donations'))
+      return reply({ total: 0, count: 0, donations: [] });
     if (url === '/api/me/follows' || url.startsWith('/api/broadcasts'))
       return reply([]);
     return reply(404);
@@ -138,12 +147,12 @@ it('names the tab after the screen, or the broadcast on the watch and publish pa
   });
   renderAt('/');
   await screen.findByRole('heading', { name: '방송 목록' });
-  expect(document.title).toBe('방송 목록 - Lime');
+  await waitFor(() => expect(document.title).toBe('방송 목록 - Lime'));
   cleanup();
 
   renderAt('/broadcasts/b1');
   await screen.findByRole('heading', { name: '저녁 라디오' });
-  expect(document.title).toBe('저녁 라디오 - Lime');
+  await waitFor(() => expect(document.title).toBe('저녁 라디오 - Lime'));
   cleanup();
 
   stubApi({
@@ -152,5 +161,5 @@ it('names the tab after the screen, or the broadcast on the watch and publish pa
   });
   renderAt('/studio/broadcasts/b1');
   await screen.findByRole('heading', { name: '저녁 라디오' });
-  expect(document.title).toBe('[송출] 저녁 라디오 - Lime');
+  await waitFor(() => expect(document.title).toBe('[송출] 저녁 라디오 - Lime'));
 });

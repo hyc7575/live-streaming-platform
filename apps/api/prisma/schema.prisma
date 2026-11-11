@@ -51,6 +51,11 @@ model Broadcast {
   // Finalized recording files relative to the recordings root, oldest
   // first. The reconciler keeps this in step with the disk.
   recordingFiles     String[]        @default([])
+  // When the video at 0 s of each recording file was recorded, read from
+  // OME's info XML. Empty, or one per recordingFiles entry in the same order
+  // (a CHECK in the migration holds this): a start that cannot be read
+  // leaves the whole list empty.
+  recordingStartedAt DateTime[]      @default([])
   // When the streamer's browser last uploaded thumbnails/<id>/live.jpg.
   // Null means the broadcast has no thumbnail.
   thumbnailUpdatedAt DateTime?

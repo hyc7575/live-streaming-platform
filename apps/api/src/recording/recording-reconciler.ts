@@ -1,4 +1,4 @@
-import { readdir, rm, stat } from 'node:fs/promises';
+import { open, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   Inject,
@@ -10,6 +10,12 @@ import {
 import { z } from 'zod';
 import { PrismaService } from '../database/database.module.js';
 import { OME_API, type OmeApi } from '../ome/ome-api.js';
+import {
+  parseRecordingInfo,
+  readVideoSeconds,
+  recordingStartedAt,
+  type RecordingInfoEntry,
+} from './recording-info.js';
 import {
   planRecordings,
   type RecordingDir,
@@ -26,9 +32,9 @@ export const DEFAULT_RECONCILE_INTERVAL_MS = 30_000;
 const uuid = z.uuid();
 
 // Converges OME's recording tasks, the recordings directory and
-// Broadcast.recordingFiles. Every step the lifecycle hooks may miss (a failed
-// startRecord or stopRecord, a file finalized after the broadcast ended, a
-// deleted broadcast) is settled here on the next tick.
+// Broadcast.recordingFiles with recordingStartedAt. Every step the lifecycle
+// hooks may miss (a failed startRecord or stopRecord, a file finalized after
+// the broadcast ended, a deleted broadcast) is settled here on the next tick.
 @Injectable()
 export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RecordingReconciler.name);
@@ -111,16 +117,22 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
           { recordingFiles: { isEmpty: false } },
         ],
       },
-      select: { id: true, status: true, endedAt: true, recordingFiles: true },
+      select: {
+        id: true,
+        status: true,
+        endedAt: true,
+        recordingFiles: true,
+        recordingStartedAt: true,
+      },
     });
     const plan = planRecordings(dirs, rows, this.config.maxBytes);
 
-    // The column is cleared first so a listed replay never points at a
+    // The columns are cleared first so a listed replay never points at a
     // deleted file.
     for (const id of plan.evict) {
       await this.prisma.broadcast.updateMany({
         where: { id },
-        data: { recordingFiles: [] },
+        data: { recordingFiles: [], recordingStartedAt: [] },
       });
       await this.removeDir(id);
       this.logger.log(`Evicted the recording of ${id} to stay under the cap`);
@@ -128,10 +140,10 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
     for (const id of plan.remove) {
       await this.removeDir(id);
     }
-    for (const { id, files } of plan.setFiles) {
+    for (const { id, files, startedAt } of plan.setFiles) {
       await this.prisma.broadcast.updateMany({
         where: { id },
-        data: { recordingFiles: files },
+        data: { recordingFiles: files, recordingStartedAt: startedAt },
       });
     }
     if (plan.overCapBytes > 0) {
@@ -171,26 +183,76 @@ export async function readRecordingDirs(root: string): Promise<RecordingDir[]> {
     if (!entry.isDirectory() || !uuid.safeParse(entry.name).success) continue;
     dirs.push({
       broadcastId: entry.name,
-      files: await readFiles(join(root, entry.name)),
+      files: await readFiles(root, entry.name),
     });
   }
   return dirs;
 }
 
-async function readFiles(dir: string): Promise<RecordingFile[]> {
+async function readFiles(
+  root: string,
+  broadcastId: string,
+): Promise<RecordingFile[]> {
+  const dir = join(root, broadcastId);
+  const names = await readdir(dir);
+  const info = await readInfo(dir, names);
   const files: RecordingFile[] = [];
-  for (const name of await readdir(dir)) {
+  for (const name of names) {
     // OME renames tmp_ files as it finalizes them, so a listed name may be
     // gone by the time it is read. The next tick sees the new name.
-    const stats = await stat(join(dir, name)).catch((error: unknown) => {
-      if (isNotFound(error)) return null;
-      throw error;
+    const stats = await stat(join(dir, name)).catch(nullIfNotFound);
+    if (!stats?.isFile()) continue;
+    const entry = name.endsWith('.mp4')
+      ? info.get(`${broadcastId}/${name}`)
+      : undefined;
+    files.push({
+      name,
+      bytes: stats.size,
+      mtimeMs: stats.mtimeMs,
+      startedAt: entry ? await readStartedAt(join(dir, name), entry) : null,
     });
-    if (stats?.isFile()) {
-      files.push({ name, bytes: stats.size, mtimeMs: stats.mtimeMs });
-    }
   }
   return files;
+}
+
+// Every transaction's XML in the directory, keyed by file. A restarted
+// recording task starts a new transaction and so a new XML.
+async function readInfo(
+  dir: string,
+  names: string[],
+): Promise<Map<string, RecordingInfoEntry>> {
+  const info = new Map<string, RecordingInfoEntry>();
+  for (const name of names.filter((name) => name.endsWith('.xml'))) {
+    const xml = await readFile(join(dir, name), 'utf8').catch(nullIfNotFound);
+    for (const entry of xml === null ? [] : parseRecordingInfo(xml)) {
+      info.set(entry.file, entry);
+    }
+  }
+  return info;
+}
+
+async function readStartedAt(
+  path: string,
+  entry: RecordingInfoEntry,
+): Promise<Date | null> {
+  const handle = await open(path, 'r').catch(nullIfNotFound);
+  if (!handle) return null;
+  try {
+    const { size } = await handle.stat();
+    const seconds = await readVideoSeconds(async (offset, length) => {
+      const buffer = Buffer.alloc(length);
+      const { bytesRead } = await handle.read(buffer, 0, length, offset);
+      return buffer.subarray(0, bytesRead);
+    }, size);
+    return seconds === null ? null : recordingStartedAt(entry, seconds);
+  } finally {
+    await handle.close();
+  }
+}
+
+function nullIfNotFound(error: unknown): null {
+  if (isNotFound(error)) return null;
+  throw error;
 }
 
 function isNotFound(error: unknown): boolean {
