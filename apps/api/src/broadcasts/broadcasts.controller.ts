@@ -46,7 +46,11 @@ const updateSchema = z
     message: 'Nothing to update',
   });
 
-const publicStatus = { LIVE: 'LIVE', ENDED: 'ENDED' } as const;
+const publicStatus = {
+  LIVE: 'LIVE',
+  READY: 'READY',
+  ENDED: 'ENDED',
+} as const satisfies Record<PublicStatus, PublicStatus>;
 
 @Controller()
 export class BroadcastsController {

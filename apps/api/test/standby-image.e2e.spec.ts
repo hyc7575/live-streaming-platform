@@ -302,7 +302,12 @@ describe('channel standby image', () => {
         .body as BroadcastView[];
       expect(
         Object.fromEntries(list.map((b) => [b.id, b.standbyImageUrl])),
-      ).toEqual({ [live]: url, [othersLive]: null });
+      ).toEqual({
+        [live]: url,
+        [ready]: url,
+        [(created.body as BroadcastView).id]: url,
+        [othersLive]: null,
+      });
 
       const mine = (await ownerAgent.get('/api/me/broadcasts'))
         .body as BroadcastView[];

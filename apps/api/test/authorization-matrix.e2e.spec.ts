@@ -155,9 +155,9 @@ describe('authorization matrix (PRD §7.5)', () => {
 
   const ids = (body: unknown) => (body as BroadcastView[]).map((b) => b.id);
 
-  // Public list per §7.4: LIVE and ENDED only, READY never.
-  const publicIds = (w: World) =>
-    w.status === 'READY' ? [w.othersId] : [w.targetId, w.othersId];
+  // Public list per §7.4. The seeded READY target is minutes old, inside the
+  // day a READY broadcast stays listed, so every status is listed.
+  const publicIds = (w: World) => [w.targetId, w.othersId];
 
   const broadcastRows = () =>
     prisma.broadcast.findMany({ orderBy: { id: 'asc' } });
@@ -248,7 +248,7 @@ describe('authorization matrix (PRD §7.5)', () => {
         const mine = await w.as[actor].get('/api/me/broadcasts');
         expect(ids(mine.body)).toContain(created.id);
         const list = await anonymous().get('/api/broadcasts');
-        expect(ids(list.body)).not.toContain(created.id);
+        expect(ids(list.body)).toContain(created.id);
       },
     },
     '방송 수정': {
@@ -274,9 +274,7 @@ describe('authorization matrix (PRD §7.5)', () => {
         const listed = (list.body as BroadcastView[]).find(
           (b) => b.id === w.targetId,
         );
-        expect(listed?.title).toBe(
-          w.status === 'READY' ? undefined : EDITED.title,
-        );
+        expect(listed?.title).toBe(EDITED.title);
       },
     },
     '방송 삭제': {
