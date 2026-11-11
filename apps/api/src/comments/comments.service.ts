@@ -1,10 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { BroadcastsService } from '../broadcasts/broadcasts.service.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma } from '../generated/prisma/client.js';
 
 export const COMMENT_MAX_LENGTH = 500;
+
+export const COMMENT_NOT_ENDED_MESSAGE =
+  '댓글은 방송이 끝난 뒤에 남길 수 있습니다. 방송 중에는 채팅을 이용해 주세요.';
 
 // No pagination, like the public broadcast list: the watch page shows the
 // latest comments and polls, so a fixed cap keeps each poll small.
@@ -45,6 +52,7 @@ export class CommentsService {
     return latest.reverse();
   }
 
+  // Before the broadcast ends, viewers talk in chat; comments are for after.
   // createdAt and updatedAt start equal, so the page can tell an edited
   // comment by updatedAt alone.
   async create(
@@ -52,7 +60,10 @@ export class CommentsService {
     authorId: string,
     body: string,
   ): Promise<CommentView> {
-    await this.broadcasts.get(broadcastId);
+    const broadcast = await this.broadcasts.get(broadcastId);
+    if (broadcast.status !== 'ENDED') {
+      throw new ConflictException(COMMENT_NOT_ENDED_MESSAGE);
+    }
     const now = new Date();
     try {
       return await this.prisma.comment.create({
