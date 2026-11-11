@@ -13,7 +13,11 @@ import {
   type PublishTarget,
 } from './admission.js';
 import { PUBLISH_CONFIG, type PublishConfig } from './publish-config.js';
-import { mintPublishToken, verifyPublishToken } from './publish-token.js';
+import {
+  mintPublishToken,
+  verifyPublishToken,
+  type PublishClient,
+} from './publish-token.js';
 
 export const OTHER_LIVE_MESSAGE = '기존 방송을 종료하세요.';
 export const ENDED_PUBLISH_MESSAGE =
@@ -41,7 +45,11 @@ export class PublishService {
 
   // The caller already passed BroadcastOwnerGuard, so the broadcast exists
   // and belongs to `streamerId`.
-  async issue(broadcastId: string, streamerId: string): Promise<PublishTicket> {
+  async issue(
+    broadcastId: string,
+    streamerId: string,
+    client: PublishClient,
+  ): Promise<PublishTicket> {
     const broadcasts = await this.prisma.broadcast.findMany({
       where: {
         streamerId,
@@ -59,6 +67,7 @@ export class PublishService {
     const { token, expiresAt } = mintPublishToken(
       this.config.tokenKey,
       { broadcastId, streamerId },
+      client,
       this.clock.now(),
     );
     return { publishUrl: publishPath(broadcastId, token), expiresAt };

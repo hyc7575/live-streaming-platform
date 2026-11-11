@@ -3,7 +3,18 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 // PRD §7.5: a publish token names one broadcast and its streamer and is
 // checked only when OME asks about a new connection. It is stateless, so a
 // token outlives nothing but its own expiry.
-export const PUBLISH_TOKEN_TTL_SECONDS = 5 * 60;
+//
+// OBS reconnects on its own with the URL it was given, and admission checks
+// the token again on every reconnect, so an OBS token must outlast a whole
+// broadcast. The token is bound to one broadcast and an ENDED broadcast never
+// goes LIVE again, so the longer life only widens exposure of a URL that
+// leaks before the broadcast starts.
+export type PublishClient = 'browser' | 'obs';
+
+export const PUBLISH_TOKEN_TTL_SECONDS: Record<PublishClient, number> = {
+  browser: 5 * 60,
+  obs: 12 * 60 * 60,
+};
 
 export interface PublishGrant {
   broadcastId: string;
@@ -25,9 +36,11 @@ function sign(key: Buffer, grant: PublishGrant, exp: number): Buffer {
 export function mintPublishToken(
   key: Buffer,
   grant: PublishGrant,
+  client: PublishClient,
   now: Date,
 ): { token: string; expiresAt: Date } {
-  const exp = Math.floor(now.getTime() / 1000) + PUBLISH_TOKEN_TTL_SECONDS;
+  const exp =
+    Math.floor(now.getTime() / 1000) + PUBLISH_TOKEN_TTL_SECONDS[client];
   return {
     token: `${exp}.${sign(key, grant, exp).toString('base64url')}`,
     expiresAt: new Date(exp * 1000),

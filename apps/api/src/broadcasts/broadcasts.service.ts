@@ -45,6 +45,7 @@ const broadcastSelect = {
   status: true,
   startedAt: true,
   endedAt: true,
+  disconnectedAt: true,
   createdAt: true,
   recordingFiles: true,
   recordingStartedAt: true,

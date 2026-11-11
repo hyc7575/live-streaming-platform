@@ -4,6 +4,7 @@ import request from 'supertest';
 import {
   mintPublishToken,
   publishTokenKey,
+  type PublishClient,
   type PublishGrant,
 } from '../../src/publish/publish-token.js';
 import { TEST_OME_WEBHOOK_SECRET, TEST_SESSION_SECRET } from './app.js';
@@ -70,7 +71,15 @@ export function closePublish(
   );
 }
 
-export function mintedToken(grant: PublishGrant, now: Date): string {
-  return mintPublishToken(publishTokenKey(TEST_SESSION_SECRET), grant, now)
-    .token;
+export function mintedToken(
+  grant: PublishGrant,
+  now: Date,
+  client: PublishClient = 'browser',
+): string {
+  return mintPublishToken(
+    publishTokenKey(TEST_SESSION_SECRET),
+    grant,
+    client,
+    now,
+  ).token;
 }

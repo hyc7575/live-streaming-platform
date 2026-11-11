@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   mintPublishToken,
-  PUBLISH_TOKEN_TTL_SECONDS,
   publishTokenKey,
   verifyPublishToken,
 } from '../src/publish/publish-token.js';
@@ -21,11 +20,20 @@ function flipFirstSignatureChar(token: string): string {
 }
 
 describe('publish token', () => {
-  const { token, expiresAt } = mintPublishToken(key, grant, now);
+  const { token } = mintPublishToken(key, grant, 'browser', now);
 
-  it('expires five minutes after it is minted', () => {
-    expect(expiresAt).toEqual(later(PUBLISH_TOKEN_TTL_SECONDS));
-    expect(PUBLISH_TOKEN_TTL_SECONDS).toBe(300);
+  it.each([
+    ['browser', 5 * 60],
+    ['obs', 12 * 60 * 60],
+  ] as const)('a %s token lives exactly %i seconds', (client, ttl) => {
+    const minted = mintPublishToken(key, grant, client, now);
+    expect(minted.expiresAt).toEqual(later(ttl));
+    expect(verifyPublishToken(key, minted.token, grant, later(ttl - 1))).toBe(
+      true,
+    );
+    expect(verifyPublishToken(key, minted.token, grant, later(ttl))).toBe(
+      false,
+    );
   });
 
   it('is URL-safe', () => {

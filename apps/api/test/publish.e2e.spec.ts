@@ -34,6 +34,7 @@ import {
 } from './support/webhook.js';
 
 const unknownId = '00000000-0000-4000-8000-000000000000';
+const issuedAt = new Date('2026-11-19T12:00:00Z');
 
 describe('publish', () => {
   let app: NestExpressApplication;
@@ -76,11 +77,13 @@ describe('publish', () => {
   const statusOf = async (id: string) =>
     (await prisma.broadcast.findUniqueOrThrow({ where: { id } })).status;
 
-  const issue = (agent: TestAgent, id: string) =>
-    agent.post(`/api/broadcasts/${id}/publish-token`);
+  const issue = (agent: TestAgent, id: string, body?: object) => {
+    const req = agent.post(`/api/broadcasts/${id}/publish-token`);
+    return body === undefined ? req : req.send(body);
+  };
 
-  async function tokenFor(id: string): Promise<string> {
-    const res = await issue(owner.agent, id);
+  async function tokenFor(id: string, body?: object): Promise<string> {
+    const res = await issue(owner.agent, id, body);
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     const url = new URL((res.body as PublishTicket).publishUrl, 'http://x');
     return url.searchParams.get('token') ?? '';
@@ -97,8 +100,8 @@ describe('publish', () => {
 
   describe('POST /api/broadcasts/:id/publish-token', () => {
     it('returns a same-origin WHIP path with a five-minute token', async () => {
+      clock.set(issuedAt);
       const id = await seed('READY');
-      const before = clock.now().getTime();
       const res = await issue(owner.agent, id);
       expect(res.status).toBe(201);
       const ticket = res.body as { publishUrl: string; expiresAt: string };
@@ -107,10 +110,38 @@ describe('publish', () => {
           `^/app/${id}\\?direction=whip&transport=all&token=[0-9]+\\.[A-Za-z0-9_-]+$`,
         ),
       );
-      const ttl = Date.parse(ticket.expiresAt) - before;
-      expect(ttl).toBeGreaterThan(4 * 60_000);
-      expect(ttl).toBeLessThanOrEqual(5 * 60_000);
+      expect(Date.parse(ticket.expiresAt)).toBe(
+        issuedAt.getTime() + 5 * 60_000,
+      );
       expect(await statusOf(id)).toBe('READY');
+    });
+
+    it.each([
+      ['browser', { client: 'browser' }, 5 * 60_000],
+      ['OBS', { client: 'obs' }, 12 * 60 * 60_000],
+    ])('gives a %s token its own lifetime', async (_case, body, ttl) => {
+      clock.set(issuedAt);
+      const res = await issue(owner.agent, await seed('READY'), body);
+      expect(res.status).toBe(201);
+      const { expiresAt } = res.body as { expiresAt: string };
+      expect(Date.parse(expiresAt)).toBe(issuedAt.getTime() + ttl);
+    });
+
+    it('rejects an unknown client with 400', async () => {
+      const res = await issue(owner.agent, await seed('READY'), {
+        client: 'nope',
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('refuses an OBS token for an ENDED broadcast like a browser one', async () => {
+      const res = await issue(owner.agent, await seed('ENDED'), {
+        client: 'obs',
+      });
+      expect(res.status).toBe(409);
+      expect((res.body as { message: string }).message).toBe(
+        ENDED_PUBLISH_MESSAGE,
+      );
     });
 
     it('issues again for the broadcast that is already LIVE', async () => {
@@ -214,6 +245,16 @@ describe('publish', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ allowed: false, reason });
       expect(await statusOf(id)).toBe('READY');
+    });
+
+    it('admits an OBS token past the browser lifetime', async () => {
+      clock.set(issuedAt);
+      const id = await seed('READY');
+      const token = await tokenFor(id, { client: 'obs' });
+      clock.advance(11 * 60 * 60_000);
+      const res = await admission(admissionBody(whipUrl(id, token)));
+      expect(res.body).toEqual({ allowed: true });
+      expect(await statusOf(id)).toBe('LIVE');
     });
 
     it('refuses an expired token', async () => {

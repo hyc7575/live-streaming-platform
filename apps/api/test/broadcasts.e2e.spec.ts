@@ -90,6 +90,7 @@ describe('broadcasts', () => {
         status: 'READY',
         startedAt: null,
         endedAt: null,
+        disconnectedAt: null,
         createdAt: expect.any(String) as string,
         recordingFiles: [],
         recordingParts: [],
