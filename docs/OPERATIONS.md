@@ -1,6 +1,6 @@
 # 운영 메모
 
-운영 서버 한 대에 `deploy/compose.yaml`로 서비스 전체를 띄운다. 이 문서는 첫 배포, 재배포, 장애 뒤 복구, DB 덤프, 녹화 파일, 도네이션 키, 로그, 다운 감시 절차다. 서버 정보(도메인 `lsp-live.duckdns.org`, 공인 IP, 방화벽)는 `docs/NEXT-STEPS.md` S2–S4에 있다.
+운영 서버 한 대에 `deploy/compose.yaml`로 서비스 전체를 띄운다. 이 문서는 첫 배포, 재배포, 장애 뒤 복구, DB 덤프, 녹화 파일, 도네이션 키, 로그, 다운 감시 절차다. 서버 정보(공인 IP, 방화벽)는 `docs/NEXT-STEPS.md` S2–S4에 있다. 도메인은 `lime-live.duckdns.org`다. 2026-11-11에 `lsp-live.duckdns.org`에서 옮겼고, 옛 주소는 `LEGACY_DOMAIN`으로 새 주소에 301 리다이렉트한다.
 
 ## 구성
 
@@ -17,7 +17,7 @@
 - 값은 `deploy/.env`에서 읽는다. 항목과 설명은 `deploy/.env.example`에 있다. 저장소 루트의 `.env`(로컬 개발용)와 다른 파일이다.
 - 데이터는 named volume에 남는다: `lsp-prod_postgres-data`(DB), `lsp-prod_caddy-data`(인증서). `docker compose down -v`는 이 둘을 지우므로 운영에서는 쓰지 않는다. DB 덤프와 녹화 파일은 volume이 아니라 호스트 폴더 `deploy/backups/`, `deploy/recordings/`에 있어 `down -v`로 지워지지 않는다.
 - 컨테이너 로그는 서비스마다 10MB × 3개까지만 남는다.
-- 공인 IP `129.225.169.22`는 Ephemeral이다. OCI 문서상 인스턴스를 Stop/Start하거나 재부팅해도 유지되지만, **Terminate하면 사라지고 같은 주소로 되돌릴 수 없다.** 콘솔에서 이 인스턴스를 Terminate하지 않는다. 다른 인스턴스(A1 등)로 옮길 때는 Reserved IP를 만들어 붙이고 DuckDNS와 `OME_HOST_IP`를 새 주소로 바꾼다.
+- 공인 IP `129.225.169.22`는 Ephemeral이다. OCI 문서상 인스턴스를 Stop/Start하거나 재부팅해도 유지되지만, **Terminate하면 사라지고 같은 주소로 되돌릴 수 없다.** 콘솔에서 이 인스턴스를 Terminate하지 않는다. 다른 인스턴스(A1 등)로 옮길 때는 Reserved IP를 만들어 붙이고 DuckDNS 레코드 두 개(`lime-live`, `lsp-live`)와 `OME_HOST_IP`를 새 주소로 바꾼다.
 
 아래 명령은 모두 서버의 저장소 폴더(예: `~/live-streaming-platform`)에서 실행한다.
 
@@ -62,7 +62,7 @@
 6. 확인한다.
 
    ```sh
-   curl -fsS https://lsp-live.duckdns.org/api/health   # {"status":"ok"}
+   curl -fsS https://lime-live.duckdns.org/api/health   # {"status":"ok"}
    docker compose -f deploy/compose.yaml ps            # 5개 모두 Up
    ```
 
@@ -82,14 +82,14 @@ docker compose -f deploy/compose.yaml up -d --build --wait
 ```sh
 sudo systemctl start docker
 cd ~/live-streaming-platform && docker compose -f deploy/compose.yaml up -d --wait
-curl -fsS https://lsp-live.duckdns.org/api/health
+curl -fsS https://lime-live.duckdns.org/api/health
 ```
 
 - 세 번째 줄이 `{"status":"ok"}`를 돌려주면 복구된 것이다. 아니면 아래 "로그"로 원인을 본다.
 - 재부팅 때 Docker는 compose의 `depends_on` 순서를 지키지 않고 컨테이너를 한꺼번에 띄운다. PostgreSQL이 준비되기 전에 API가 뜨면 마이그레이션이 실패해 API가 몇 번 재시작한다. 1분 안에 healthy가 되면 정상이다.
-- 서버 공인 IP가 바뀌었으면 DuckDNS 레코드와 `deploy/.env`의 `OME_HOST_IP`를 함께 고치고 두 번째 줄을 다시 실행한다.
+- 서버 공인 IP가 바뀌었으면 DuckDNS 레코드 두 개와 `deploy/.env`의 `OME_HOST_IP`를 함께 고치고 두 번째 줄을 다시 실행한다.
 
-재부팅 복구를 직접 확인하려면 `sudo reboot` 뒤 2분쯤 기다렸다가 SSH 없이 브라우저나 `curl`로 `https://lsp-live.duckdns.org/api/health`와 방송 목록을 연다.
+재부팅 복구를 직접 확인하려면 `sudo reboot` 뒤 2분쯤 기다렸다가 SSH 없이 브라우저나 `curl`로 `https://lime-live.duckdns.org/api/health`와 방송 목록을 연다.
 
 ## DB 덤프와 복원
 
@@ -124,7 +124,7 @@ ls -lt deploy/backups | head                                             # 되�
 docker compose -f deploy/compose.yaml exec db-backup \
   sh -c 'pg_restore --clean --if-exists --no-owner -d "$PGDATABASE" /backups/lsp-YYYYmmdd-HHMMSS.dump'
 docker compose -f deploy/compose.yaml up -d --wait
-curl -fsS https://lsp-live.duckdns.org/api/broadcasts
+curl -fsS https://lime-live.duckdns.org/api/broadcasts
 ```
 
 - `--clean --if-exists`는 있는 테이블을 지우고 다시 만든다. 빈 DB에도, 데이터가 있는 DB에도 같은 명령을 쓴다.
@@ -219,8 +219,8 @@ docker compose -f deploy/compose.yaml logs --tail=200 ome caddy postgres
 
 1. https://uptimerobot.com 에 가입하고, 알림 받을 메일 주소를 Alert Contact로 확인한다.
 2. **Add New Monitor**에서 둘을 만든다. 간격은 5분(무료 최소값)이다.
-   - Keyword 모니터: URL `https://lsp-live.duckdns.org/api/health`, 키워드 `ok`가 있을 때 정상. Caddy와 API를 함께 본다.
-   - HTTP(s) 모니터: URL `https://lsp-live.duckdns.org/api/broadcasts`. 공개 방송 목록이라 DB까지 본다.
+   - Keyword 모니터: URL `https://lime-live.duckdns.org/api/health`, 키워드 `ok`가 있을 때 정상. Caddy와 API를 함께 본다.
+   - HTTP(s) 모니터: URL `https://lime-live.duckdns.org/api/broadcasts`. 공개 방송 목록이라 DB까지 본다.
 3. 알림을 실제로 받아 본다. 서버에서 Caddy를 잠시 내리고, 메일이 오면 다시 올린다.
 
    ```sh

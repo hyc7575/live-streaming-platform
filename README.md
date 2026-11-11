@@ -973,7 +973,7 @@ macOS 시스템 소리를 직접 확인하는 절차: 시스템 설정 → 개�
 ```sh
 sudo systemctl start docker
 docker compose -f deploy/compose.yaml up -d --wait
-curl -fsS https://lsp-live.duckdns.org/api/health
+curl -fsS https://lime-live.duckdns.org/api/health
 ```
 
 ## 사용한 오픈소스

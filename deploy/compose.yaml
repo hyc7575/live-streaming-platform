@@ -134,6 +134,8 @@ services:
         condition: service_started
     environment:
       DOMAIN: ${DOMAIN:?DOMAIN을 deploy/.env에 넣으세요}
+      # 비면 Caddy가 빈 사이트 주소로 시작하지 못하므로 인증서가 필요 없는 예약 이름으로 채운다
+      LEGACY_DOMAIN: ${LEGACY_DOMAIN:-http://legacy.invalid}
     ports:
       - '${HTTP_PORT:-80}:80/tcp'
       - '${HTTPS_PORT:-443}:443/tcp'
