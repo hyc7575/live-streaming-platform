@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import pg from 'pg';
 import { seedTestAccounts } from './auth/test-accounts.js';
 import { PrismaService } from './database/database.module.js';
+import { DEMO_ENDED_TITLE, seedDemoEndedBroadcast } from './seed-demo.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('DATABASE_URL is not set');
@@ -13,6 +14,10 @@ try {
   for (const [key, user] of Object.entries(users)) {
     console.log(`Test account ${key}: ${user.email} (${user.nickname})`);
   }
+  const demo = await seedDemoEndedBroadcast(prisma, users);
+  console.log(
+    `Demo ended broadcast ${demo.created ? 'created' : 'kept'}: ${demo.id} (${DEMO_ENDED_TITLE})`,
+  );
 } catch (err) {
   console.error(
     `Seed failed: ${err instanceof Error ? err.message : String(err)}`,
