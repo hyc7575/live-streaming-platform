@@ -17,6 +17,7 @@ import {
 } from '../../src/auth/test-accounts.js';
 import { configureApp } from '../../src/configure-app.js';
 import { PrismaService } from '../../src/database/database.module.js';
+import { Prisma } from '../../src/generated/prisma/client.js';
 import {
   TOSS_CONFIG,
   TOSS_PAYMENTS,
@@ -130,9 +131,9 @@ export async function resetDatabase(
   app: NestExpressApplication,
 ): Promise<void> {
   const prisma = app.get(PrismaService);
-  const rows = await prisma.$queryRaw<{ tablename: string }[]>`
+  const rows = await prisma.$queryRaw<{ tablename: string }[]>(Prisma.sql`
     SELECT tablename FROM pg_tables
-    WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
+    WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`);
   if (rows.length === 0) return;
   const tables = rows.map((r) => `"${r.tablename}"`).join(', ');
   await prisma.$executeRawUnsafe(`TRUNCATE ${tables} CASCADE`);
