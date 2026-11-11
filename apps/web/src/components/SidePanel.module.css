@@ -21,25 +21,6 @@
   display: none;
 }
 
-/* Wide screens: the panel fills the right column beside the player and
-   scrolls its own list, like a chat column. */
-@media (min-width: 1024px) {
-  .panel {
-    position: sticky;
-    top: var(--space-4);
-    max-height: calc(100vh - var(--header-height) - var(--space-8));
-  }
-
-  .tabPanel {
-    flex: 1;
-  }
-
-  .list {
-    flex: 1;
-    max-height: none;
-  }
-}
-
 .tabs {
   display: flex;
   gap: var(--space-4);
@@ -291,4 +272,29 @@
 
 .error {
   color: var(--color-danger);
+}
+
+/* Wide screens: the panel is a full-height chat column beside the player,
+   as on Twitch or Chzzk. Its height does not follow the message count, so
+   the form stays put and only the list scrolls. Kept last so it overrides
+   the narrow-screen caps above. */
+@media (min-width: 1024px) {
+  .panel {
+    position: sticky;
+    top: var(--space-4);
+    height: calc(100vh - var(--header-height) - var(--space-8));
+  }
+
+  .empty {
+    flex: 1;
+  }
+
+  .tabPanel {
+    flex: 1;
+  }
+
+  .list {
+    flex: 1;
+    max-height: none;
+  }
 }
