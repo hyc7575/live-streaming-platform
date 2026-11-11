@@ -180,10 +180,10 @@ export class DonationsService {
         async (tx) => {
           const [locked] = await tx.$queryRaw<
             { id: string; status: string; paymentKey: string | null }[]
-          >`
+          >(Prisma.sql`
             SELECT id, status::text, "paymentKey" FROM "Donation"
             WHERE "orderId" = ${input.orderId}
-            FOR UPDATE`;
+            FOR UPDATE`);
           if (!locked) throw new NotFoundException(ORDER_NOT_FOUND_MESSAGE);
           if (locked.status === 'PAID') {
             if (locked.paymentKey !== input.paymentKey) {
