@@ -1049,7 +1049,7 @@ curl -s -b b-jar.txt $API/me/follows                     # []
 ```sh
 sudo systemctl start docker
 docker compose -f deploy/compose.yaml up -d --wait
-curl -fsS https://lsp-live.duckdns.org/api/health
+curl -fsS https://lime-live.duckdns.org/api/health
 ```
 
 ## 지원 환경

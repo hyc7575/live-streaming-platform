@@ -52,3 +52,10 @@
 		file_server
 	}
 }
+
+# A previous domain keeps old links working by sending them to {$DOMAIN}
+# with the same path and query. compose defaults it to an http:// address
+# on a reserved name, so an unused block never asks for a certificate.
+{$LEGACY_DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
