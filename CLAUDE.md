@@ -19,6 +19,10 @@ UI 작업 전 `apps/web/CLAUDE.md`를 읽는다.
 
 PRD의 결정과 다르게 구현해야 하면 PR 본문에 "PRD §x와 어긋남"과 이유를 쓰고 보고에 올린다.
 
+## 채점기 호환
+
+공모전 채점기의 파서는 타입 인자를 붙인 tagged template(`` fn<T>`...` ``)을 구문 오류로 본다. `tsc`는 통과하므로 타입 검사로는 잡히지 않는다(2026-11-11 `$queryRaw` 두 곳에서 발생, #87). `` $queryRaw<T>(Prisma.sql`...`) ``처럼 함수 호출로 쓴다. 두 앱의 ESLint `no-restricted-syntax` 규칙이 이 형태를 막는다.
+
 ## 미디어 서버 판정
 
 2026-11-09 #9 판정으로 OvenMediaEngine을 유지한다(근거는 #2·#9 댓글). OME 전용 코드(Admission Webhook, 강제 종료, OvenLiveKit 송출)도 main에 넣는다. WHIP 송출 URL과 ICE 설정은 PRD §7.2 "WHIP ICE"를 따른다.

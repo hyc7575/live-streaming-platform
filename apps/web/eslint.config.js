@@ -20,6 +20,21 @@ export default tseslint.config(
     },
   },
   {
+    // The contest grader's parser rejects type arguments on a tagged template
+    // (fn<T>`...`) as a syntax error although tsc accepts it. Call the tag
+    // as a function instead, e.g. $queryRaw<T>(Prisma.sql`...`).
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'TaggedTemplateExpression[typeArguments]',
+          message:
+            'Type arguments on a tagged template break the grader parser. Use fn<T>(Prisma.sql`...`) or a plain call.',
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.js'],
     extends: [tseslint.configs.disableTypeChecked],
   },
