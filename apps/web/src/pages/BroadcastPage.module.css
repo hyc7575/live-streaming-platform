@@ -120,3 +120,40 @@
   margin: var(--space-4) 0 0;
   white-space: pre-wrap;
 }
+
+/* Narrow screens give the page exactly the screen below the header, as
+   Twitch's mobile web does: the player, one summary line, then the chat or
+   comments filling the rest. The page itself never scrolls; only the
+   panel's list does. The negative margins take back the main area's
+   vertical padding. */
+@media (max-width: 1023.98px) {
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    height: calc(100dvh - var(--header-height));
+    margin-block: calc(-1 * var(--space-6));
+    padding-block: var(--space-2);
+  }
+
+  .main {
+    flex: none;
+  }
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.summaryTitle {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--font-size-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
@@ -141,11 +141,11 @@ function ChatForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toLogin = useLoginRedirect(broadcastId);
-  const empty = draft.trim().length === 0;
+  // The textarea's maxLength already keeps the draft within the limit.
+  const canSend = !busy && draft.trim().length > 0;
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (empty) return;
+  async function send() {
+    if (!canSend) return;
     setBusy(true);
     setError(null);
     try {
@@ -169,8 +169,24 @@ function ChatForm({
     }
   }
 
+  // Enter sends and Shift+Enter breaks the line. An Enter that commits a
+  // Hangul syllable is not a send: Chrome marks it isComposing, Safari sends
+  // it after compositionend with keyCode 229.
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    void send();
+  }
+
   return (
-    <form className={styles.form} onSubmit={(e) => void submit(e)}>
+    <form
+      className={styles.form}
+      onSubmit={(e) => {
+        e.preventDefault();
+        void send();
+      }}
+    >
       <label htmlFor="chat-draft" className={styles.label}>
         채팅 쓰기
       </label>
@@ -180,8 +196,10 @@ function ChatForm({
         rows={2}
         maxLength={CHAT_MAX_LENGTH}
         placeholder="채팅을 입력하세요"
+        enterKeyHint="send"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={onKeyDown}
       />
       <div className={styles.formRow}>
         <span className={styles.count}>
@@ -189,8 +207,8 @@ function ChatForm({
         </span>
         <button
           type="submit"
-          className={styles.primary}
-          disabled={busy || empty}
+          className={`${styles.primary} ${styles.send}`}
+          disabled={!canSend}
         >
           보내기
         </button>

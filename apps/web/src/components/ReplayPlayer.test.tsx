@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import {
   afterEach,
   beforeEach,
@@ -7,7 +8,30 @@ import {
   vi,
   type MockInstance,
 } from 'vitest';
-import { ReplayPlayer } from './ReplayPlayer';
+import type { Playhead } from '../replay-chat';
+import { ReplayParts, ReplayPlayer } from './ReplayPlayer';
+
+// The player and its part picker share the part the page holds.
+function Replay({
+  files,
+  onPlayhead,
+}: {
+  files: string[];
+  onPlayhead?: (playhead: Playhead) => void;
+}) {
+  const [part, setPart] = useState(0);
+  return (
+    <>
+      <ReplayPlayer
+        files={files}
+        part={part}
+        onPart={setPart}
+        onPlayhead={onPlayhead}
+      />
+      <ReplayParts files={files} part={part} onPart={setPart} />
+    </>
+  );
+}
 
 let play: MockInstance<HTMLMediaElement['play']>;
 
@@ -28,7 +52,7 @@ const pressed = () =>
     .map((b) => b.textContent);
 
 it('plays a single recording under Lime controls and no part buttons', () => {
-  render(<ReplayPlayer files={['b1/1_0.mp4']} />);
+  render(<Replay files={['b1/1_0.mp4']} />);
   expect(video().getAttribute('src')).toBe('/recordings/b1/1_0.mp4');
   expect(video().controls).toBe(false);
   expect(video().hasAttribute('playsinline')).toBe(true);
@@ -39,7 +63,7 @@ it('plays a single recording under Lime controls and no part buttons', () => {
 });
 
 it('moves on to the next part when one ends and keeps playing', () => {
-  render(<ReplayPlayer files={['b1/1_0.mp4', 'b1/1_1.mp4']} />);
+  render(<Replay files={['b1/1_0.mp4', 'b1/1_1.mp4']} />);
   expect(pressed()).toEqual(['1부']);
   expect(screen.getByText(/녹화가 나뉩니다/)).toBeDefined();
 
@@ -59,7 +83,7 @@ it('moves on to the next part when one ends and keeps playing', () => {
 });
 
 it('keeps the chosen speed into the next part', async () => {
-  render(<ReplayPlayer files={['b1/1_0.mp4', 'b1/1_1.mp4']} />);
+  render(<Replay files={['b1/1_0.mp4', 'b1/1_1.mp4']} />);
   Object.defineProperty(video(), 'duration', { value: 60 });
   fireEvent.durationChange(video());
   for (const label of ['1', '1.25', '1.5']) {
@@ -80,7 +104,7 @@ it('keeps the chosen speed into the next part', async () => {
 });
 
 it('jumps to the part the viewer picks', () => {
-  render(<ReplayPlayer files={['b1/1_0.mp4', 'b1/1_1.mp4', 'b1/1_2.mp4']} />);
+  render(<Replay files={['b1/1_0.mp4', 'b1/1_1.mp4', 'b1/1_2.mp4']} />);
   fireEvent.click(screen.getByRole('button', { name: '3부' }));
   expect(video().getAttribute('src')).toBe('/recordings/b1/1_2.mp4');
   expect(pressed()).toEqual(['3부']);
@@ -89,7 +113,7 @@ it('jumps to the part the viewer picks', () => {
 
 it('leaves the controls to the viewer when the browser blocks playback', async () => {
   play.mockRejectedValue(new DOMException('blocked', 'NotAllowedError'));
-  render(<ReplayPlayer files={['b1/1_0.mp4', 'b1/1_1.mp4']} />);
+  render(<Replay files={['b1/1_0.mp4', 'b1/1_1.mp4']} />);
   fireEvent.ended(video());
   await Promise.resolve();
   expect(video().getAttribute('src')).toBe('/recordings/b1/1_1.mp4');
@@ -98,10 +122,7 @@ it('leaves the controls to the viewer when the browser blocks playback', async (
 it('reports the playhead once the viewer plays or seeks', () => {
   const onPlayhead = vi.fn();
   render(
-    <ReplayPlayer
-      files={['b1/1_0.mp4', 'b1/1_1.mp4']}
-      onPlayhead={onPlayhead}
-    />,
+    <Replay files={['b1/1_0.mp4', 'b1/1_1.mp4']} onPlayhead={onPlayhead} />,
   );
   video().currentTime = 12;
   fireEvent.timeUpdate(video());
@@ -121,7 +142,7 @@ it('reports the playhead once the viewer plays or seeks', () => {
 
 it('starts reporting on a seek before any playback', () => {
   const onPlayhead = vi.fn();
-  render(<ReplayPlayer files={['b1/1_0.mp4']} onPlayhead={onPlayhead} />);
+  render(<Replay files={['b1/1_0.mp4']} onPlayhead={onPlayhead} />);
   video().currentTime = 40;
   fireEvent.seeked(video());
   expect(onPlayhead).toHaveBeenLastCalledWith({ part: 0, seconds: 40 });
@@ -130,10 +151,7 @@ it('starts reporting on a seek before any playback', () => {
 it('reports the next part at 0 s when one ends', () => {
   const onPlayhead = vi.fn();
   render(
-    <ReplayPlayer
-      files={['b1/1_0.mp4', 'b1/1_1.mp4']}
-      onPlayhead={onPlayhead}
-    />,
+    <Replay files={['b1/1_0.mp4', 'b1/1_1.mp4']} onPlayhead={onPlayhead} />,
   );
   fireEvent.ended(video());
   expect(onPlayhead).toHaveBeenLastCalledWith({ part: 1, seconds: 0 });

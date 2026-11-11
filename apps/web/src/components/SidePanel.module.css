@@ -1,7 +1,9 @@
 .panel {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-3);
+  min-height: 0;
   padding: var(--space-4);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -12,6 +14,7 @@
    lays out like the panel itself. */
 .tabPanel {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-3);
   min-height: 0;
@@ -62,8 +65,8 @@
 .list {
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: var(--space-3);
-  max-height: var(--side-panel-list-max-height);
   margin: 0;
   padding: 0;
   overflow-y: auto;
@@ -133,6 +136,7 @@
 }
 
 .empty {
+  flex: 1;
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
@@ -274,27 +278,22 @@
   color: var(--color-danger);
 }
 
-/* Wide screens: the panel is a full-height chat column beside the player,
-   as on Twitch or Chzzk. Its height does not follow the message count, so
-   the form stays put and only the list scrolls. Kept last so it overrides
-   the narrow-screen caps above. */
+/* The panel fills the height it is given, whatever the message count, so
+   the heading or tabs and the form stay put and only the list scrolls, as
+   on Twitch or Chzzk. Wide screens give it a full-height column beside the
+   player; narrow ones the rest of the screen under it (BroadcastPage). */
 @media (min-width: 1024px) {
   .panel {
     position: sticky;
     top: var(--space-4);
     height: calc(100vh - var(--header-height) - var(--space-8));
   }
+}
 
-  .empty {
-    flex: 1;
-  }
-
-  .tabPanel {
-    flex: 1;
-  }
-
-  .list {
-    flex: 1;
-    max-height: none;
+/* Enter sends on a phone's keyboard (enterKeyHint), so the button only
+   takes room there. */
+@media (max-width: 1023.98px) {
+  .send {
+    display: none;
   }
 }
