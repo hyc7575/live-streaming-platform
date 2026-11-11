@@ -144,7 +144,7 @@ function ObsStatusLine({ broadcast }: { broadcast: Broadcast }) {
     );
   }
   if (broadcast.status === 'LIVE') {
-    return <p className={page.live}>송출 중입니다.</p>;
+    return <p className={page.live}>송출이 연결되어 있습니다.</p>;
   }
   return null;
 }
