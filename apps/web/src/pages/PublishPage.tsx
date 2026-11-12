@@ -44,7 +44,7 @@ import {
   type CaptureSlot,
   type CaptureSource,
 } from './captureSources';
-import { ObsPanel } from './ObsPanel';
+import { OBS_STOP_REMINDER, ObsPanel } from './ObsPanel';
 import styles from './PublishPage.module.css';
 
 export function PublishPage() {
@@ -162,6 +162,11 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
     broadcast.status === 'LIVE' &&
     broadcast.disconnectedAt === null &&
     session.state.kind === 'idle';
+  // OBS keeps reconnecting after the broadcast ends (#88), so the ended
+  // screen reminds the streamer to stop it when OBS may have been in use: a
+  // URL issued here, or a publish this page did not make.
+  const [obsMayPublish, setObsMayPublish] = useState(false);
+  if (publishingElsewhere && !obsMayPublish) setObsMayPublish(true);
   // Once the broadcast has ended, the capture has no further use: dropping
   // it here stops its tracks through the effect below.
   const active: ActiveCapture | null =
@@ -262,6 +267,7 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
               : '방송을 종료했습니다.'}
           </p>
           {notice && <p className={styles.note}>{notice}</p>}
+          {obsMayPublish && <p className={styles.note}>{OBS_STOP_REMINDER}</p>}
           <div className={styles.actions}>
             <Link to={`/broadcasts/${broadcast.id}`} className={styles.primary}>
               시청 화면 보기
@@ -311,7 +317,11 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
           />
         ) : (
           <div className={styles.placeholder}>
-            <p className={styles.note}>{offer.placeholder}</p>
+            <p className={styles.note}>
+              {publishingElsewhere
+                ? 'OBS나 다른 탭에서 송출 중이라 여기에는 미리보기가 없습니다. 화면은 시청 화면에서 확인하세요.'
+                : offer.placeholder}
+            </p>
           </div>
         )}
         <PublishTabs
@@ -403,7 +413,13 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
               </div>
             </>
           }
-          obs={<ObsPanel broadcast={broadcast} endControl={endControl} />}
+          obs={
+            <ObsPanel
+              broadcast={broadcast}
+              endControl={endControl}
+              onIssued={() => setObsMayPublish(true)}
+            />
+          }
         />
       </div>
       <LeaveConfirm blocker={leave} />

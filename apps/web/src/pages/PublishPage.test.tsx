@@ -27,6 +27,7 @@ import { PcCaptureError, startPcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
 import { startWhipPublish, type PublishEvent } from '../publish/whipPublisher';
 import { renderInDataRouter } from '../testing/renderInDataRouter';
+import { OBS_STOP_REMINDER } from './ObsPanel';
 
 vi.mock('../capture/cameraCapture', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../capture/cameraCapture')>()),
@@ -235,6 +236,8 @@ it('ends the broadcast after the streamer confirms, stopping publish and camera'
 
   fireEvent.click(screen.getByRole('button', { name: '종료하기' }));
   const done = await screen.findByText('방송을 종료했습니다.');
+  // Only the browser published, so there is no OBS to stop.
+  expect(screen.queryByText(OBS_STOP_REMINDER)).toBeNull();
   expect(page.calls).toContain('POST /api/broadcasts/b1/end');
   expect(page.publisher.stop).toHaveBeenCalled();
   await waitFor(() => expect(page.capture.stop).toHaveBeenCalled());
@@ -1052,6 +1055,36 @@ it('takes the OBS URL away once it expires and asks to issue again', async () =>
   expect(screen.getByRole('button', { name: '다시 발급' })).toBeDefined();
 });
 
+it('reminds to stop OBS once a broadcast with an issued OBS URL ends', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval'] });
+  try {
+    const page = renderPage({
+      'POST /api/broadcasts/b1/publish-token': obsToken(
+        OBS_URL,
+        new Date(Date.now() + 60 * 60 * 1000),
+      ),
+    });
+    await openObsTab();
+    const obsPanel = screen.getByRole('tabpanel', { name: 'OBS로 송출' });
+    expect(
+      within(obsPanel).getByText(
+        'OBS가 “스트림 키에 접근할 수 없습니다”라고 하면 주소가 만료되었거나 방송이 끝난 것입니다. 주소를 다시 발급하세요.',
+      ),
+    ).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'URL 발급' }));
+    await screen.findByRole('textbox', { name: 'OBS 송출 주소' });
+
+    page.routes['GET /api/broadcasts/b1'] = ENDED;
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(await screen.findByText('방송이 종료되었습니다.')).toBeDefined();
+    expect(screen.getByText(OBS_STOP_REMINDER)).toBeDefined();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('shows why an OBS URL was not issued', async () => {
   const page = renderPage({ 'POST /api/broadcasts/b1/publish-token': 403 });
   await openObsTab();
@@ -1124,6 +1157,7 @@ it('follows the OBS publish in the OBS tab, through a drop, and ends it there', 
     );
     fireEvent.click(within(obsPanel).getByRole('button', { name: '종료하기' }));
     expect(await screen.findByText('방송을 종료했습니다.')).toBeDefined();
+    expect(screen.getByText(OBS_STOP_REMINDER)).toBeDefined();
     expect(page.calls).toContain('POST /api/broadcasts/b1/end');
   } finally {
     vi.useRealTimers();
@@ -1137,6 +1171,11 @@ it('leaves without asking while OBS publishes', async () => {
   });
   await openObsTab();
   await screen.findByText('송출이 연결되어 있습니다.');
+  expect(
+    screen.getByText(
+      'OBS나 다른 탭에서 송출 중이라 여기에는 미리보기가 없습니다. 화면은 시청 화면에서 확인하세요.',
+    ),
+  ).toBeDefined();
   expect(unloadIsBlocked()).toBe(false);
 
   fireEvent.click(headerLink('방송 목록'));

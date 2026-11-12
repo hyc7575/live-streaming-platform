@@ -15,6 +15,9 @@ type ObsUrl =
   | { kind: 'expired' }
   | { kind: 'failed'; error: string };
 
+export const OBS_STOP_REMINDER =
+  '방송을 종료한 뒤에는 OBS에서도 방송 중단을 누르세요. 누르지 않으면 OBS가 계속 다시 연결을 시도합니다.';
+
 const expiryFormat = new Intl.DateTimeFormat('ko-KR', {
   month: 'long',
   day: 'numeric',
@@ -29,9 +32,12 @@ const expiryFormat = new Intl.DateTimeFormat('ko-KR', {
 export function ObsPanel({
   broadcast,
   endControl,
+  onIssued,
 }: {
   broadcast: Broadcast;
   endControl: ReactNode;
+  /** Called on each issued URL, so the ended screen knows OBS was set up. */
+  onIssued: () => void;
 }) {
   const navigate = useNavigate();
   const [obsUrl, setObsUrl] = useState<ObsUrl>({ kind: 'none' });
@@ -51,6 +57,7 @@ export function ObsPanel({
     const ticket = await requestPublishTicket(broadcast.id, 'obs');
     switch (ticket.kind) {
       case 'issued':
+        onIssued();
         setObsUrl({
           kind: 'issued',
           url: new URL(ticket.publishUrl, window.location.origin).href,
@@ -123,6 +130,13 @@ export function ObsPanel({
           </li>
           <li>설정 › 출력에서 키프레임 간격을 1~2초로 맞춥니다.</li>
         </ol>
+        {/* #88: OBS words a refused URL as a stream key problem, and after
+            the broadcast ends it keeps reconnecting until stopped by hand. */}
+        <p className={page.note}>
+          OBS가 &ldquo;스트림 키에 접근할 수 없습니다&rdquo;라고 하면 주소가
+          만료되었거나 방송이 끝난 것입니다. 주소를 다시 발급하세요.
+        </p>
+        <p className={page.note}>{OBS_STOP_REMINDER}</p>
       </section>
 
       {endControl && <div className={page.actions}>{endControl}</div>}

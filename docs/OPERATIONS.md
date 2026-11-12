@@ -212,6 +212,8 @@ docker compose -f deploy/compose.yaml logs --tail=200 ome caddy postgres
 
 - 송출 허가 결과는 API 로그의 `PublishController` 줄에 남는다.
 - 인증서 발급·갱신 실패는 Caddy 로그에 남는다.
+- 오디오 소스가 없는 OBS 송출이면 OME 로그에 `dec_OPUS … Error parsing the packet header`가 초당 십여 건 찍힌다(#88 실측 약 17건). LL-HLS용 AAC로 바꾸려고 OBS가 보낸 무음 Opus 패킷을 디코딩하다 나는 로그다. 영상 재생에는 영향이 없고, 소리가 들어오면 사라진다. 장애로 보지 않는다.
+- OBS가 갑자기 꺼지면 OME가 끊김을 알아차리기까지 약 50초가 걸린다(#88 실측 52초, ICE 타임아웃). 그 뒤 30초 유예가 지나야 방송이 `ENDED`가 된다. 그동안 시청 화면은 멈춘 채 LIVE로 보인다.
 
 ## 다운 감시 (UptimeRobot)
 
