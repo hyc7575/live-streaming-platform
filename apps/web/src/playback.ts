@@ -16,7 +16,8 @@ export function llhlsPath(broadcastId: string): string {
   return `/app/${encodeURIComponent(broadcastId)}/llhls.m3u8`;
 }
 
-// OME serves the playlist only about 9.5 s after the publish connects (#2
-// spike) and 404s until then, so a failed load is retried, not shown as an
-// error.
+// OME 404s the playlist for about 5-6 s after the publish connects (#102),
+// so a failed load is retried, not shown as an error. A shorter delay does
+// not start playback sooner: OME then holds the media playlist request until
+// the first segment closes (measured, #102).
 export const RETRY_DELAY_MS = 2000;

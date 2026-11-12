@@ -29,7 +29,7 @@ test('a published camera reaches an anonymous viewer over LL-HLS', async ({
   const viewer = await viewerContext.newPage();
   await viewer.goto(`/broadcasts/${id}`);
   const video = viewer.getByLabel('방송 화면');
-  // The playlist 404s for about 9.5 s after the publish connects.
+  // The first frame comes about 11 s after the publish connects (#102).
   await expect
     .poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), {
       timeout: 60_000,
