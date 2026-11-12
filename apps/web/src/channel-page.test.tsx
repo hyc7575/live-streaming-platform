@@ -115,9 +115,13 @@ it('shows that the upload is in progress', async () => {
   stubApi({ 'GET /api/auth/me': () => Response.json(me) });
   const { container } = renderAt('/studio/channel');
   await screen.findByRole('heading', { name: '기본 대기 이미지' });
-  vi.stubGlobal(
-    'fetch',
-    () => new Promise<Response>((resolve) => (answer = resolve)),
+  // Holds only the upload. Other reads (the follow list may still be on its
+  // way) keep their answers, so `answer` cannot end up resolving them.
+  const routed = globalThis.fetch;
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+    init?.method === 'PUT'
+      ? new Promise<Response>((resolve) => (answer = resolve))
+      : routed(url, init),
   );
 
   pick(container, png());
