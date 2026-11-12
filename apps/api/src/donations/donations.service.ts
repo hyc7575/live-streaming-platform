@@ -44,15 +44,17 @@ const ORDER_NAME_SUFFIX = ' 후원';
 const CONFIRM_TRANSACTION_TIMEOUT_MS = 2 * TOSS_REQUEST_TIMEOUT_MS;
 
 // What the API reveals about a donation. The donor appears by nickname only.
+// `method` tells a card donation (TOSS) from one paid in lime (LIME).
 const donationSelect = {
   id: true,
+  method: true,
   amount: true,
   message: true,
   approvedAt: true,
   donor: { select: { id: true, nickname: true } },
 } as const satisfies Prisma.DonationSelect;
 
-const confirmedSelect = {
+export const confirmedSelect = {
   ...donationSelect,
   broadcastId: true,
 } as const satisfies Prisma.DonationSelect;
@@ -95,6 +97,7 @@ export class DonationsService {
     @Inject(TOSS_PAYMENTS) private readonly toss: TossPayments | null,
   ) {}
 
+  // Both methods land here: a lime donation is stored PAID from the start.
   async list(broadcastId: string): Promise<DonationList> {
     await this.broadcasts.get(broadcastId);
     const where = { broadcastId, status: 'PAID' } as const;
@@ -224,7 +227,7 @@ export class DonationsService {
   }
 }
 
-function hasPrismaCode(error: unknown, code: string): boolean {
+export function hasPrismaCode(error: unknown, code: string): boolean {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError && error.code === code
   );

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -83,6 +84,7 @@ const MATRIX = {
   '댓글 수정':      [401,      403,          200],
   '댓글 삭제':      [401,      403,          204],
   '후원':           [401,      { READY: 409, LIVE: 201, ENDED: 409 }, 403],
+  '라임 후원':      [401,      { READY: 409, LIVE: 201, ENDED: 409 }, 403],
   '후원 승인':      [401,      200,          403],
   '후원 내역 조회': [200,      200,          200],
   '팔로우':         [401,      204,          400],
@@ -99,7 +101,9 @@ const MATRIX = {
 // comments after it (ENDED). Chat has no edit or delete route for anyone,
 // its author included, so that row is 404 in every cell. Donations are ordered only
 // while LIVE, and never by the streamer, whose 403 comes before the status.
-// A confirm ignores the status: the donor already paid by then.
+// A confirm ignores the status: the donor already paid by then. A lime
+// donation follows the same target rule as a card order (§7.5 "직접결제·라임
+// 공통"); both users hold lime, so no cell turns on the balance.
 // The PRD's one row "팔로우·언팔로우" is two rows here, one per request. The
 // owner column is the owner following themselves, and "내 팔로우 목록" has no
 // such cell: it is only ever the caller's own list. The standby image is
@@ -151,6 +155,9 @@ const EDITED = { title: '고친 제목', description: '고친 설명' };
 const ORIGINAL_COMMENT = '원래 댓글';
 const ORIGINAL_CHAT = '원래 채팅';
 const PAID_AMOUNT = 1000;
+// What seed() charges each user, so a lime donation can only fail on its
+// target, never on the balance.
+const SEEDED_LIME = 10_000;
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
 
@@ -187,6 +194,11 @@ describe('authorization matrix (PRD §7.5)', () => {
       orderBy: { id: 'asc' },
       select: { id: true, standbyImageExt: true, standbyImageUpdatedAt: true },
     }),
+    lime: await prisma.user.findMany({
+      orderBy: { id: 'asc' },
+      select: { id: true, limeBalance: true },
+    }),
+    limeLedger: await prisma.limeLedger.findMany({ orderBy: { id: 'asc' } }),
   });
 
   const comments = async (w: World) =>
@@ -471,6 +483,33 @@ describe('authorization matrix (PRD §7.5)', () => {
         });
       },
     },
+    '라임 후원': {
+      // `donorId` rides along to prove a client cannot donate in someone
+      // else's name or from their balance.
+      send: (client, w) =>
+        client.post(`/api/broadcasts/${w.targetId}/lime-donations`).send({
+          amount: 3000,
+          orderId: '7d3c1f9e-2b4a-4c8d-9e1f-0a2b3c4d5e6f',
+          donorId: w.owner.id,
+        }),
+      verifyAllowed: async (res, w) => {
+        expect(res.body).toMatchObject({
+          method: 'LIME',
+          amount: 3000,
+          donor: { id: w.other.id, nickname: w.other.nickname },
+          broadcastId: w.targetId,
+        });
+        expect(await donations(w)).toMatchObject({
+          total: PAID_AMOUNT + 3000,
+          count: 2,
+        });
+        const lime = async (actor: 'owner' | 'other') =>
+          ((await w.as[actor].get('/api/me/lime')).body as { balance: number })
+            .balance;
+        expect(await lime('other')).toBe(SEEDED_LIME - 3000);
+        expect(await lime('owner')).toBe(SEEDED_LIME);
+      },
+    },
     '후원 승인': {
       send: (client, w) =>
         client.post('/api/donations/confirm').send(w.pendingOrder),
@@ -617,6 +656,22 @@ describe('authorization matrix (PRD §7.5)', () => {
     await prisma.user.updateMany({
       data: { standbyImageExt: null, standbyImageUpdatedAt: null },
     });
+    await prisma.limeLedger.deleteMany();
+    for (const user of [world.owner, world.other]) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { limeBalance: SEEDED_LIME },
+      });
+      await prisma.limeLedger.create({
+        data: {
+          userId: user.id,
+          delta: SEEDED_LIME,
+          kind: 'CHARGE',
+          refId: randomUUID(),
+          balanceAfter: SEEDED_LIME,
+        },
+      });
+    }
     // The other user's follow list must leave this one out.
     await prisma.follow.create({
       data: { followerId: world.owner.id, streamerId: world.other.id },

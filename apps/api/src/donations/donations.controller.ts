@@ -11,11 +11,9 @@ import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
 import { ZodBodyPipe } from '../zod-body.pipe.js';
+import { donationInputSchema } from './donation-input.js';
 import { DonationTargetGuard } from './donation-target.guard.js';
 import {
-  DONATION_MAX_AMOUNT,
-  DONATION_MESSAGE_MAX_LENGTH,
-  DONATION_MIN_AMOUNT,
   DonationsService,
   type ConfirmedDonation,
   type CreateDonationInput,
@@ -23,18 +21,10 @@ import {
   type DonationOrder,
 } from './donations.service.js';
 
-const amount = z.number().int();
-
-// Unknown keys such as `donorId` are stripped.
-const createSchema = z.object({
-  amount: amount.min(DONATION_MIN_AMOUNT).max(DONATION_MAX_AMOUNT),
-  message: z.string().trim().max(DONATION_MESSAGE_MAX_LENGTH).default(''),
-});
-
 const confirmSchema = z.object({
   paymentKey: z.string().min(1).max(200),
   orderId: z.string().min(1).max(64),
-  amount,
+  amount: z.number().int(),
 });
 
 type ConfirmInput = z.infer<typeof confirmSchema>;
@@ -53,7 +43,7 @@ export class DonationsController {
   createOrder(
     @Param('id') broadcastId: string,
     @CurrentUser() user: AuthUser,
-    @Body(new ZodBodyPipe(createSchema)) input: CreateDonationInput,
+    @Body(new ZodBodyPipe(donationInputSchema)) input: CreateDonationInput,
   ): Promise<DonationOrder> {
     return this.donations.createOrder(broadcastId, user.id, input);
   }

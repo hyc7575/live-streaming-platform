@@ -12,7 +12,6 @@ import {
 } from 'vitest';
 import { PrismaService } from '../src/database/database.module.js';
 import { TossPaymentsError } from '../src/donations/toss-payments.js';
-import { Prisma } from '../src/generated/prisma/client.js';
 import {
   LIME_CHARGE_MAX_AMOUNT,
   LIME_CHARGE_MIN_AMOUNT,
@@ -29,27 +28,13 @@ import {
   TEST_TOSS_CONFIG,
   type FakeTossPayments,
 } from './support/fake-toss-payments.js';
+import { expectLedgerMatchesBalances } from './support/lime.js';
 
 interface ChargeJson {
   orderId: string;
   amount: number;
   approvedAt: string;
   balanceAfter: number;
-}
-
-// PRD §8.4: every user's balance equals the sum of their ledger deltas.
-async function expectLedgerMatchesBalances(prisma: PrismaService) {
-  const rows = await prisma.$queryRaw<
-    { id: string; limeBalance: number; ledgerSum: number }[]
-  >(Prisma.sql`
-    SELECT u.id, u."limeBalance",
-      COALESCE(SUM(l.delta), 0)::int AS "ledgerSum"
-    FROM "User" u LEFT JOIN "LimeLedger" l ON l."userId" = u.id
-    GROUP BY u.id`);
-  expect(rows.length).toBeGreaterThan(0);
-  for (const row of rows) {
-    expect(row.ledgerSum, `ledger of ${row.id}`).toBe(row.limeBalance);
-  }
 }
 
 describe('lime charges', () => {
