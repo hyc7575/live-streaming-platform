@@ -2,12 +2,17 @@
 // (PRD-lime 7.1). After the confirm, the payment tab tells the watch tab
 // over this channel so it re-reads the donations at once instead of on the
 // next 5 s poll. Losing the message (no BroadcastChannel, another browser)
-// only means waiting for that poll.
+// only means waiting for that poll. A lime charge tab says `charged` so the
+// watch tab can re-read the balance.
 const CHANNEL = 'donations';
 
 interface DonatedMessage {
   type: 'donated';
   broadcastId: string;
+}
+
+interface ChargedMessage {
+  type: 'charged';
 }
 
 function openChannel(): BroadcastChannel | null {
@@ -20,6 +25,14 @@ export function announceDonation(broadcastId: string): void {
   const channel = openChannel();
   if (!channel) return;
   const message: DonatedMessage = { type: 'donated', broadcastId };
+  channel.postMessage(message);
+  channel.close();
+}
+
+export function announceCharge(): void {
+  const channel = openChannel();
+  if (!channel) return;
+  const message: ChargedMessage = { type: 'charged' };
   channel.postMessage(message);
   channel.close();
 }
@@ -51,13 +64,20 @@ export function openDonateTab(broadcastId: string): void {
   );
 }
 
-// The payment tab was opened by the watch tab, so closing it lands back on
-// the broadcast. A tab the browser will not close (typed into the address
-// bar, then redirected by Toss) goes to the broadcast instead.
+// The payment tab was opened by the watch tab, so closing it lands back
+// there. A tab the browser will not close (typed into the address bar, then
+// redirected by Toss) goes to `fallback` instead.
+export function closeTabOr(
+  fallback: string,
+  navigate: (to: string) => void,
+): void {
+  window.close();
+  if (!window.closed) navigate(fallback);
+}
+
 export function returnToBroadcast(
   broadcastId: string,
   navigate: (to: string) => void,
 ): void {
-  window.close();
-  if (!window.closed) navigate(`/broadcasts/${broadcastId}`);
+  closeTabOr(`/broadcasts/${broadcastId}`, navigate);
 }

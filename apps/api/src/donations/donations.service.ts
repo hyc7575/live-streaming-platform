@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import {
-  BadGatewayException,
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -13,11 +12,11 @@ import {
 import { BroadcastsService } from '../broadcasts/broadcasts.service.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { approveTossPayment } from './toss-approval.js';
 import {
   TOSS_CONFIG,
   TOSS_PAYMENTS,
   TOSS_REQUEST_TIMEOUT_MS,
-  TossPaymentsError,
   type TossConfig,
   type TossConfirmInput,
   type TossPayments,
@@ -36,8 +35,6 @@ export const ORDER_NOT_FOUND_MESSAGE = '후원 주문을 찾을 수 없습니다
 export const NOT_YOUR_ORDER_MESSAGE = '내 후원 주문만 승인할 수 있습니다.';
 export const AMOUNT_MISMATCH_MESSAGE = '결제 금액이 주문과 다릅니다.';
 export const PAYMENT_KEY_USED_MESSAGE = '이미 다른 주문에 쓰인 결제입니다.';
-export const TOSS_FAILED_MESSAGE =
-  '결제 승인 결과를 확인하지 못했습니다. 잠시 후 다시 시도하세요.';
 
 // Toss caps orderName at 100 characters.
 const ORDER_NAME_MAX_LENGTH = 100;
@@ -190,7 +187,11 @@ export class DonationsService {
               throw new ConflictException(PAYMENT_KEY_USED_MESSAGE);
             }
           } else {
-            const approvedAt = await this.approve(toss, input);
+            const approvedAt = await approveTossPayment(
+              toss,
+              input,
+              this.logger,
+            );
             await tx.donation.update({
               where: { id: locked.id },
               data: {
@@ -213,44 +214,6 @@ export class DonationsService {
       }
       throw error;
     }
-  }
-
-  // Toss's answer is checked against the order, so a payment that did not
-  // finish or that approved another amount is never credited.
-  private async approve(
-    toss: TossPayments,
-    input: TossConfirmInput,
-  ): Promise<Date> {
-    let payment;
-    try {
-      payment = await toss.confirm(input);
-    } catch (error) {
-      if (
-        error instanceof TossPaymentsError &&
-        error.httpStatus >= 400 &&
-        error.httpStatus < 500
-      ) {
-        throw new BadRequestException({
-          message: error.message,
-          code: error.code,
-        });
-      }
-      this.logger.error(`Toss confirm of ${input.orderId} failed`, error);
-      throw new BadGatewayException(TOSS_FAILED_MESSAGE);
-    }
-    if (
-      payment.status !== 'DONE' ||
-      payment.totalAmount !== input.amount ||
-      payment.orderId !== input.orderId ||
-      payment.paymentKey !== input.paymentKey
-    ) {
-      this.logger.error(
-        `Toss confirm of ${input.orderId} answered an unexpected payment`,
-        JSON.stringify(payment),
-      );
-      throw new BadGatewayException(TOSS_FAILED_MESSAGE);
-    }
-    return payment.approvedAt ? new Date(payment.approvedAt) : new Date();
   }
 
   private enabled(): { config: TossConfig; toss: TossPayments } {
