@@ -33,13 +33,15 @@ type IosVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
 function storedVolume(): number | null {
   try {
     const value = Number(localStorage.getItem(VOLUME_KEY) ?? NaN);
-    return value >= 0 && value <= 1 ? value : null;
+    // A stored 0 would start the next visit in silence with no way back.
+    return value > 0 && value <= 1 ? value : null;
   } catch {
     return null;
   }
 }
 
 function storeVolume(volume: number) {
+  if (volume === 0) return;
   try {
     localStorage.setItem(VOLUME_KEY, String(volume));
   } catch {
@@ -64,6 +66,16 @@ function hideWhenIdle(
       hide();
     }
   }, HIDE_DELAY_MS);
+}
+
+// Steps of 0.1 add up to 0.7000000000000001; keep the value a slider shows.
+function roundVolume(volume: number) {
+  return Math.min(1, Math.max(0, Math.round(volume * 100) / 100));
+}
+
+// Volume 0 is as silent as muted, so the controls treat both as muted.
+function isSilent(video: { muted: boolean; volume: number }) {
+  return video.muted || video.volume === 0;
 }
 
 function togglePlay(video: HTMLVideoElement) {
@@ -145,9 +157,19 @@ export function PlayerControls({
     if (videoRef.current) action(videoRef.current);
   }
 
-  function toggleMute(video: HTMLVideoElement) {
+  function unmute(video: HTMLVideoElement) {
     setUserSetMute(true);
-    video.muted = !video.muted;
+    if (video.volume === 0) video.volume = 1;
+    video.muted = false;
+  }
+
+  function toggleMute(video: HTMLVideoElement) {
+    if (isSilent(video)) {
+      unmute(video);
+    } else {
+      setUserSetMute(true);
+      video.muted = true;
+    }
   }
 
   function toggleFullscreen() {
@@ -214,14 +236,12 @@ export function PlayerControls({
       case 'ArrowUp':
       case 'ArrowDown':
         if (onRange) return;
-        video.volume = Math.min(
-          1,
-          Math.max(
-            0,
-            video.volume +
-              (event.code === 'ArrowUp' ? VOLUME_STEP : -VOLUME_STEP),
-          ),
+        video.volume = roundVolume(
+          video.volume +
+            (event.code === 'ArrowUp' ? VOLUME_STEP : -VOLUME_STEP),
         );
+        // Turning it up means the viewer wants sound, as with the slider.
+        if (event.code === 'ArrowUp' && video.muted) unmute(video);
         break;
       default:
         return;
@@ -249,12 +269,8 @@ export function PlayerControls({
     document.addEventListener('pointercancel', end, { once: true });
   }
 
-  const volumeLevel =
-    media.muted || media.volume === 0
-      ? 'muted'
-      : media.volume < 0.5
-        ? 'low'
-        : 'high';
+  const silent = isSilent(media);
+  const volumeLevel = silent ? 'muted' : media.volume < 0.5 ? 'low' : 'high';
 
   return (
     <div
@@ -275,14 +291,7 @@ export function PlayerControls({
         <button
           type="button"
           className={styles.unmuteHint}
-          onClick={() =>
-            withVideo((video) => {
-              setUserSetMute(true);
-              // A remembered volume of 0 would unmute into silence.
-              if (video.volume === 0) video.volume = 1;
-              video.muted = false;
-            })
-          }
+          onClick={() => withVideo(unmute)}
         >
           <VolumeIcon level="muted" />
           소리 켜기
@@ -330,7 +339,7 @@ export function PlayerControls({
           <button
             type="button"
             className={styles.button}
-            aria-label={media.muted ? '음소거 해제' : '음소거'}
+            aria-label={silent ? '음소거 해제' : '음소거'}
             onClick={() => withVideo(toggleMute)}
           >
             <VolumeIcon level={volumeLevel} />
@@ -342,14 +351,16 @@ export function PlayerControls({
             min={0}
             max={1}
             step={0.05}
-            value={media.volume}
+            // Muted plays nothing, so the slider says 0; the volume
+            // underneath is kept for unmuting.
+            value={silent ? 0 : media.volume}
             onPointerDown={onDragStart}
             onChange={(event) => {
               const volume = Number(event.currentTarget.value);
               withVideo((video) => {
                 video.volume = volume;
                 // Dragging the slider while muted means the viewer wants sound.
-                if (video.muted && volume > 0) toggleMute(video);
+                if (video.muted && volume > 0) unmute(video);
               });
             }}
           />
