@@ -133,6 +133,7 @@ flowchart LR
 - **방화벽**: 443/TCP(Caddy), OME ICE `10000-10003/udp`, Direct TCP ICE `10000/tcp`, 내장 TURN `3478/tcp`. OME 시그널링·LL-HLS(`3333`/TLS `3334`)는 Caddy 443 뒤로 중계한다. 내장 TURN은 TCP만 지원하고 443 TLS TURN 옵션은 문서에 없다. 3478을 막는 통신망은 S6에서 판정한다.
 - **WHIP ICE (S6 실측)**: 송출 URL은 `.../app/<stream>?direction=whip&transport=all`로 쓰고, OvenLiveKit `connectionConfig`에 `iceTransportPolicy: 'all'`을 넣는다. OME는 `transport=all`일 때만 TURN 주소를 응답 `Link` 헤더로 알려 준다. 쿼리가 없으면 UDP와 직접 TCP 10000 후보만, `transport=tcp`면 직접 TCP 후보만 준다. 반대로 OvenLiveKit은 `Link` 헤더로 TURN을 받고 로컬 정책이 없으면 `relay`로 강제해, UDP가 되는 망에서도 TURN을 거친다. 내장 TURN 계정은 기본값 `ome`/`airen`이 `Link` 헤더에 그대로 나가므로 S5에서 바꿀지 판단한다.
 - **코덱**: 송출은 **H.264로 고정**한다. OME 서버에는 코덱 강제 설정이 없고 SDP 협상으로 정해지므로, 클라이언트가 고른다. OvenLiveKit-Web의 WHIP 송출은 기본값이 H.264다 (`preferredVideoFormat`). VP8이 들어오면 영상 bypass 상태의 LL-HLS에 영상이 나오지 않는다. 오디오는 OME 기본 `bypass_stream` 프로필이 Opus → AAC만 변환한다 (LL-HLS는 AAC만 지원, CPU 부담 낮음).
+- **LL-HLS 세그먼트 (#102 실측)**: `ChunkDuration 0.5`, `PartHoldBack 1.5`, `SegmentDuration 4`, `SegmentCount 15`(플레이리스트 창 60초). 방송 직후 시청자는 첫 세그먼트가 닫힐 때까지 기다린다. OME가 미디어 플레이리스트 요청을 그때까지 붙잡아 두기 때문이다. 세그먼트는 키프레임에서만 잘리고, 브라우저 송출의 키프레임은 약 3초 간격이다(PC Chrome 카메라 3.0초, 화면 공유 3~4초, Android Chrome 카메라 3.0초). 로컬 측정에서 송출 연결부터 첫 `playing`까지 6초 세그먼트는 평균 14.2초, 4초 세그먼트는 11.1~11.6초였다. 3초 세그먼트는 9.6초까지 줄었지만 시작의 약 1/3에서 hls.js가 오디오 파트를 반복해 받다가 멈춰, 쓰지 않는다. 남은 대기의 약 5초는 세그먼트와 무관하다. OME가 첫 영상 키프레임을 받기까지(약 4초)와 스트림 준비(약 1초)다. 시청 화면의 404 재시도 간격(2초)은 이 대기에 영향이 없어 그대로 둔다.
 
 #### 7.3 데이터 모델 (초안)
 
