@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { newIdempotencyKey } from '../donation/idempotencyKey';
@@ -26,12 +26,16 @@ const BALANCE_POLL_MS = 30_000;
 
 const AMOUNT_RANGE_ERROR = `${formatLime(DONATION_MIN_AMOUNT)}부터 ${formatLime(DONATION_MAX_AMOUNT)}까지 후원할 수 있습니다.`;
 
-function errorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    if (err.status === 400) return AMOUNT_RANGE_ERROR;
-    if ((err.status === 403 || err.status === 409) && err.serverMessage) {
-      return err.serverMessage;
-    }
+// The server may have made the donation before the answer was lost, so this
+// says the result is unknown and how to learn it without donating twice.
+const UNSETTLED_MESSAGE =
+  '후원 결과를 확인하지 못했습니다. 금액과 메시지를 그대로 두고 다시 누르면 두 번 후원되지 않습니다.';
+
+// A 4xx the server sent about this attempt.
+function refusalMessage(err: ApiError): string {
+  if (err.status === 400) return AMOUNT_RANGE_ERROR;
+  if ((err.status === 403 || err.status === 409) && err.serverMessage) {
+    return err.serverMessage;
   }
   return '후원하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
@@ -45,13 +49,17 @@ interface Attempt {
 // Donating lime without leaving the watch page (PRD-lime 7.3). Each attempt
 // gets its own idempotency key, kept until the server answers it: pressing
 // again after a lost response (network error, 5xx) resends the same key, so
-// the server makes at most one donation of it.
+// the server makes at most one donation of it. `onDonated` runs after a
+// donation; `onUnsettled` after a lost answer, to re-read the list in case
+// the donation went through.
 export function LimeDonationForm({
   broadcastId,
   onDonated,
+  onUnsettled,
 }: {
   broadcastId: string;
   onDonated: () => void;
+  onUnsettled: () => void;
 }) {
   const navigate = useNavigate();
   const { data: balanceData, reload: reloadBalance } =
@@ -60,7 +68,8 @@ export function LimeDonationForm({
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const attempt = useRef<Attempt | null>(null);
+  // The attempt whose answer was lost, if any.
+  const [unsettled, setUnsettled] = useState<Attempt | null>(null);
 
   useEffect(() => onCharge(reloadBalance), [reloadBalance]);
 
@@ -71,7 +80,13 @@ export function LimeDonationForm({
   // so the server decides.
   const shortBy =
     balance !== null && isDonationAmount(value) ? value - balance : 0;
-  const short = shortBy > 0;
+  // Pressing again resends the unsettled attempt. Its lime may already be
+  // gone from the balance, so a shortfall must not hide the button then.
+  const resending =
+    unsettled !== null &&
+    unsettled.amount === value &&
+    unsettled.message === message.trim();
+  const short = shortBy > 0 && !resending;
 
   async function donate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -80,16 +95,14 @@ export function LimeDonationForm({
       setError(AMOUNT_RANGE_ERROR);
       return;
     }
-    const trimmed = message.trim();
-    const last = attempt.current;
-    if (!last || last.amount !== value || last.message !== trimmed) {
-      attempt.current = {
-        orderId: newIdempotencyKey(),
-        amount: value,
-        message: trimmed,
-      };
-    }
-    const body = attempt.current;
+    const body: Attempt =
+      resending && unsettled
+        ? unsettled
+        : {
+            orderId: newIdempotencyKey(),
+            amount: value,
+            message: message.trim(),
+          };
     setSending(true);
     setError(null);
     try {
@@ -97,22 +110,27 @@ export function LimeDonationForm({
         `/broadcasts/${encodeURIComponent(broadcastId)}/lime-donations`,
         { method: 'POST', body: JSON.stringify(body) },
       );
-      attempt.current = null;
+      setUnsettled(null);
       setMessage('');
       onDonated();
       reloadBalance();
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.status === 401) {
-          const next: LoginPageState = { from: `/broadcasts/${broadcastId}` };
-          void navigate('/login', { state: next });
-          return;
-        }
-        // The server decided this attempt, so the next press is a new one.
-        if (err.status < 500) attempt.current = null;
-        if (err.status === 409) reloadBalance();
+      if (err instanceof ApiError && err.status === 401) {
+        const next: LoginPageState = { from: `/broadcasts/${broadcastId}` };
+        void navigate('/login', { state: next });
+        return;
       }
-      setError(errorMessage(err));
+      if (err instanceof ApiError && err.status < 500) {
+        // The server decided this attempt, so the next press is a new one.
+        setUnsettled(null);
+        if (err.status === 409) reloadBalance();
+        setError(refusalMessage(err));
+        return;
+      }
+      setUnsettled(body);
+      setError(UNSETTLED_MESSAGE);
+      reloadBalance();
+      onUnsettled();
     } finally {
       setSending(false);
     }

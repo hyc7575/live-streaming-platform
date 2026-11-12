@@ -97,6 +97,7 @@ export function DonationPanel({
             reload();
             setDonatedAt(Date.now());
           }}
+          onUnsettled={reload}
         />
       )}
       {live && state.status === 'anonymous' && (

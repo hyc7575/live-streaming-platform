@@ -251,6 +251,46 @@ describe('lime donations', () => {
       expect(await balanceOf(donor.agent)).toBe(0);
     });
 
+    // The response was lost and the streamer ended the broadcast before the
+    // resend: the key still answers with the donation it made, not with
+    // "방송 중일 때만 후원할 수 있습니다."
+    it.each<BroadcastStatus>(['ENDED', 'READY'])(
+      'returns the donation to a resend after the broadcast became %s',
+      async (status) => {
+        await charge(donor.agent, 10_000);
+        const body = attempt(3_000);
+        const first = await donate(donor.agent, body);
+        expect(first.status).toBe(201);
+        await setStatus(status);
+        const again = await donate(donor.agent, body);
+        expect(again.status).toBe(200);
+        expect(again.body).toEqual(first.body);
+        expect(await balanceOf(donor.agent)).toBe(7_000);
+        expect(await prisma.donation.count()).toBe(1);
+      },
+    );
+
+    it('refuses another user’s resend of the key after the broadcast ended', async () => {
+      await charge(donor.agent, 10_000);
+      const body = attempt(3_000);
+      expect((await donate(donor.agent, body)).status).toBe(201);
+      await setStatus('ENDED');
+      const res = await donate(other.agent, body);
+      expect(res.status).toBe(409);
+      expect(messageOf(res)).toBe(KEY_TAKEN);
+    });
+
+    // A deleted broadcast takes its donations with it, so the key has
+    // nothing to return and the broadcast is simply gone.
+    it('answers 404 to a resend after the broadcast was deleted', async () => {
+      await charge(donor.agent, 10_000);
+      const body = attempt(3_000);
+      expect((await donate(donor.agent, body)).status).toBe(201);
+      await prisma.broadcast.delete({ where: { id: broadcastId } });
+      expect((await donate(donor.agent, body)).status).toBe(404);
+      expect(await balanceOf(donor.agent)).toBe(7_000);
+    });
+
     // Acceptance: another user sending the same orderId is 409.
     it('refuses the key to another user with 409', async () => {
       await charge(donor.agent, 10_000);

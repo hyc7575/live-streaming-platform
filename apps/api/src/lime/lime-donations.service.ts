@@ -37,7 +37,8 @@ class InsufficientLime extends Error {}
 export class LimeDonationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // The caller has already checked the target (DonationTargetGuard.check).
+  // The caller has already looked the key up (`earlier`) and checked the
+  // target (DonationTargetGuard.check).
   //
   // One transaction debits, records the donation and writes the ledger. The
   // debit is a conditional UPDATE, so concurrent donations queue on the
@@ -89,7 +90,7 @@ export class LimeDonationsService {
       if (error instanceof InsufficientLime || hasPrismaCode(error, 'P2002')) {
         // A resend after the balance ran out finds no lime to debit, so a
         // shortfall may also be a key that already donated.
-        const replayed = await this.replay(broadcastId, donorId, input);
+        const replayed = await this.earlier(broadcastId, donorId, input);
         if (replayed) return { donation: replayed, created: false };
         if (error instanceof InsufficientLime) {
           throw new ConflictException(INSUFFICIENT_LIME_MESSAGE);
@@ -108,23 +109,26 @@ export class LimeDonationsService {
   // donor giving the same amount in lime to the same broadcast. Any other
   // owner of the key (another user, a card order) is a 409. Null when no
   // donation has the key.
-  private async replay(
+  //
+  // The controller asks this before checking the broadcast, so a resend whose
+  // first answer was lost gets that donation back even after the broadcast
+  // has ended. Only a key that made nothing yet goes through the target
+  // check (PRD-lime 7.3 order).
+  async earlier(
     broadcastId: string,
     donorId: string,
     input: LimeDonationInput,
   ): Promise<ConfirmedDonation | null> {
-    const existing = await this.prisma.donation.findUnique({
+    const donation = await this.prisma.donation.findUnique({
       where: { orderId: input.orderId },
-      select: { ...confirmedSelect, method: true, status: true },
+      select: confirmedSelect,
     });
-    if (!existing) return null;
-    const { status, ...donation } = existing;
+    if (!donation) return null;
     const same =
-      existing.method === 'LIME' &&
-      status === 'PAID' &&
-      existing.donor.id === donorId &&
-      existing.broadcastId === broadcastId &&
-      existing.amount === input.amount;
+      donation.method === 'LIME' &&
+      donation.donor.id === donorId &&
+      donation.broadcastId === broadcastId &&
+      donation.amount === input.amount;
     if (!same) throw new ConflictException(ORDER_ID_TAKEN_MESSAGE);
     return donation;
   }

@@ -693,7 +693,7 @@ it('resends a lost attempt with its key and gives the next donation a new one', 
 
   donate();
   expect((await within(form).findByRole('alert')).textContent).toBe(
-    '후원하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    '후원 결과를 확인하지 못했습니다. 금액과 메시지를 그대로 두고 다시 누르면 두 번 후원되지 않습니다.',
   );
   donate();
   await waitFor(() => expect(sent).toHaveLength(2));
@@ -704,6 +704,61 @@ it('resends a lost attempt with its key and gives the next donation a new one', 
   expect(lost).toMatch(UUID);
   expect(resent).toBe(lost);
   expect(next).not.toBe(lost);
+});
+
+// The donation went through but its answer was lost. The form must not
+// claim it failed, must re-read what changed, and must still let the same
+// key be resent although the re-read balance is now short.
+it('re-reads after a lost answer and keeps the resend open when the balance fell short', async () => {
+  const sent: RequestInit[] = [];
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 5_000 },
+  };
+  routes[LIME_POST] = (init: RequestInit) => {
+    sent.push(init);
+    if (sent.length === 1) {
+      // Committed on the server, then the connection dropped.
+      routes[LIME] = { balance: 0 };
+      routes[DONATIONS] = summary({
+        total: 5_000,
+        count: 1,
+        donations: [donation({ id: 'lime1', method: 'LIME', amount: 5_000 })],
+      });
+      return Promise.reject(new TypeError('Failed to fetch'));
+    }
+    return Promise.resolve(Response.json(limeDonation(5_000), { status: 200 }));
+  };
+  stubApi(routes);
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  await within(form).findByText('5,000라임', { selector: 'strong' });
+  fireEvent.click(within(form).getByRole('button', { name: '5,000라임' }));
+  fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
+
+  expect((await within(form).findByRole('alert')).textContent).toBe(
+    '후원 결과를 확인하지 못했습니다. 금액과 메시지를 그대로 두고 다시 누르면 두 번 후원되지 않습니다.',
+  );
+  // Re-read at once, well inside both polls.
+  await within(form).findByText('0라임', { selector: 'strong' });
+  const panel = await donationPanel();
+  expect(
+    await within(panel).findByText('5,000원', { selector: 'strong' }),
+  ).toBeDefined();
+  // 0 lime is short of 5,000, but this attempt may be resent.
+  expect(within(form).queryByRole('button', { name: '충전하기' })).toBeNull();
+  fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
+  await waitFor(() => expect(sent).toHaveLength(2));
+  const [lost, resent] = sentKeys(sent);
+  expect(resent).toBe(lost);
+  await waitFor(() => expect(within(form).queryByRole('alert')).toBeNull());
+  // Settled: another amount is a new attempt, and now it is short.
+  fireEvent.click(within(form).getByRole('button', { name: '1,000라임' }));
+  expect(
+    await within(form).findByRole('button', { name: '충전하기' }),
+  ).toBeDefined();
 });
 
 it('gives a new key once the attempt changes after a lost response', async () => {

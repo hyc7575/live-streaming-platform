@@ -1033,7 +1033,8 @@ curl -s -b b-jar.txt $API/me/follows                     # []
 - 라임 후원 금액·메시지 범위와 대상 규칙은 카드 후원과 같다(1,000~100,000, 메시지 100자, `LIVE`만, 자기 방송 403).
 - 검사 순서는 `401 → 400(본문) → 404 → 403(자기 방송) → 409(LIVE 아님) → 409("라임이 부족합니다.")`다. 카드 주문은 대상을 본문보다 먼저 보지만, 라임 후원은 PRD-lime 7.3대로 본문을 먼저 본다.
 - 한 트랜잭션에서 `UPDATE "User" SET "limeBalance" = "limeBalance" - n WHERE id = $1 AND "limeBalance" >= n`으로 차감하고, 후원(`method=LIME`, `PAID`)과 원장(`DONATION`, −n)을 쓴다. 바뀐 행이 없으면 409다. 동시 요청은 사용자 행 잠금으로 줄을 서서 같은 라임을 두 번 쓰지 못한다. DB의 `CHECK ("limeBalance" >= 0)`가 한 번 더 막는다.
-- `orderId`는 웹이 후원 시도마다 만든 UUID(멱등 키)다. 카드 주문과 같은 `Donation.orderId` UNIQUE를 쓴다. 같은 키가 다시 오면 트랜잭션이 통째로 되돌아가고(차감도 취소), 그 뒤 기존 후원을 찾아 같은 후원자·방송·금액의 라임 후원이면 그 후원을 200으로 돌려준다. 다른 사용자, 다른 금액·방송, 카드 주문의 키면 409 `이미 다른 후원에 쓰인 요청입니다.`다. 처음 만든 응답은 201이다.
+- `orderId`는 웹이 후원 시도마다 만든 UUID(멱등 키)다. 카드 주문과 같은 `Donation.orderId` UNIQUE를 쓴다. 같은 키가 다시 오면 트랜잭션이 통째로 되돌아가고(차감도 취소), 그 뒤 기존 후원을 찾아 같은 후원자·방송·금액의 라임 후원이면 그 후원을 200으로 돌려준다. 다른 사용자, 다른 금액·방송, 카드 주문의 키면 409 `이미 다른 후원에 쓰인 요청입니다.`다. 처음 만든 응답은 201이다. 이미 후원을 만든 키는 방송 검사보다 먼저 찾는다. 그래서 응답을 놓친 사이 방송이 끝나도 재전송은 409 "방송 중일 때만…"이 아니라 그 후원을 200으로 받는다. 새 키에는 위 검사 순서가 그대로다.
+- 웹은 응답을 못 받은 시도(네트워크 오류·5xx)를 실패라고 하지 않는다. "후원 결과를 확인하지 못했습니다…"를 띄우고 잔액·내역을 바로 다시 읽으며, 그대로 다시 누르면 같은 키를 보낸다.
 - 방송별 내역·합계(`GET /api/broadcasts/:id/donations`)는 두 수단을 합치고 항목에 `method`(`TOSS`·`LIME`)를 싣는다. 화면은 카드 후원을 "원", 라임 후원을 "라임"으로 적는다.
 
 | 행동 | 비로그인 | 다른 시청자 | 스트리머 본인 |
@@ -1066,10 +1067,10 @@ curl -s $API/broadcasts/<id>/donations                             # 항목마�
 
 자동 테스트:
 
-- `apps/api/test/lime-donations.e2e.spec.ts` (실제 PostgreSQL): 차감·후원·원장 한 번에 기록, 두 수단 합친 내역과 `method`, 잔액 5,000에서 3,000 후원 5건 동시 → 1건만 201·나머지 409·잔액 2,000, 같은 키 두 번·동시 다섯 번 → 후원 1건·차감 한 번, 잔액을 다 쓴 뒤 같은 키 재전송도 200, 다른 사용자·금액·방송·카드 주문의 키 409, 자기 방송 403, `READY`·`ENDED` 409, 비로그인 401, 본문 400, 검사 순서. 테스트마다 끝에 모든 사용자의 원장 합계 = 잔액, 잔액 ≥ 0을 확인한다.
+- `apps/api/test/lime-donations.e2e.spec.ts` (실제 PostgreSQL): 차감·후원·원장 한 번에 기록, 두 수단 합친 내역과 `method`, 잔액 5,000에서 3,000 후원 5건 동시 → 1건만 201·나머지 409·잔액 2,000, 같은 키 두 번·동시 다섯 번 → 후원 1건·차감 한 번, 잔액을 다 쓴 뒤·방송이 끝난 뒤 같은 키 재전송도 200, 다른 사용자·금액·방송·카드 주문의 키 409, 자기 방송 403, `READY`·`ENDED` 409, 비로그인 401, 본문 400, 검사 순서. 테스트마다 끝에 모든 사용자의 원장 합계 = 잔액, 잔액 ≥ 0을 확인한다.
 - `apps/api/test/authorization-matrix.e2e.spec.ts`: "라임 후원" 행. 두 사용자 모두 라임을 가진 채로 돌려 잔액이 아니라 대상 규칙만 칸을 가른다.
-- `apps/web/src/donations.test.tsx`: 잔액·칩·메시지, 후원 뒤 페이지 이동 없이 내역·잔액 갱신, 잔액 부족 시 두 버튼과 새 탭, 충전 탭 메시지로 잔액 즉시 갱신, 응답을 못 받은 시도는 같은 키로 재전송·다음 후원은 새 키, 요청 중 버튼 비활성화, 409 문구, 금액 범위, 스트리머·종료 방송·비로그인에게 칸 없음.
-- `apps/web/e2e-stack/donateInNewTab.spec.ts`(시나리오 15)와 `limeDonation.spec.ts`(시나리오 16): 3절의 로컬 스택. 토스 승인은 사람이 카드 인증을 해야 해서 승인 호출만 바꾼다. 시나리오 16은 바꾼 승인 호출이 실제 승인과 같은 일(주문 승인, 잔액 적립, 원장 기록)을 SQL로 하고, 충전 주문·잔액·라임 후원·내역은 실제 API를 쓴다. 충전과 후원 내내 시청 탭 `<video>`의 `currentTime`을 250ms마다 기록해 1.5초 넘게 멈춘 적이 없는지 본다. `SCREENSHOT_DIR=<폴더>`를 앞에 붙이면 `pc-donated.png`, `pc-short.png`, `mobile-donated.png`, `mobile-short.png`(390×844)를 남긴다(`docs/screenshots/110/`). 승인 SQL은 `docker exec lsp-postgres-1 psql`로 DB `lsp`에 보낸다. 다른 컨테이너·DB면 `E2E_PG_CONTAINER`·`E2E_PG_DB`를 붙인다.
+- `apps/web/src/donations.test.tsx`: 잔액·칩·메시지, 후원 뒤 페이지 이동 없이 내역·잔액 갱신, 잔액 부족 시 두 버튼과 새 탭, 충전 탭 메시지로 잔액 즉시 갱신, 응답을 못 받은 시도는 실패라 하지 않고 잔액·내역을 다시 읽으며 같은 키로 재전송(잔액이 모자라 보여도)·다음 후원은 새 키, 요청 중 버튼 비활성화, 409 문구, 금액 범위, 스트리머·종료 방송·비로그인에게 칸 없음.
+- `apps/web/e2e-stack/donateInNewTab.spec.ts`(시나리오 15)와 `limeDonation.spec.ts`(시나리오 16): 3절의 로컬 스택. 토스 승인은 사람이 카드 인증을 해야 해서 승인 호출만 바꾼다. 시나리오 16은 바꾼 승인 호출이 실제 승인과 같은 일(주문 승인, 잔액 적립, 원장 기록)을 SQL로 하고, 충전 주문·잔액·라임 후원·내역은 실제 API를 쓴다. 충전과 후원 내내 시청 탭 `<video>`의 `currentTime`을 250ms마다 기록해 1.5초 넘게 멈춘 적이 없는지 본다. `SCREENSHOT_DIR=<폴더>`를 앞에 붙이면 `pc-donated.png`, `pc-short.png`, `mobile-donated.png`, `mobile-short.png`(390×844)를 남긴다(`docs/screenshots/110/`). 승인 SQL은 `docker exec lsp-postgres-1 psql -U lsp`로 DB `lsp`에 보낸다. 다른 컨테이너·DB·사용자면 `E2E_PG_CONTAINER`·`E2E_PG_DB`·`E2E_PG_USER`를 붙인다.
 
 ```sh
 pnpm --filter @lsp/web e2e:stack --workers=1 donateInNewTab.spec.ts limeDonation.spec.ts
