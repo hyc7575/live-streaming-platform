@@ -9,6 +9,9 @@ import { DonationSuccessPage } from './pages/DonationSuccessPage';
 import { EditBroadcastPage } from './pages/EditBroadcastPage';
 import { FollowingPage } from './pages/FollowingPage';
 import { HomePage } from './pages/HomePage';
+import { LimeChargeFailPage } from './pages/LimeChargeFailPage';
+import { LimeChargePage } from './pages/LimeChargePage';
+import { LimeChargeSuccessPage } from './pages/LimeChargeSuccessPage';
 import { LoginPage } from './pages/LoginPage';
 import { NewBroadcastPage } from './pages/NewBroadcastPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -25,9 +28,15 @@ export function AppRoutes() {
         <Route path="signup" element={<SignupPage />} />
         <Route path="broadcasts/:id" element={<BroadcastPage />} />
         <Route path="donations/fail" element={<DonationFailPage />} />
+        <Route path="lime/charge/fail" element={<LimeChargeFailPage />} />
         <Route element={<RequireAuth />}>
           <Route path="broadcasts/:id/donate" element={<DonatePage />} />
           <Route path="donations/success" element={<DonationSuccessPage />} />
+          <Route path="lime/charge" element={<LimeChargePage />} />
+          <Route
+            path="lime/charge/success"
+            element={<LimeChargeSuccessPage />}
+          />
           <Route path="following" element={<FollowingPage />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path="studio/channel" element={<ChannelPage />} />

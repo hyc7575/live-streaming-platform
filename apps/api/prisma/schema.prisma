@@ -21,13 +21,19 @@ model User {
   // both are set: the extension names the file and the time busts caches.
   standbyImageExt       String?
   standbyImageUpdatedAt DateTime?
+  // Lime the user holds (1 lime = 1 won). Only a conditional UPDATE that
+  // adds or subtracts in SQL changes it, in the same transaction as the
+  // LimeLedger row, so the ledger's deltas always sum to it.
+  limeBalance           Int       @default(0)
 
   broadcasts   Broadcast[]
   comments     Comment[]
   chatMessages ChatMessage[]
   donations    Donation[]
-  following  Follow[]    @relation("Follower")
-  followers  Follow[]    @relation("Followed")
+  following    Follow[]      @relation("Follower")
+  followers    Follow[]      @relation("Followed")
+  limeCharges  LimeCharge[]
+  limeLedger   LimeLedger[]
 }
 
 enum BroadcastStatus {
@@ -121,6 +127,13 @@ enum DonationStatus {
   PAID
 }
 
+// TOSS donations are paid card by card through Toss. LIME donations spend
+// the donor's lime balance.
+enum DonationMethod {
+  TOSS
+  LIME
+}
+
 // An order becomes a donation when Toss approves it, and only PAID rows count
 // toward a broadcast's total. A PENDING row is an order the donor has not paid
 // for yet, or whose confirm failed and may still be retried.
@@ -135,11 +148,60 @@ model Donation {
   amount      Int
   message     String         @default("")
   status      DonationStatus @default(PENDING)
+  method      DonationMethod @default(TOSS)
   paymentKey  String?        @unique
   approvedAt  DateTime?
   createdAt   DateTime       @default(now())
 
   @@index([broadcastId, status, approvedAt])
+}
+
+// FAILED means Toss refused the last confirm. Like a PENDING order, it may
+// still be confirmed by a retry. Only APPROVED orders have credited lime.
+enum LimeChargeStatus {
+  PENDING
+  APPROVED
+  FAILED
+}
+
+// A lime top-up paid through Toss. It credits the buyer's balance once,
+// when it turns APPROVED.
+model LimeCharge {
+  id         String           @id @default(uuid()) @db.Uuid
+  // Sent to Toss as its orderId, which allows 6-64 of [A-Za-z0-9-_=].
+  orderId    String           @unique
+  userId     String           @db.Uuid
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount     Int
+  status     LimeChargeStatus @default(PENDING)
+  paymentKey String?          @unique
+  approvedAt DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([userId, createdAt])
+}
+
+enum LimeLedgerKind {
+  CHARGE
+  DONATION
+}
+
+// Every change to User.limeBalance, written in the same transaction. refId
+// is the LimeCharge or Donation id behind it, and (kind, refId) is unique so
+// one charge or donation can never move the balance twice.
+model LimeLedger {
+  id           String         @id @default(uuid()) @db.Uuid
+  userId       String         @db.Uuid
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Positive for a charge, negative for a donation.
+  delta        Int
+  kind         LimeLedgerKind
+  refId        String         @db.Uuid
+  balanceAfter Int
+  createdAt    DateTime       @default(now())
+
+  @@unique([kind, refId])
+  @@index([userId, createdAt])
 }
 
 // connect-pg-simple reads and writes this table. Its shape follows the

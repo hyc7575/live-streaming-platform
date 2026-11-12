@@ -1,13 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import type { Broadcast } from '../broadcasts';
-import {
-  AGREEMENT_ID,
-  PAYMENT_METHODS_ID,
-  mountDonationWidget,
-  type RequestPayment,
-} from '../donation/tossWidget';
+import { PaymentStep } from '../donation/PaymentStep';
 import {
   DONATION_AMOUNT_PRESETS,
   DONATION_MAX_AMOUNT,
@@ -101,6 +96,13 @@ export function DonatePage() {
       {order ? (
         <PaymentStep
           order={order}
+          summary={
+            <>
+              <strong>{formatWon(order.amount)}</strong> 후원
+            </>
+          }
+          successPath="/donations/success"
+          failPath="/donations/fail"
           onChangeAmount={() => {
             setOrder(null);
             setError(null);
@@ -175,95 +177,5 @@ export function DonatePage() {
         <Link to={`/broadcasts/${id}`}>방송으로 돌아가기</Link>
       </p>
     </section>
-  );
-}
-
-type WidgetState =
-  | { status: 'loading' }
-  | { status: 'ready'; requestPayment: RequestPayment }
-  | { status: 'failed' };
-
-function PaymentStep({
-  order,
-  onChangeAmount,
-}: {
-  order: DonationOrder;
-  onChangeAmount: () => void;
-}) {
-  const [widget, setWidget] = useState<WidgetState>({ status: 'loading' });
-  const [error, setError] = useState<string | null>(null);
-  const [paying, setPaying] = useState(false);
-
-  useEffect(() => {
-    const abort = new AbortController();
-    mountDonationWidget(order, abort.signal).then(
-      (requestPayment) => {
-        if (requestPayment) setWidget({ status: 'ready', requestPayment });
-      },
-      () => {
-        if (!abort.signal.aborted) setWidget({ status: 'failed' });
-      },
-    );
-    return () => abort.abort();
-  }, [order]);
-
-  async function pay() {
-    if (widget.status !== 'ready') return;
-    setPaying(true);
-    setError(null);
-    try {
-      await widget.requestPayment({
-        orderId: order.orderId,
-        orderName: order.orderName,
-        successUrl: `${window.location.origin}/donations/success`,
-        failUrl: `${window.location.origin}/donations/fail`,
-      });
-    } catch (err) {
-      // Toss errors carry a Korean message meant for the buyer.
-      const tossMessage =
-        err instanceof Error && err.message ? err.message : null;
-      setError(tossMessage ?? '결제를 요청하지 못했습니다.');
-    } finally {
-      setPaying(false);
-    }
-  }
-
-  return (
-    <div className={form.form}>
-      <p className={styles.summary}>
-        <strong>{formatWon(order.amount)}</strong> 후원
-      </p>
-      {widget.status === 'loading' && (
-        <p className={form.notice}>결제 화면을 불러오는 중입니다.</p>
-      )}
-      {widget.status === 'failed' && (
-        <p className={form.error} role="alert">
-          결제 화면을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
-        </p>
-      )}
-      <div id={PAYMENT_METHODS_ID} />
-      <div id={AGREEMENT_ID} />
-      {error && (
-        <p className={form.error} role="alert">
-          {error}
-        </p>
-      )}
-      <button
-        type="button"
-        className={form.submit}
-        disabled={widget.status !== 'ready' || paying}
-        onClick={() => void pay()}
-      >
-        결제하기
-      </button>
-      <button
-        type="button"
-        className={styles.secondary}
-        disabled={paying}
-        onClick={onChangeAmount}
-      >
-        금액 바꾸기
-      </button>
-    </div>
   );
 }

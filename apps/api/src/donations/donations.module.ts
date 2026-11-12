@@ -3,29 +3,11 @@ import { AuthModule } from '../auth/auth.module.js';
 import { BroadcastsModule } from '../broadcasts/broadcasts.module.js';
 import { DonationsController } from './donations.controller.js';
 import { DonationsService } from './donations.service.js';
-import {
-  HttpTossPayments,
-  TOSS_CONFIG,
-  TOSS_PAYMENTS,
-  tossConfigFromEnv,
-  type TossConfig,
-} from './toss-payments.js';
+import { TossPaymentsModule } from './toss-payments.module.js';
 
 @Module({
-  imports: [AuthModule, BroadcastsModule],
+  imports: [AuthModule, BroadcastsModule, TossPaymentsModule],
   controllers: [DonationsController],
-  providers: [
-    DonationsService,
-    {
-      provide: TOSS_CONFIG,
-      useFactory: () => tossConfigFromEnv(process.env),
-    },
-    {
-      provide: TOSS_PAYMENTS,
-      inject: [TOSS_CONFIG],
-      useFactory: (config: TossConfig | null) =>
-        config && new HttpTossPayments(config),
-    },
-  ],
+  providers: [DonationsService],
 })
 export class DonationsModule {}
