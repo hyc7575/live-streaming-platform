@@ -18,6 +18,7 @@ function broadcast(status: Status, files: string[], title: string) {
     status,
     startedAt: status === 'READY' ? null : AT,
     endedAt: status === 'ENDED' ? AT : null,
+    disconnectedAt: null,
     createdAt: AT,
     recordingFiles: files,
     recordingParts: files.map((file) => ({ file, startedAt: AT })),

@@ -33,6 +33,7 @@ function broadcast(overrides: Partial<Broadcast> = {}): Broadcast {
     status: 'LIVE',
     startedAt: '2026-11-10T00:00:00.000Z',
     endedAt: null,
+    disconnectedAt: null,
     createdAt: '2026-11-10T00:00:00.000Z',
     recordingFiles: [],
     recordingParts: [],

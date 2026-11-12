@@ -8,6 +8,9 @@ export interface Broadcast {
   status: BroadcastStatus;
   startedAt: string | null;
   endedAt: string | null;
+  // When the publish dropped while LIVE: set during the reconnect grace,
+  // null while a publish is connected or before one ever connected.
+  disconnectedAt: string | null;
   createdAt: string;
   // Paths under /recordings, oldest first. Empty means no replay.
   recordingFiles: string[];

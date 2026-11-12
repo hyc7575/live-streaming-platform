@@ -6,6 +6,8 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type KeyboardEvent,
+  type ReactNode,
 } from 'react';
 import {
   Link,
@@ -31,7 +33,7 @@ import {
   usePublishSession,
   type PublishSessionState,
 } from '../publish/usePublishSession';
-import { useApi } from '../use-api';
+import { useApi, usePolledApi } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
 import {
   CAPTURE_SOURCES,
@@ -42,6 +44,7 @@ import {
   type CaptureSlot,
   type CaptureSource,
 } from './captureSources';
+import { OBS_STOP_REMINDER, ObsPanel } from './ObsPanel';
 import styles from './PublishPage.module.css';
 
 export function PublishPage() {
@@ -110,8 +113,34 @@ function Heading({ broadcast }: { broadcast: Broadcast }) {
   );
 }
 
-function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
-  const session = usePublishSession(broadcast.id);
+// The same pace as the watch page: OBS or another tab may start, drop or end
+// the broadcast, and only the server knows.
+const POLL_MS = 5000;
+
+type EndedBy = 'me' | 'elsewhere';
+
+function endedBy(
+  session: PublishSessionState,
+  status: Broadcast['status'],
+): EndedBy | null {
+  if (session.kind === 'ended') return session.elsewhere ? 'elsewhere' : 'me';
+  if (session.kind === 'idle' && status === 'ENDED') return 'elsewhere';
+  return null;
+}
+
+function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
+  const session = usePublishSession(opened.id);
+  const polled = usePolledApi<Broadcast>(
+    `/broadcasts/${encodeURIComponent(opened.id)}`,
+    POLL_MS,
+  );
+  const broadcast = polled.data.status === 'loaded' ? polled.data.data : opened;
+  const { reload } = polled;
+  // Without this, a publish of this page that just dropped would read as
+  // someone else's until the next poll.
+  useEffect(() => {
+    reload();
+  }, [session.state.kind, reload]);
   const [slot, setSlot] = useState<CaptureSlot>({ kind: 'off', notice: null });
   const [support] = useState(currentScreenAudioSupport);
   const sources = offeredSources(support);
@@ -120,16 +149,28 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
   // A capture that resolves after the page is gone must still be stopped, or
   // the browser keeps showing that the screen or camera is in use.
   const alive = useRef(false);
-  const ended = session.state.kind === 'ended';
-  // The server keeps the broadcast LIVE after a publish drops, and a page
-  // opened on a LIVE broadcast has no publish of its own: either way the
-  // streamer still needs a way to end it.
+  const ended = endedBy(session.state, broadcast.status);
+  // The server keeps the broadcast LIVE after a publish drops, and OBS or a
+  // page opened on a LIVE broadcast publishes without this page: either way
+  // the streamer still needs a way to end it.
   const [onAir, setOnAir] = useState(broadcast.status === 'LIVE');
-  if (session.state.kind === 'live' && !onAir) setOnAir(true);
+  if ((session.state.kind === 'live' || broadcast.status === 'LIVE') && !onAir)
+    setOnAir(true);
+  // One broadcast takes one publish. A LIVE broadcast whose publish dropped
+  // (disconnectedAt) is in its reconnect grace, which this page may fill.
+  const publishingElsewhere =
+    broadcast.status === 'LIVE' &&
+    broadcast.disconnectedAt === null &&
+    session.state.kind === 'idle';
+  // OBS keeps reconnecting after the broadcast ends (#88), so the ended
+  // screen reminds the streamer to stop it when OBS may have been in use: a
+  // URL issued here, or a publish this page did not make.
+  const [obsMayPublish, setObsMayPublish] = useState(false);
+  if (publishingElsewhere && !obsMayPublish) setObsMayPublish(true);
   // Once the broadcast has ended, the capture has no further use: dropping
   // it here stops its tracks through the effect below.
   const active: ActiveCapture | null =
-    slot.kind === 'on' && !ended ? slot : null;
+    slot.kind === 'on' && ended === null ? slot : null;
   const capture = active?.capture ?? null;
   const camera = useCameraState(
     active?.source === 'camera' ? active.capture : null,
@@ -214,18 +255,19 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
     session.start(next.capture.stream);
   }
 
-  if (session.state.kind === 'ended') {
+  if (ended !== null) {
     const notice = slot.kind === 'off' ? slot.notice : null;
     return (
       <section className={styles.page}>
         <Heading broadcast={broadcast} />
         <div className={styles.ended}>
           <p role="status" className={styles.endedText}>
-            {session.state.elsewhere
+            {ended === 'elsewhere'
               ? '방송이 종료되었습니다.'
               : '방송을 종료했습니다.'}
           </p>
           {notice && <p className={styles.note}>{notice}</p>}
+          {obsMayPublish && <p className={styles.note}>{OBS_STOP_REMINDER}</p>}
           <div className={styles.actions}>
             <Link to={`/broadcasts/${broadcast.id}`} className={styles.primary}>
               시청 화면 보기
@@ -246,6 +288,15 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
     session.state.kind === 'end-failed';
   const offer = CAPTURE_SOURCES[sources[0]].offer;
   const desktop = sources.includes('screen');
+  const endControl =
+    session.state.kind === 'end-failed' ? (
+      <button type="button" className={styles.danger} onClick={session.end}>
+        다시 종료하기
+      </button>
+    ) : session.state.kind === 'live' ||
+      (session.state.kind === 'idle' && onAir) ? (
+      <EndControl onEnd={session.end} />
+    ) : null;
 
   return (
     <section className={styles.page}>
@@ -266,105 +317,187 @@ function PublishStudio({ broadcast }: { broadcast: Broadcast }) {
           />
         ) : (
           <div className={styles.placeholder}>
-            <p className={styles.note}>{offer.placeholder}</p>
+            <p className={styles.note}>
+              {publishingElsewhere
+                ? 'OBS나 다른 탭에서 송출 중이라 여기에는 미리보기가 없습니다. 화면은 시청 화면에서 확인하세요.'
+                : offer.placeholder}
+            </p>
           </div>
         )}
-        <div className={styles.side}>
-          {desktop && (!active || active.source === 'screen') && (
-            <BrowserNotice support={support} />
-          )}
-          <StatusLine
-            slot={slot}
-            session={session.state}
-            onAir={onAir}
-            onAirWithoutCapture={offer.onAirWithoutCapture}
-          />
-          {active && (
-            <SourcePanel
-              active={active}
-              cameraState={camera}
-              onReplaceTrack={session.replaceTrack}
-              onRestart={
-                session.state.kind === 'idle'
-                  ? () => {
-                      active.capture.stop();
-                      void turnOn(active.source);
-                    }
-                  : undefined
-              }
-            />
-          )}
-          <div className={`${styles.actions} ${styles.mainActions}`}>
-            {active?.source === 'camera' &&
-              camera?.status === 'live' &&
-              camera.canSwitchCamera && (
-                <CameraSwitch
-                  capture={active.capture}
-                  state={camera}
-                  // A switch while the publish is being built could leave it
-                  // with no camera track to replace.
-                  allowed={
-                    session.state.kind === 'idle' ||
-                    session.state.kind === 'live'
-                  }
-                  onReleaseTrack={session.releaseTrack}
+        <PublishTabs
+          browser={
+            <>
+              {desktop && (!active || active.source === 'screen') && (
+                <BrowserNotice support={support} />
+              )}
+              <StatusLine
+                slot={slot}
+                session={session.state}
+                onAir={onAir}
+                onAirWithoutCapture={offer.onAirWithoutCapture}
+                publishingElsewhere={publishingElsewhere}
+              />
+              {active && (
+                <SourcePanel
+                  active={active}
+                  cameraState={camera}
                   onReplaceTrack={session.replaceTrack}
+                  onRestart={
+                    session.state.kind === 'idle'
+                      ? () => {
+                          active.capture.stop();
+                          void turnOn(active.source);
+                        }
+                      : undefined
+                  }
                 />
               )}
-            {!active &&
-              session.state.kind === 'idle' &&
-              sources.map((source, index) => (
-                <button
-                  key={source}
-                  type="button"
-                  className={index === 0 ? styles.primary : styles.secondary}
-                  disabled={slot.kind === 'acquiring'}
-                  onClick={() => void turnOn(source)}
-                >
-                  {CAPTURE_SOURCES[source].startLabel}
-                </button>
-              ))}
-            {active && !publishing && (
-              <>
-                <button
-                  type="button"
-                  className={styles.primary}
-                  disabled={session.state.kind !== 'idle' || cameraSwitching}
-                  onClick={() => startPublish(active)}
-                >
-                  {session.state.kind === 'idle' && session.state.retry
-                    ? '다시 시도'
-                    : '방송 시작'}
-                </button>
-                <button
-                  type="button"
-                  className={styles.secondary}
-                  onClick={() => active.capture.stop()}
-                >
-                  {CAPTURE_SOURCES[active.source].stopLabel}
-                </button>
-              </>
-            )}
-            {(session.state.kind === 'live' ||
-              (session.state.kind === 'idle' && onAir)) && (
-              <EndControl onEnd={session.end} />
-            )}
-            {session.state.kind === 'end-failed' && (
-              <button
-                type="button"
-                className={styles.danger}
-                onClick={session.end}
-              >
-                다시 종료하기
-              </button>
-            )}
-          </div>
-        </div>
+              <div className={`${styles.actions} ${styles.mainActions}`}>
+                {active?.source === 'camera' &&
+                  camera?.status === 'live' &&
+                  camera.canSwitchCamera && (
+                    <CameraSwitch
+                      capture={active.capture}
+                      state={camera}
+                      // A switch while the publish is being built could leave it
+                      // with no camera track to replace.
+                      allowed={
+                        session.state.kind === 'idle' ||
+                        session.state.kind === 'live'
+                      }
+                      onReleaseTrack={session.releaseTrack}
+                      onReplaceTrack={session.replaceTrack}
+                    />
+                  )}
+                {!active &&
+                  session.state.kind === 'idle' &&
+                  sources.map((source, index) => (
+                    <button
+                      key={source}
+                      type="button"
+                      className={
+                        index === 0 ? styles.primary : styles.secondary
+                      }
+                      disabled={slot.kind === 'acquiring'}
+                      onClick={() => void turnOn(source)}
+                    >
+                      {CAPTURE_SOURCES[source].startLabel}
+                    </button>
+                  ))}
+                {active && !publishing && (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.primary}
+                      disabled={
+                        session.state.kind !== 'idle' ||
+                        cameraSwitching ||
+                        publishingElsewhere
+                      }
+                      onClick={() => startPublish(active)}
+                    >
+                      {session.state.kind === 'idle' && session.state.retry
+                        ? '다시 시도'
+                        : '방송 시작'}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.secondary}
+                      onClick={() => active.capture.stop()}
+                    >
+                      {CAPTURE_SOURCES[active.source].stopLabel}
+                    </button>
+                  </>
+                )}
+                {endControl}
+              </div>
+            </>
+          }
+          obs={
+            <ObsPanel
+              broadcast={broadcast}
+              endControl={endControl}
+              onIssued={() => setObsMayPublish(true)}
+            />
+          }
+        />
       </div>
       <LeaveConfirm blocker={leave} />
     </section>
   );
 }
+
+const PUBLISH_TABS = [
+  { key: 'browser', label: '브라우저로 송출' },
+  { key: 'obs', label: 'OBS로 송출' },
+] as const;
+
+type PublishTab = (typeof PUBLISH_TABS)[number]['key'];
+
+// WAI-ARIA tabs with automatic activation, as in BroadcastSidePanel. Both
+// panels stay mounted so an issued OBS URL and the browser controls survive
+// switching.
+function PublishTabs({ browser, obs }: { browser: ReactNode; obs: ReactNode }) {
+  const [selected, setSelected] = useState<PublishTab>('browser');
+  const panels: Record<PublishTab, ReactNode> = { browser, obs };
+
+  function onKeyDown(e: KeyboardEvent) {
+    const index = PUBLISH_TABS.findIndex((t) => t.key === selected);
+    const next = {
+      ArrowRight: (index + 1) % PUBLISH_TABS.length,
+      ArrowLeft: (index - 1 + PUBLISH_TABS.length) % PUBLISH_TABS.length,
+      Home: 0,
+      End: PUBLISH_TABS.length - 1,
+    }[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    const tab = PUBLISH_TABS[next].key;
+    setSelected(tab);
+    document.getElementById(publishTabId(tab))?.focus();
+  }
+
+  return (
+    <div className={styles.side}>
+      <div
+        role="tablist"
+        aria-label="송출 방법"
+        className={styles.tabs}
+        onKeyDown={onKeyDown}
+      >
+        {PUBLISH_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            id={publishTabId(t.key)}
+            aria-selected={selected === t.key}
+            aria-controls={publishPanelId(t.key)}
+            tabIndex={selected === t.key ? 0 : -1}
+            className={styles.tab}
+            onClick={() => setSelected(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {PUBLISH_TABS.map((t) => (
+        <div
+          key={t.key}
+          role="tabpanel"
+          id={publishPanelId(t.key)}
+          aria-labelledby={publishTabId(t.key)}
+          hidden={selected !== t.key}
+          className={styles.tabPanel}
+        >
+          {panels[t.key]}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const publishTabId = (tab: PublishTab) => `publish-tab-${tab}`;
+const publishPanelId = (tab: PublishTab) => `publish-panel-${tab}`;
 
 /**
  * While `onAir`, asks before the streamer leaves: unmounting this page drops
@@ -632,11 +765,13 @@ function StatusLine({
   session,
   onAir,
   onAirWithoutCapture,
+  publishingElsewhere,
 }: {
   slot: CaptureSlot;
   session: PublishSessionState;
   onAir: boolean;
   onAirWithoutCapture: string;
+  publishingElsewhere: boolean;
 }) {
   switch (session.kind) {
     case 'requesting':
@@ -669,6 +804,12 @@ function StatusLine({
     case 'idle':
       break;
   }
+  const elsewhereNote = (
+    <p className={styles.note}>
+      OBS나 다른 탭에서 송출 중입니다. 브라우저로 송출하려면 그 송출을 먼저
+      멈추세요.
+    </p>
+  );
   switch (slot.kind) {
     case 'off':
       if (slot.notice) {
@@ -678,6 +819,7 @@ function StatusLine({
           </p>
         );
       }
+      if (publishingElsewhere) return elsewhereNote;
       return onAir ? (
         <p className={styles.note}>{onAirWithoutCapture}</p>
       ) : null;
@@ -696,6 +838,7 @@ function StatusLine({
         </p>
       );
     case 'on':
+      if (publishingElsewhere) return elsewhereNote;
       return session.error ? (
         <p role="alert" className={styles.warning}>
           {session.error}

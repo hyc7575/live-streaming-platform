@@ -7,6 +7,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
 import { BroadcastOwnerGuard } from '../broadcasts/broadcast-owner.guard.js';
@@ -20,6 +21,11 @@ import {
 import { OmeSignatureGuard } from './ome-signature.guard.js';
 import { PublishService, type PublishTicket } from './publish.service.js';
 
+// The web app posts with no body, which Express 5 leaves undefined.
+const issueSchema = z
+  .object({ client: z.enum(['browser', 'obs']).default('browser') })
+  .prefault({});
+
 @Controller()
 export class PublishController {
   private readonly logger = new Logger(PublishController.name);
@@ -31,8 +37,9 @@ export class PublishController {
   issueToken(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
+    @Body(new ZodBodyPipe(issueSchema)) body: z.infer<typeof issueSchema>,
   ): Promise<PublishTicket> {
-    return this.publish.issue(id, user.id);
+    return this.publish.issue(id, user.id, body.client);
   }
 
   // OME Admission Webhook. OME refuses the connection on anything but a 200

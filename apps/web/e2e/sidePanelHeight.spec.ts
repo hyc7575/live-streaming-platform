@@ -12,6 +12,7 @@ function broadcast(status: 'LIVE' | 'ENDED') {
     status,
     startedAt: AT,
     endedAt: status === 'ENDED' ? AT : null,
+    disconnectedAt: null,
     createdAt: AT,
     recordingFiles: status === 'ENDED' ? ['b1.mp4'] : [],
     recordingParts:

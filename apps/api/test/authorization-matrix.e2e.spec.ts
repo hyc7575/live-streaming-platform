@@ -73,6 +73,7 @@ const MATRIX = {
   '방송 종료':      [401,      403,          { READY: 409, LIVE: 200, ENDED: 200 }],
   '내 방송 조회':   [401,      200,          200],
   '송출 토큰 발급': [401,      403,          { READY: 201, LIVE: 201, ENDED: 409 }],
+  '송출 토큰 발급 (OBS)': [401, 403,         { READY: 201, LIVE: 201, ENDED: 409 }],
   '썸네일 업로드':  [401,      403,          { READY: 409, LIVE: 204, ENDED: 409 }],
   '채팅 조회':      [200,      200,          200],
   '채팅 작성':      [401,      { READY: 201, LIVE: 201, ENDED: 409 }, { READY: 201, LIVE: 201, ENDED: 409 }],
@@ -233,6 +234,22 @@ describe('authorization matrix (PRD §7.5)', () => {
     { id: w.other.id, nickname: w.other.nickname, live: null },
   ];
 
+  const publishTokenDriver = (body: object | undefined): ActionDriver => ({
+    send: (client, w) => {
+      const req = client.post(`/api/broadcasts/${w.targetId}/publish-token`);
+      return body === undefined ? req : req.send(body);
+    },
+    // Issuing a token changes no state: the broadcast goes LIVE only when
+    // OME admits the connection.
+    verifyAllowed: async (res, w) => {
+      expect((res.body as { publishUrl: string }).publishUrl).toMatch(
+        new RegExp(`^/app/${w.targetId}\\?.*&token=`),
+      );
+      const detail = await anonymous().get(`/api/broadcasts/${w.targetId}`);
+      expect(detail.body).toMatchObject({ status: w.status });
+    },
+  });
+
   const DRIVERS: Record<Action, ActionDriver> = {
     '방송 목록 조회': {
       send: (client) => client.get('/api/broadcasts'),
@@ -326,19 +343,8 @@ describe('authorization matrix (PRD §7.5)', () => {
         ]);
       },
     },
-    '송출 토큰 발급': {
-      send: (client, w) =>
-        client.post(`/api/broadcasts/${w.targetId}/publish-token`),
-      // Issuing a token changes no state: the broadcast goes LIVE only when
-      // OME admits the connection.
-      verifyAllowed: async (res, w) => {
-        expect((res.body as { publishUrl: string }).publishUrl).toMatch(
-          new RegExp(`^/app/${w.targetId}\\?.*&token=`),
-        );
-        const detail = await anonymous().get(`/api/broadcasts/${w.targetId}`);
-        expect(detail.body).toMatchObject({ status: w.status });
-      },
-    },
+    '송출 토큰 발급': publishTokenDriver(undefined),
+    '송출 토큰 발급 (OBS)': publishTokenDriver({ client: 'obs' }),
     '썸네일 업로드': {
       send: (client, w) =>
         client

@@ -27,6 +27,7 @@ import { PcCaptureError, startPcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
 import { startWhipPublish, type PublishEvent } from '../publish/whipPublisher';
 import { renderInDataRouter } from '../testing/renderInDataRouter';
+import { OBS_STOP_REMINDER } from './ObsPanel';
 
 vi.mock('../capture/cameraCapture', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../capture/cameraCapture')>()),
@@ -65,6 +66,7 @@ const broadcast: Broadcast = {
   status: 'READY',
   startedAt: null,
   endedAt: null,
+  disconnectedAt: null,
   createdAt: '2026-11-09T00:00:00.000Z',
   recordingFiles: [],
   recordingParts: [],
@@ -75,11 +77,12 @@ const broadcast: Broadcast = {
 
 type Reply = number | { status: number; body: unknown };
 
-function stubApi(routes: Record<string, Reply>) {
+function stubApi(routes: Record<string, Reply>, bodies: unknown[] = []) {
   const calls: string[] = [];
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${url}`;
     calls.push(key);
+    if (typeof init?.body === 'string') bodies.push(JSON.parse(init.body));
     const reply = routes[key] ?? 404;
     return Promise.resolve(
       typeof reply === 'number'
@@ -147,7 +150,8 @@ function renderPage(
     'GET /api/broadcasts/b1': { status: 200, body: broadcast },
     ...api,
   };
-  const calls = stubApi(routes);
+  const bodies: unknown[] = [];
+  const calls = stubApi(routes, bodies);
   const fake = fakeCapture({ canSwitchCamera });
   vi.mocked(startCameraCapture).mockResolvedValue(fake.capture);
   const whip = fakePublisher();
@@ -158,13 +162,30 @@ function renderPage(
       <AppRoutes />
     </AuthProvider>,
   );
-  return { calls, routes, router, ...fake, ...whip };
+  return { calls, bodies, routes, router, ...fake, ...whip };
 }
 
 async function turnOnCameraAndStart() {
   fireEvent.click(await screen.findByRole('button', { name: '카메라 켜기' }));
   fireEvent.click(await screen.findByRole('button', { name: '방송 시작' }));
 }
+
+// LIVE in the reconnect grace: the publish dropped and nobody has
+// reconnected yet.
+const LIVE_DROPPED = {
+  status: 200,
+  body: {
+    ...broadcast,
+    status: 'LIVE',
+    disconnectedAt: '2026-11-09T00:30:00.000Z',
+  },
+};
+
+// LIVE with a publish connected that is not this page's: OBS or another tab.
+const LIVE_ELSEWHERE = {
+  status: 200,
+  body: { ...broadcast, status: 'LIVE', disconnectedAt: null },
+};
 
 const ENDED = {
   status: 200,
@@ -215,6 +236,8 @@ it('ends the broadcast after the streamer confirms, stopping publish and camera'
 
   fireEvent.click(screen.getByRole('button', { name: '종료하기' }));
   const done = await screen.findByText('방송을 종료했습니다.');
+  // Only the browser published, so there is no OBS to stop.
+  expect(screen.queryByText(OBS_STOP_REMINDER)).toBeNull();
   expect(page.calls).toContain('POST /api/broadcasts/b1/end');
   expect(page.publisher.stop).toHaveBeenCalled();
   await waitFor(() => expect(page.capture.stop).toHaveBeenCalled());
@@ -308,25 +331,23 @@ it('says the connection dropped when the broadcast is still LIVE', async () => {
     'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
   });
   await goLive(page);
-  page.routes['GET /api/broadcasts/b1'] = {
-    status: 200,
-    body: { ...broadcast, status: 'LIVE' },
-  };
+  page.routes['GET /api/broadcasts/b1'] = LIVE_DROPPED;
   page.emit({ kind: 'disconnected' });
   expect((await screen.findByRole('alert')).textContent).toBe(
     '송출 연결이 끊겼습니다. 다시 시작하세요.',
   );
   expect(page.capture.stop).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: '방송 시작' })).toBeDefined();
+  // The reconnect grace is this page's to fill.
+  expect(
+    screen.getByRole<HTMLButtonElement>('button', { name: '방송 시작' })
+      .disabled,
+  ).toBe(false);
   expect(screen.getByRole('button', { name: '방송 종료' })).toBeDefined();
 });
 
 it('lets the streamer end a LIVE broadcast this page is not publishing', async () => {
   const page = renderPage({
-    'GET /api/broadcasts/b1': {
-      status: 200,
-      body: { ...broadcast, status: 'LIVE' },
-    },
+    'GET /api/broadcasts/b1': LIVE_DROPPED,
     'POST /api/broadcasts/b1/end': ENDED,
   });
   expect(
@@ -909,4 +930,274 @@ it('leaves without asking after the broadcast has ended', async () => {
     expect(page.router.state.location.pathname).toBe('/studio'),
   );
   expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+
+async function openObsTab() {
+  fireEvent.click(await screen.findByRole('tab', { name: 'OBS로 송출' }));
+}
+
+function obsToken(publishUrl: string, expiresAt: Date) {
+  return {
+    status: 201,
+    body: { publishUrl, expiresAt: expiresAt.toISOString() },
+  };
+}
+
+const OBS_URL = '/app/b1?direction=whip&transport=all&token=1.obs';
+
+it('issues an OBS URL and shows it whole with when it expires', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': obsToken(
+      OBS_URL,
+      new Date(2026, 10, 13, 2, 30),
+    ),
+  });
+  // Keyboard: ← from the first tab wraps to the last.
+  const browserTab = await screen.findByRole('tab', {
+    name: '브라우저로 송출',
+  });
+  expect(browserTab.getAttribute('aria-selected')).toBe('true');
+  fireEvent.keyDown(browserTab, { key: 'ArrowLeft' });
+  const obsTab = screen.getByRole('tab', { name: 'OBS로 송출' });
+  expect(obsTab.getAttribute('aria-selected')).toBe('true');
+  expect(document.activeElement).toBe(obsTab);
+  expect(
+    screen.getByText('OBS에서 방송 시작을 누르면 LIVE가 됩니다.'),
+  ).toBeDefined();
+
+  fireEvent.click(screen.getByRole('button', { name: 'URL 발급' }));
+  const url = await screen.findByRole<HTMLInputElement>('textbox', {
+    name: 'OBS 송출 주소',
+  });
+  expect(url.value).toBe(`${window.location.origin}${OBS_URL}`);
+  expect(url.readOnly).toBe(true);
+  expect(
+    screen.getByText(
+      '11월 13일 오전 2:30까지 이 주소로 송출을 시작하거나 다시 연결할 수 있습니다.',
+    ),
+  ).toBeDefined();
+  expect(page.calls).toContain('POST /api/broadcasts/b1/publish-token');
+  expect(page.bodies).toEqual([{ client: 'obs' }]);
+  expect(startWhipPublish).not.toHaveBeenCalled();
+});
+
+it('asks for a browser token when the browser publishes', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+  });
+  await turnOnCameraAndStart();
+  await screen.findByText('송출을 연결하는 중입니다.');
+  expect(page.bodies).toEqual([{ client: 'browser' }]);
+});
+
+it('copies the OBS URL, and says so when copying fails', async () => {
+  const writeText = vi.fn(() => Promise.resolve());
+  vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+  renderPage({
+    'POST /api/broadcasts/b1/publish-token': obsToken(
+      OBS_URL,
+      new Date(Date.now() + 60 * 60 * 1000),
+    ),
+  });
+  await openObsTab();
+  fireEvent.click(screen.getByRole('button', { name: 'URL 발급' }));
+  fireEvent.click(await screen.findByRole('button', { name: '복사' }));
+  expect(await screen.findByText('복사했습니다.')).toBeDefined();
+  expect(writeText).toHaveBeenCalledWith(`${window.location.origin}${OBS_URL}`);
+
+  writeText.mockRejectedValueOnce(new Error('denied'));
+  fireEvent.click(screen.getByRole('button', { name: '복사' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '복사하지 못했습니다. 주소를 직접 선택해 복사하세요.',
+  );
+});
+
+it('issues a new OBS URL on 다시 발급', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': obsToken(
+      OBS_URL,
+      new Date(Date.now() + 60 * 60 * 1000),
+    ),
+  });
+  await openObsTab();
+  fireEvent.click(screen.getByRole('button', { name: 'URL 발급' }));
+  await screen.findByRole('textbox', { name: 'OBS 송출 주소' });
+
+  const nextUrl = '/app/b1?direction=whip&transport=all&token=2.obs';
+  page.routes['POST /api/broadcasts/b1/publish-token'] = obsToken(
+    nextUrl,
+    new Date(Date.now() + 60 * 60 * 1000),
+  );
+  fireEvent.click(screen.getByRole('button', { name: '다시 발급' }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole<HTMLInputElement>('textbox', { name: 'OBS 송출 주소' })
+        .value,
+    ).toBe(`${window.location.origin}${nextUrl}`),
+  );
+  expect(page.bodies).toEqual([{ client: 'obs' }, { client: 'obs' }]);
+});
+
+it('takes the OBS URL away once it expires and asks to issue again', async () => {
+  renderPage({
+    'POST /api/broadcasts/b1/publish-token': obsToken(
+      OBS_URL,
+      new Date(Date.now() + 300),
+    ),
+  });
+  await openObsTab();
+  fireEvent.click(screen.getByRole('button', { name: 'URL 발급' }));
+  await screen.findByRole('textbox', { name: 'OBS 송출 주소' });
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '주소가 만료되었습니다. 다시 발급하세요.',
+  );
+  expect(screen.queryByRole('textbox', { name: 'OBS 송출 주소' })).toBeNull();
+  expect(screen.getByRole('button', { name: '다시 발급' })).toBeDefined();
+});
+
+it('reminds to stop OBS once a broadcast with an issued OBS URL ends', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval'] });
+  try {
+    const page = renderPage({
+      'POST /api/broadcasts/b1/publish-token': obsToken(
+        OBS_URL,
+        new Date(Date.now() + 60 * 60 * 1000),
+      ),
+    });
+    await openObsTab();
+    const obsPanel = screen.getByRole('tabpanel', { name: 'OBS로 송출' });
+    expect(
+      within(obsPanel).getByText(
+        'OBS가 “스트림 키에 접근할 수 없습니다”라고 하면 주소가 만료되었거나 방송이 끝난 것입니다. 주소를 다시 발급하세요.',
+      ),
+    ).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'URL 발급' }));
+    await screen.findByRole('textbox', { name: 'OBS 송출 주소' });
+
+    page.routes['GET /api/broadcasts/b1'] = ENDED;
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(await screen.findByText('방송이 종료되었습니다.')).toBeDefined();
+    expect(screen.getByText(OBS_STOP_REMINDER)).toBeDefined();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('shows why an OBS URL was not issued', async () => {
+  const page = renderPage({ 'POST /api/broadcasts/b1/publish-token': 403 });
+  await openObsTab();
+  fireEvent.click(screen.getByRole('button', { name: 'URL 발급' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '권한이 없습니다.',
+  );
+
+  page.routes['POST /api/broadcasts/b1/publish-token'] = {
+    status: 409,
+    body: { statusCode: 409, message: '기존 방송을 종료하세요.' },
+  };
+  fireEvent.click(screen.getByRole('button', { name: '다시 발급' }));
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toBe(
+      '기존 방송을 종료하세요.',
+    ),
+  );
+  expect(screen.queryByRole('textbox', { name: 'OBS 송출 주소' })).toBeNull();
+});
+
+it('holds the browser start while OBS or another tab publishes', async () => {
+  renderPage({ 'GET /api/broadcasts/b1': LIVE_ELSEWHERE });
+  fireEvent.click(await screen.findByRole('button', { name: '카메라 켜기' }));
+  expect(
+    (
+      await screen.findByRole<HTMLButtonElement>('button', {
+        name: '방송 시작',
+      })
+    ).disabled,
+  ).toBe(true);
+  expect(
+    screen.getByText(
+      'OBS나 다른 탭에서 송출 중입니다. 브라우저로 송출하려면 그 송출을 먼저 멈추세요.',
+    ),
+  ).toBeDefined();
+});
+
+it('follows the OBS publish in the OBS tab, through a drop, and ends it there', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval'] });
+  try {
+    const page = renderPage({ 'POST /api/broadcasts/b1/end': ENDED });
+    await openObsTab();
+    const obsPanel = screen.getByRole('tabpanel', { name: 'OBS로 송출' });
+    expect(
+      within(obsPanel).queryByRole('button', { name: '방송 종료' }),
+    ).toBeNull();
+
+    // OBS starts publishing.
+    page.routes['GET /api/broadcasts/b1'] = LIVE_ELSEWHERE;
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    await within(obsPanel).findByText('송출이 연결되어 있습니다.');
+    expect(within(obsPanel).getByText('LIVE')).toBeDefined();
+    expect(
+      within(obsPanel).getByText('송출이 연결되어 있습니다.'),
+    ).toBeDefined();
+
+    page.routes['GET /api/broadcasts/b1'] = LIVE_DROPPED;
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect((await within(obsPanel).findByRole('alert')).textContent).toBe(
+      '송출이 끊겼습니다. 30초 안에 다시 연결되지 않으면 방송이 종료됩니다.',
+    );
+
+    fireEvent.click(
+      within(obsPanel).getByRole('button', { name: '방송 종료' }),
+    );
+    fireEvent.click(within(obsPanel).getByRole('button', { name: '종료하기' }));
+    expect(await screen.findByText('방송을 종료했습니다.')).toBeDefined();
+    expect(screen.getByText(OBS_STOP_REMINDER)).toBeDefined();
+    expect(page.calls).toContain('POST /api/broadcasts/b1/end');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('leaves without asking while OBS publishes', async () => {
+  const page = renderPage({
+    'GET /api/broadcasts/b1': LIVE_ELSEWHERE,
+    'GET /api/broadcasts': { status: 200, body: [] },
+  });
+  await openObsTab();
+  await screen.findByText('송출이 연결되어 있습니다.');
+  expect(
+    screen.getByText(
+      'OBS나 다른 탭에서 송출 중이라 여기에는 미리보기가 없습니다. 화면은 시청 화면에서 확인하세요.',
+    ),
+  ).toBeDefined();
+  expect(unloadIsBlocked()).toBe(false);
+
+  fireEvent.click(headerLink('방송 목록'));
+  await waitFor(() => expect(page.router.state.location.pathname).toBe('/'));
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+
+it('shows the ended screen when the broadcast ends elsewhere while this page waits', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval'] });
+  try {
+    const page = renderPage({ 'GET /api/broadcasts/b1': LIVE_ELSEWHERE });
+    fireEvent.click(await screen.findByRole('button', { name: '카메라 켜기' }));
+    await screen.findByLabelText('미리보기');
+
+    page.routes['GET /api/broadcasts/b1'] = ENDED;
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(await screen.findByText('방송이 종료되었습니다.')).toBeDefined();
+    await waitFor(() => expect(page.capture.stop).toHaveBeenCalled());
+    expect(screen.queryByLabelText('미리보기')).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
 });
