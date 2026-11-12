@@ -122,6 +122,74 @@ it('ignores a stored volume it cannot use', () => {
   expect(video().volume).toBe(1);
 });
 
+const slider = () =>
+  screen.getByRole<HTMLInputElement>('slider', { name: '볼륨' });
+
+it('shows the slider at zero while muted and back at the volume after', async () => {
+  render(<Player />);
+  fireEvent.change(slider(), { target: { value: '0.6' } });
+  fireEvent.click(button('음소거'));
+  await waitFor(() => expect(slider().value).toBe('0'));
+  expect(video().volume).toBe(0.6);
+
+  fireEvent.click(button('음소거 해제'));
+  await waitFor(() => expect(slider().value).toBe('0.6'));
+});
+
+it('treats volume zero as muted, and unmuting it brings the sound back', async () => {
+  render(<Player />);
+  fireEvent.change(slider(), { target: { value: '0' } });
+  fireEvent.click(await screen.findByRole('button', { name: '음소거 해제' }));
+  expect(video().muted).toBe(false);
+  expect(video().volume).toBe(1);
+});
+
+it('brings the sound back from M at volume zero, even when also muted', () => {
+  render(<Player />);
+  const player = video().parentElement!;
+  fireEvent.change(slider(), { target: { value: '0' } });
+  video().muted = true;
+  fireEvent.keyDown(player, { key: 'm', code: 'KeyM' });
+  expect(video().muted).toBe(false);
+  expect(video().volume).toBe(1);
+});
+
+it('does not remember a volume of zero', async () => {
+  render(<Player />);
+  fireEvent.change(slider(), { target: { value: '0.4' } });
+  await waitFor(() => expect(localStorage.getItem(VOLUME_KEY)).toBe('0.4'));
+  fireEvent.change(slider(), { target: { value: '0' } });
+  await waitFor(() => expect(video().volume).toBe(0));
+  expect(localStorage.getItem(VOLUME_KEY)).toBe('0.4');
+});
+
+it('starts with sound when a volume of zero was stored', () => {
+  localStorage.setItem(VOLUME_KEY, '0');
+  render(<Player />);
+  expect(video().volume).toBe(1);
+});
+
+it('unmutes on ArrowUp, the way the slider does', () => {
+  render(<Player />);
+  const player = video().parentElement!;
+  fireEvent.keyDown(player, { key: 'm', code: 'KeyM' });
+  fireEvent.keyDown(player, { key: 'ArrowDown', code: 'ArrowDown' });
+  expect(video().muted).toBe(true);
+  fireEvent.keyDown(player, { key: 'ArrowUp', code: 'ArrowUp' });
+  expect(video().muted).toBe(false);
+  expect(video().volume).toBe(1);
+});
+
+it('keeps the volume on a clean step', async () => {
+  render(<Player />);
+  const player = video().parentElement!;
+  for (let i = 0; i < 3; i++) {
+    fireEvent.keyDown(player, { key: 'ArrowDown', code: 'ArrowDown' });
+  }
+  expect(video().volume).toBe(0.7);
+  await waitFor(() => expect(localStorage.getItem(VOLUME_KEY)).toBe('0.7'));
+});
+
 it('takes keys only while the player has focus', () => {
   render(
     <>

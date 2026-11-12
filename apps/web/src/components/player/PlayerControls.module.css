@@ -170,8 +170,11 @@
   font-size: var(--player-icon-size);
 }
 
+/* On a short phone video the bar's gradient padding reaches the middle;
+   the button stays on top so all of it takes the tap. */
 .bigPlay {
   position: absolute;
+  z-index: 1;
   top: 50%;
   left: 50%;
   width: var(--player-big-play-size);
