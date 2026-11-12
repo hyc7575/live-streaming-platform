@@ -33,3 +33,8 @@ export function isChargeAmount(amount: number): boolean {
 export function formatLime(amount: number): string {
   return `${amount.toLocaleString('ko-KR')}라임`;
 }
+
+// GET /me/lime.
+export interface LimeBalance {
+  balance: number;
+}
