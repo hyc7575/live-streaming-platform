@@ -1,4 +1,5 @@
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
+import { returnToBroadcast } from '../donation/donationChannel';
 import { broadcastOfOrder } from '../donations';
 import { useDocumentTitle } from '../use-document-title';
 import form from './AuthForm.module.css';
@@ -9,6 +10,7 @@ const CANCELED = 'PAY_PROCESS_CANCELED';
 export function DonationFailPage() {
   useDocumentTitle('후원하기');
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const code = params.get('code');
   const orderId = params.get('orderId');
   const broadcastId = orderId ? broadcastOfOrder(orderId) : null;
@@ -24,13 +26,20 @@ export function DonationFailPage() {
           {params.get('message') ?? '결제 중 문제가 생겼습니다.'}
         </p>
       )}
+      {broadcastId && (
+        <button
+          type="button"
+          className={`${form.submit} ${form.block}`}
+          onClick={() =>
+            returnToBroadcast(broadcastId, (to) => void navigate(to))
+          }
+        >
+          방송으로 돌아가기
+        </button>
+      )}
       <p className={form.footer}>
         {broadcastId ? (
-          <>
-            <Link to={`/broadcasts/${broadcastId}/donate`}>다시 후원하기</Link>
-            {' · '}
-            <Link to={`/broadcasts/${broadcastId}`}>방송으로 돌아가기</Link>
-          </>
+          <Link to={`/broadcasts/${broadcastId}/donate`}>다시 후원하기</Link>
         ) : (
           <Link to="/">방송 목록으로 가기</Link>
         )}

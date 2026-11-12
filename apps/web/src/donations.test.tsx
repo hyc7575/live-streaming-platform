@@ -174,9 +174,58 @@ it('shows the total, the count and the latest donations on the watch page', asyn
   expect(within(items[0]).getByText('10,000원')).toBeDefined();
   expect(within(items[0]).getByText('화이팅')).toBeDefined();
   expect(within(items[0]).getByText(viewer.nickname)).toBeDefined();
+});
+
+it('opens 후원하기 in a new tab the payment can close again', async () => {
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+  });
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  renderAt('/broadcasts/b1');
+  const panel = await donationPanel();
+  fireEvent.click(
+    await within(panel).findByRole('button', { name: '후원하기' }),
+  );
+  // No `noopener`, or the payment tab could not window.close() itself.
+  expect(open).toHaveBeenCalledWith('/broadcasts/b1/donate', '_blank');
   expect(
-    within(panel).getByRole('link', { name: '후원하기' }).getAttribute('href'),
-  ).toBe('/broadcasts/b1/donate');
+    await screen.findByRole('heading', { level: 1, name: '저녁 방송' }),
+  ).toBeDefined();
+});
+
+it('re-reads the donations as soon as the payment tab reports one', async () => {
+  // stubApi reads the table on every call, so changing it changes the answer.
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+  };
+  stubApi(routes);
+  renderAt('/broadcasts/b1');
+  const panel = await donationPanel();
+  await within(panel).findByText('아직 후원이 없습니다.');
+  expect(within(panel).getByRole('status').textContent).toBe('');
+
+  routes[DONATIONS] = summary({
+    total: 5000,
+    count: 1,
+    donations: [donation()],
+  });
+  const other = new BroadcastChannel('donations');
+  // Another broadcast's donation changes nothing here.
+  other.postMessage({ type: 'donated', broadcastId: 'b2' });
+  other.postMessage({ type: 'donated', broadcastId: 'b1' });
+  other.close();
+  // Well inside the 5 s poll, so only the message can have caused it.
+  expect(
+    await within(panel).findByText('5,000원', { selector: 'strong' }),
+  ).toBeDefined();
+  expect(within(panel).getByText('1건')).toBeDefined();
+  expect(within(panel).getByRole('status').textContent).toBe(
+    '후원이 반영되었습니다',
+  );
 });
 
 it('says when there are no donations yet', async () => {
@@ -236,7 +285,7 @@ it('sends an anonymous viewer to log in and back to the broadcast', async () => 
   fireEvent.click(screen.getByRole('button', { name: '로그인' }));
   const back = await donationPanel();
   expect(
-    await within(back).findByRole('link', { name: '후원하기' }),
+    await within(back).findByRole('button', { name: '후원하기' }),
   ).toBeDefined();
 });
 
@@ -359,7 +408,11 @@ it.each([
 const CONFIRM = 'POST /api/donations/confirm';
 const SUCCESS_PATH = `/donations/success?paymentType=NORMAL&orderId=${ORDER.orderId}&paymentKey=pk_1&amount=5000`;
 
-it('confirms the payment once, even under StrictMode, and links back to the broadcast', async () => {
+it('confirms the payment once, even under StrictMode, and tells the watch tab', async () => {
+  const heard: string[] = [];
+  const watchTab = new BroadcastChannel('donations');
+  watchTab.onmessage = (e: MessageEvent<{ broadcastId: string }>) =>
+    heard.push(e.data.broadcastId);
   const confirmed: ConfirmedDonation = {
     ...donation({ amount: 5000 }),
     broadcastId: 'b1',
@@ -379,11 +432,45 @@ it('confirms the payment once, even under StrictMode, and links back to the broa
     amount: 5000,
   });
   expect(calls.filter((c) => c === CONFIRM)).toHaveLength(1);
-  expect(
-    screen
-      .getByRole('link', { name: '방송으로 돌아가기' })
-      .getAttribute('href'),
-  ).toBe('/broadcasts/b1');
+  await waitFor(() => expect(heard).toEqual(['b1']));
+  watchTab.close();
+});
+
+it('closes the payment tab on 방송으로 돌아가기', async () => {
+  stubApi({
+    'GET /api/auth/me': viewer,
+    [CONFIRM]: { ...donation(), broadcastId: 'b1' },
+  });
+  const close = vi.spyOn(window, 'close').mockImplementation(() => {
+    Object.defineProperty(window, 'closed', {
+      configurable: true,
+      value: true,
+    });
+  });
+  renderAt(SUCCESS_PATH);
+  fireEvent.click(
+    await screen.findByRole('button', { name: '방송으로 돌아가기' }),
+  );
+  expect(close).toHaveBeenCalledOnce();
+  expect(screen.getByRole('heading', { name: '후원했습니다.' })).toBeDefined();
+  // jsdom keeps the override otherwise.
+  delete (window as { closed?: boolean }).closed;
+});
+
+it('goes to the broadcast when the browser will not close the tab', async () => {
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [CONFIRM]: { ...donation(), broadcastId: 'b1' },
+  });
+  const close = vi.spyOn(window, 'close').mockImplementation(() => {});
+  renderAt(SUCCESS_PATH);
+  fireEvent.click(
+    await screen.findByRole('button', { name: '방송으로 돌아가기' }),
+  );
+  expect(close).toHaveBeenCalledOnce();
+  expect(await donationPanel()).toBeDefined();
 });
 
 it('shows the API’s message when the confirm fails', async () => {
@@ -422,6 +509,9 @@ it('says the payment was canceled when the buyer closed the window', async () =>
   expect(
     screen.getByRole('link', { name: '다시 후원하기' }).getAttribute('href'),
   ).toBe('/broadcasts/b1/donate');
+  const close = vi.spyOn(window, 'close').mockImplementation(() => {});
+  fireEvent.click(screen.getByRole('button', { name: '방송으로 돌아가기' }));
+  expect(close).toHaveBeenCalledOnce();
 });
 
 it('shows Toss’s message when the payment failed', async () => {

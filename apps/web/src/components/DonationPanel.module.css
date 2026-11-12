@@ -35,6 +35,8 @@
 
 .donate {
   margin-left: auto;
+  border: none;
+  cursor: pointer;
   padding: var(--space-2) var(--space-4);
   background: var(--color-brand);
   border-radius: var(--radius-md);
@@ -45,6 +47,21 @@
 
 .donate:hover {
   background: var(--color-brand-hover);
+}
+
+.status {
+  /* No box of its own, so an empty status adds no gap to the panel. */
+  display: contents;
+}
+
+.donated {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-brand);
+  border-radius: var(--radius-md);
+  color: var(--color-on-brand);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
 }
 
 .login {

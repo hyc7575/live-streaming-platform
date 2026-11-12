@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, apiFetch } from '../api';
-import { formatWon, type ConfirmedDonation } from '../donations';
+import {
+  announceDonation,
+  returnToBroadcast,
+} from '../donation/donationChannel';
+import {
+  broadcastOfOrder,
+  formatWon,
+  type ConfirmedDonation,
+} from '../donations';
 import { useDocumentTitle } from '../use-document-title';
 import form from './AuthForm.module.css';
 import type { LoginPageState } from './LoginPage';
@@ -80,11 +88,13 @@ export function DonationSuccessPage() {
       method: 'POST',
       body: JSON.stringify(request),
     }).then(
-      (donation) =>
+      (donation) => {
         setResult({
           key: requestKey,
           confirmation: { status: 'done', donation },
-        }),
+        });
+        announceDonation(donation.broadcastId);
+      },
       (err: unknown) => {
         if (err instanceof ApiError && err.status === 401) {
           const next: LoginPageState = { from: loginPath };
@@ -113,13 +123,26 @@ export function DonationSuccessPage() {
       </section>
     );
   }
+  const backButton = (broadcastId: string) => (
+    <button
+      type="button"
+      className={`${form.submit} ${form.block}`}
+      onClick={() => returnToBroadcast(broadcastId, (to) => void navigate(to))}
+    >
+      방송으로 돌아가기
+    </button>
+  );
+
   if (confirmation.status === 'failed') {
+    // Known only in the tab that placed the order.
+    const broadcastId = orderId ? broadcastOfOrder(orderId) : null;
     return (
       <section className={form.card}>
         <h1 className={form.title}>후원하지 못했습니다</h1>
         <p className={form.error} role="alert">
           {confirmation.message}
         </p>
+        {broadcastId && backButton(broadcastId)}
         <p className={form.footer}>
           <Link to="/">방송 목록으로 가기</Link>
         </p>
@@ -134,11 +157,7 @@ export function DonationSuccessPage() {
         {formatWon(donation.amount)}을 후원했습니다.
         {donation.message && ` 메시지: ${donation.message}`}
       </p>
-      <p className={form.footer}>
-        <Link to={`/broadcasts/${donation.broadcastId}`}>
-          방송으로 돌아가기
-        </Link>
-      </p>
+      {backButton(donation.broadcastId)}
     </section>
   );
 }
