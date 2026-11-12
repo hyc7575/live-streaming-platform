@@ -90,3 +90,10 @@
   color: var(--color-brand-strong);
   font-weight: 600;
 }
+
+/* A .submit button outside a .form (the donation result pages). */
+.block {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-4);
+}

@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
+import { onDonation, openDonateTab } from '../donation/donationChannel';
 import { formatWon, type DonationSummary } from '../donations';
 import type { LoginPageState } from '../pages/LoginPage';
 import { usePolledApi } from '../use-api';
@@ -8,6 +10,8 @@ import styles from './DonationPanel.module.css';
 
 // Same cadence as comments (PRD §8.2: no realtime push).
 const DONATION_POLL_MS = 5000;
+// How long "후원이 반영되었습니다" stays after the payment tab reports back.
+const DONATED_NOTICE_MS = 4000;
 
 const timeFormat = new Intl.DateTimeFormat('ko-KR', {
   month: 'numeric',
@@ -22,10 +26,27 @@ export function DonationPanel({
   broadcast: Pick<Broadcast, 'id' | 'status' | 'streamer'>;
 }) {
   const { state } = useAuth();
-  const { data: summary } = usePolledApi<DonationSummary>(
+  const { data: summary, reload } = usePolledApi<DonationSummary>(
     `/broadcasts/${encodeURIComponent(broadcast.id)}/donations`,
     DONATION_POLL_MS,
   );
+  // Bumped per message so a second donation restarts the notice timer.
+  const [donatedAt, setDonatedAt] = useState<number | null>(null);
+
+  useEffect(
+    () =>
+      onDonation(broadcast.id, () => {
+        reload();
+        setDonatedAt(Date.now());
+      }),
+    [broadcast.id, reload],
+  );
+
+  useEffect(() => {
+    if (donatedAt === null) return;
+    const timer = setTimeout(() => setDonatedAt(null), DONATED_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [donatedAt]);
   const live = broadcast.status === 'LIVE';
   const canDonate =
     live &&
@@ -47,12 +68,19 @@ export function DonationPanel({
           </p>
         )}
         {canDonate && (
-          <Link
-            to={`/broadcasts/${broadcast.id}/donate`}
+          <button
+            type="button"
             className={styles.donate}
+            onClick={() => openDonateTab(broadcast.id)}
           >
             후원하기
-          </Link>
+          </button>
+        )}
+      </div>
+      {/* Always mounted so screen readers announce the text when it lands. */}
+      <div className={styles.status} role="status">
+        {donatedAt !== null && (
+          <p className={styles.donated}>후원이 반영되었습니다</p>
         )}
       </div>
       {live && state.status === 'anonymous' && (
