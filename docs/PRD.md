@@ -107,7 +107,9 @@
 | 도네이션 | 테스트 결제, 서버 승인 검증, 멱등 적립, 방송별 내역·합계. 결제 화면은 새 탭에서 열어 시청 탭의 영상을 멈추지 않고, 결제가 끝나면 결제 탭을 닫고 시청 탭이 반영을 알린다([PRD-lime](./PRD-lime.md) 7.1·7.2) | P2 |
 | 라임 | 현금 1:1 단위 "라임"을 테스트 결제로 충전하고, 시청 화면을 떠나지 않고 잔액에서 차감해 후원한다. 직접결제 후원은 유지한다(공모 원문의 승인 시 후원 대상 검증은 직접결제가 충족). 상세는 [PRD-lime](./PRD-lime.md) | P2 |
 | 채널 설정 | 스트리머가 "내 채널" 화면(`/studio/channel`)에서 기본 대기 이미지 한 장(JPEG·PNG·WebP, 2MB 이하)을 올리고 바꾸고 지운다. 그 스트리머의 모든 방송이 방송 준비 중(`READY`) 카드와 시청 화면에 이 이미지를 쓰고, `LIVE`·`ENDED`는 송출 화면 캡처 썸네일을 먼저 쓴다(#63). 방송별 대기 이미지는 두지 않는다 | P2 |
-| 팔로우 | 시청 화면에서 스트리머 팔로우·언팔로우, 모든 화면 왼쪽 패널에 팔로우한 스트리머의 LIVE 여부(비로그인은 LIVE 중인 방송), 좁은 화면은 `/following`. 알림은 하지 않는다(8.2) | P2 |
+| 팔로우 | 시청 화면·채널 페이지에서 스트리머 팔로우·언팔로우, 시청 쪽 화면 왼쪽 패널에 팔로우한 스트리머의 LIVE 여부(비로그인은 LIVE 중인 방송), 좁은 화면은 `/following`. 스튜디오·마이페이지는 패널 대신 그 영역의 메뉴를 둔다. 알림은 하지 않는다(8.2) | P2 |
+| 마이페이지 | 라임 충전·후원 원장, 보낸 후원(두 수단 합계), 프로필(소개·프로필 이미지·닉네임, 테스트 계정은 닉네임 고정). 스튜디오에 받은 후원 합계(방송을 지워도 유지)와 팔로워 목록. 상세는 [PRD-mypage](./PRD-mypage.md) | P2 |
+| 채널 페이지 | `/channels/:id`: 누구나 보는 스트리머 프로필·팔로워 수·LIVE·공개 방송 목록. 방송 카드·시청 화면·팔로우 패널·헤더 메뉴의 닉네임에서 들어간다. 팔로워 목록은 공개하지 않는다([PRD-mypage](./PRD-mypage.md)) | P2 |
 | OBS 송출 | 송출 화면에서 방송별 WHIP URL을 발급해 OBS 서버 칸에 붙여 넣는다. 브라우저 송출의 추가 방법이고 서버 송출 경로는 같다(#89). 채널 스트림 키는 쓰지 않는다(8.2). OBS 실기 판정은 #88 | P3 |
 
 #### 7.2 아키텍처
@@ -142,6 +144,7 @@ flowchart LR
 - `User`(팔로워) N : M `User`(스트리머)를 `Follow`(`followerId`, `streamerId` 복합 기본 키)로 잇는다. 어느 쪽 사용자가 지워져도 팔로우가 함께 지워진다. "지금 LIVE"는 따로 저장하지 않고 그 스트리머의 `LIVE` 방송으로 읽는다.
 - 채널 설정(기본 대기 이미지)은 `User`의 `standbyImageExt`(`jpg`·`png`·`webp`)와 `standbyImageUpdatedAt`에 둔다. 파일은 썸네일 폴더의 `users/<사용자 id>/standby.<확장자>`이고, 방송을 지워도 남는다. 방송은 송출할 때마다 새로 만들므로 방송 단위로 두면 매번 다시 올려야 한다(#63).
 - `Broadcast` 1 : N `ChatMessage`(`authorId`, 본문, `createdAt`, 인덱스 `(broadcastId, createdAt)`)는 방송 전·중 채팅, 1 : N `Comment`(`authorId`, 본문, `createdAt`, `updatedAt`)는 방송 후 댓글이다. 채팅은 고치지 않아 `updatedAt`이 없다. 방송이나 작성자를 지우면 둘 다 함께 지워진다. #91 마이그레이션이 그 전의 `Comment` 중 방송 종료(`endedAt`) 전에 쓴 행과 아직 끝나지 않은 방송의 행을 같은 id로 `ChatMessage`에 옮겼다.
+- 프로필은 `User.bio`(0~200자)와 `avatarExt`·`avatarUpdatedAt`에 둔다. 파일은 `users/<사용자 id>/avatar.<확장자>`이고 기본 대기 이미지와 같은 "사용자 이미지 슬롯" 코드로 저장한다(PRD-mypage 7.1).
 - `Channel`(스트림 키)은 두지 않는다. OBS는 방송별 WHIP URL로 송출하므로 스트림 키가 필요 없다(#89, 8.2).
 - 도네이션의 후원 대상 스트리머(공모 원문의 "방송자")는 `Donation.recipientId`에 둔다. 후원을 만들 때 `Broadcast.streamerId`를 복사한다. 방송을 지우면 `broadcastId`만 비고(#114) 받은 사람은 남아, 스트리머의 받은 후원 합계가 줄지 않는다(#118, PRD-mypage 7.1). 처음에는 `Broadcast.streamerId`로 충분하다고 보았으나 #114 이후 방송을 지우면 받은 사람을 잃게 되어 바꿨다.
 - 라임: `User.limeBalance`(현재 잔액, 조건부 UPDATE로만 바꾼다), `LimeCharge`(충전 주문, `orderId`·`paymentKey` UNIQUE), `LimeLedger`(원장, `(kind, refId)` UNIQUE, `balanceAfter`). `Donation.method`(TOSS·LIME)로 두 후원 수단을 한 내역·합계에 담는다.
