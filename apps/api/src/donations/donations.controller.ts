@@ -19,6 +19,7 @@ import {
   type CreateDonationInput,
   type DonationList,
   type DonationOrder,
+  type SentDonationList,
 } from './donations.service.js';
 
 const confirmSchema = z.object({
@@ -36,6 +37,12 @@ export class DonationsController {
   @Get('broadcasts/:id/donations')
   list(@Param('id') broadcastId: string): Promise<DonationList> {
     return this.donations.list(broadcastId);
+  }
+
+  @Get('me/donations')
+  @UseGuards(LoggedInGuard)
+  sent(@CurrentUser() user: AuthUser): Promise<SentDonationList> {
+    return this.donations.sentBy(user.id);
   }
 
   @Post('broadcasts/:id/donations')

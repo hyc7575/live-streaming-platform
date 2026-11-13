@@ -1,0 +1,88 @@
+/* Narrow: a row of tabs under the header, like the old page tabs. */
+.nav {
+  padding: 0 var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.heading {
+  display: none;
+}
+
+.list {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.item {
+  display: block;
+  padding: var(--space-3) var(--space-1);
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.item:hover {
+  color: var(--color-text);
+}
+
+.item[aria-current='page'] {
+  border-bottom-color: var(--color-brand-strong);
+  color: var(--color-text);
+}
+
+@media (max-width: 1023px) {
+  .wideOnly {
+    display: none;
+  }
+}
+
+/* Wide: a column where the follow panel would be. */
+@media (min-width: 1024px) {
+  .nav {
+    position: sticky;
+    top: var(--header-height);
+    flex: none;
+    width: var(--section-nav-width);
+    height: calc(100vh - var(--header-height));
+    padding: var(--space-4) var(--space-2);
+    overflow-y: auto;
+    border-right: 1px solid var(--color-border);
+    border-bottom: none;
+  }
+
+  .heading {
+    display: block;
+    margin: 0 0 var(--space-2);
+    padding: 0 var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+  }
+
+  .list {
+    flex-direction: column;
+    gap: var(--space-1);
+    overflow-x: visible;
+  }
+
+  .item {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: none;
+    border-radius: var(--radius-md);
+  }
+
+  .item:hover {
+    background: var(--color-surface-raised);
+  }
+
+  .item[aria-current='page'] {
+    background: var(--color-surface-raised);
+    box-shadow: inset 3px 0 0 var(--color-brand-strong);
+  }
+}

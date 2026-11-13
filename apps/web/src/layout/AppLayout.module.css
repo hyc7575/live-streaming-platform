@@ -29,9 +29,15 @@
     gap: var(--space-3);
   }
 
-  /* Nicknames run up to 20 characters; 로그아웃 already shows the session. */
+  /* Nicknames run up to 20 characters; the initial shows the session.
+     Hidden only visually, so the menu button keeps the nickname as its
+     name. */
   .nickname {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
 
   /* Too long for a phone header; the retry button stays. */
@@ -123,6 +129,7 @@
 }
 
 .account {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -131,6 +138,78 @@
 
 .nickname {
   font-weight: 600;
+}
+
+.menuButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target-size);
+  padding: var(--space-1) var(--space-2);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.menuButton:hover,
+.menuButton[aria-expanded='true'] {
+  background: var(--color-surface-raised);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: var(--header-avatar-size);
+  height: var(--header-avatar-size);
+  background: var(--color-brand);
+  border-radius: 50%;
+  color: var(--color-on-brand);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.caret {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: var(--header-menu-width);
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.menuItem {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuItem:hover,
+.menuItem:focus-visible {
+  background: var(--color-surface-raised);
 }
 
 .authError {
@@ -165,6 +244,15 @@
 
 .body {
   display: flex;
+  flex-direction: column;
+}
+
+/* Below 1024px the left column is hidden or, for the studio and my page,
+   a row of tabs above the page. */
+@media (min-width: 1024px) {
+  .body {
+    flex-direction: row;
+  }
 }
 
 /* The left panel shows the follow list from 1024px up. */
@@ -176,6 +264,9 @@
 
 .main {
   flex: 1;
+  /* The body is a column below 1024px, where auto margins would otherwise
+     shrink the page to its content instead of stretching it. */
+  width: 100%;
   min-width: 0;
   max-width: var(--content-max-width);
   margin: 0 auto;

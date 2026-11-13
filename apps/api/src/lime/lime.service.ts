@@ -20,7 +20,12 @@ import {
   type TossConfirmInput,
   type TossPayments,
 } from '../donations/toss-payments.js';
-import { Prisma } from '../generated/prisma/client.js';
+import {
+  donationTargetSelect,
+  toDonationTarget,
+  type DonationTarget,
+} from '../donations/sent-donation.js';
+import { Prisma, type LimeLedgerKind } from '../generated/prisma/client.js';
 
 export const LIME_CHARGE_MIN_AMOUNT = 1_000;
 export const LIME_CHARGE_MAX_AMOUNT = 100_000;
@@ -55,6 +60,20 @@ export interface LimeBalance {
   balance: number;
 }
 
+// Enough for the test data; the ledger has no pagination (PRD-mypage 7.4).
+export const LIME_LEDGER_LIMIT = 50;
+
+// One row of GET /me/lime/ledger. `donation` says where a DONATION row's
+// lime went and is null on a CHARGE row.
+export interface LimeLedgerEntry {
+  id: string;
+  kind: LimeLedgerKind;
+  delta: number;
+  balanceAfter: number;
+  createdAt: Date;
+  donation: DonationTarget | null;
+}
+
 @Injectable()
 export class LimeService {
   private readonly logger = new Logger(LimeService.name);
@@ -72,6 +91,42 @@ export class LimeService {
     });
     if (!user) throw new UnauthorizedException();
     return { balance: user.limeBalance };
+  }
+
+  // Newest first, so the first row's balanceAfter is the current balance.
+  // A ledger row has no foreign key to its donation (refId serves charges
+  // too), so the donations are read in a second query.
+  async ledger(userId: string): Promise<LimeLedgerEntry[]> {
+    const rows = await this.prisma.limeLedger.findMany({
+      where: { userId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: LIME_LEDGER_LIMIT,
+      select: {
+        id: true,
+        kind: true,
+        delta: true,
+        balanceAfter: true,
+        createdAt: true,
+        refId: true,
+      },
+    });
+    const donationIds = rows
+      .filter((row) => row.kind === 'DONATION')
+      .map((row) => row.refId);
+    const donations = await this.prisma.donation.findMany({
+      where: { id: { in: donationIds } },
+      select: { id: true, ...donationTargetSelect },
+    });
+    const targets = new Map(
+      donations.map((d) => [d.id, toDonationTarget(d)] as const),
+    );
+    return rows.map(({ refId, ...row }) => ({
+      ...row,
+      donation:
+        row.kind === 'DONATION'
+          ? (targets.get(refId) ?? { broadcast: null, recipient: null })
+          : null,
+    }));
   }
 
   async createCharge(userId: string, amount: number): Promise<LimeChargeOrder> {

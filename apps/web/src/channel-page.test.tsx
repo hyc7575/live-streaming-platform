@@ -98,7 +98,7 @@ it('draws the nickname’s first letter until an image is uploaded, then shows i
   });
   const { container } = renderAt('/studio/channel');
   await screen.findByRole('heading', { name: '기본 대기 이미지' });
-  expect(screen.getByText('불')).toBeDefined();
+  expect(within(screen.getByRole('main')).getByText('불')).toBeDefined();
   expect(container.querySelector('img')).toBeNull();
   expect(screen.queryByRole('button', { name: '삭제' })).toBeNull();
   expect(fileInput(container).accept).toBe('image/jpeg,image/png,image/webp');
@@ -106,7 +106,7 @@ it('draws the nickname’s first letter until an image is uploaded, then shows i
   pick(container, png());
   expect(await screen.findByRole('button', { name: '삭제' })).toBeDefined();
   expect(container.querySelector('img')?.getAttribute('src')).toBe(STANDBY);
-  expect(screen.queryByText('불')).toBeNull();
+  expect(within(screen.getByRole('main')).queryByText('불')).toBeNull();
   expect(calls).toContain('PUT /api/me/standby-image');
 });
 
@@ -174,7 +174,7 @@ it('deletes the image after confirming and goes back to the first letter', async
   expect(calls).not.toContain('DELETE /api/me/standby-image');
 
   fireEvent.click(within(confirm).getByRole('button', { name: '삭제하기' }));
-  expect(await screen.findByText('불')).toBeDefined();
+  expect(await within(screen.getByRole('main')).findByText('불')).toBeDefined();
   expect(container.querySelector('img')).toBeNull();
   expect(screen.queryByRole('button', { name: '삭제' })).toBeNull();
   expect(calls).toContain('DELETE /api/me/standby-image');

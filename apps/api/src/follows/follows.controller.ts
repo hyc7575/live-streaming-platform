@@ -10,7 +10,11 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
-import { FollowsService, type FollowedStreamer } from './follows.service.js';
+import {
+  FollowsService,
+  type FollowedStreamer,
+  type FollowerList,
+} from './follows.service.js';
 
 // Guards run before pipes, so an anonymous caller gets 401 before a bad id
 // gets 400.
@@ -40,5 +44,10 @@ export class FollowsController {
   @Get('me/follows')
   list(@CurrentUser() user: AuthUser): Promise<FollowedStreamer[]> {
     return this.follows.list(user.id);
+  }
+
+  @Get('me/followers')
+  followers(@CurrentUser() user: AuthUser): Promise<FollowerList> {
+    return this.follows.followers(user.id);
   }
 }

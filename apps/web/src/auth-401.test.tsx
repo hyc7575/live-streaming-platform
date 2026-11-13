@@ -100,7 +100,9 @@ it('opens the login page when posting a comment answers 401, then returns to the
     await screen.findByRole('heading', { name: '지난 방송' }),
   ).toBeDefined();
   expect(await screen.findByLabelText('댓글 쓰기')).toBeDefined();
-  expect(screen.getByRole('button', { name: '로그아웃' })).toBeDefined();
+  expect(
+    screen.getByRole('button', { name: '시청자', expanded: false }),
+  ).toBeDefined();
 });
 
 it('opens the login page when sending chat answers 401, then returns to the broadcast', async () => {

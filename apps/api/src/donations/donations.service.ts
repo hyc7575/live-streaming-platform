@@ -12,6 +12,11 @@ import {
 import { BroadcastsService } from '../broadcasts/broadcasts.service.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma } from '../generated/prisma/client.js';
+import {
+  donationTargetSelect,
+  toDonationTarget,
+  type DonationTarget,
+} from './sent-donation.js';
 import { approveTossPayment } from './toss-approval.js';
 import {
   TOSS_CONFIG,
@@ -77,6 +82,27 @@ export interface DonationList {
   donations: DonationView[];
 }
 
+// A donation the caller sent, for their own history: whom it went to rather
+// than who sent it.
+export type SentDonation = Omit<DonationView, 'donor'> & DonationTarget;
+
+// GET /me/donations. Like DonationList, the sums cover every PAID donation
+// and the list only the newest DONATION_LIST_LIMIT.
+export interface SentDonationList {
+  total: number;
+  count: number;
+  donations: SentDonation[];
+}
+
+const sentSelect = {
+  id: true,
+  method: true,
+  amount: true,
+  message: true,
+  approvedAt: true,
+  ...donationTargetSelect,
+} as const satisfies Prisma.DonationSelect;
+
 export interface DonationOrder {
   orderId: string;
   orderName: string;
@@ -122,6 +148,33 @@ export class DonationsService {
       total: aggregate._sum.amount ?? 0,
       count: aggregate._count,
       donations,
+    };
+  }
+
+  // PENDING orders are left out: they were never paid, and a lime donation
+  // is PAID from the start.
+  async sentBy(donorId: string): Promise<SentDonationList> {
+    const where = { donorId, status: 'PAID' } as const;
+    const [aggregate, rows] = await Promise.all([
+      this.prisma.donation.aggregate({
+        where,
+        _sum: { amount: true },
+        _count: true,
+      }),
+      this.prisma.donation.findMany({
+        where,
+        orderBy: [{ approvedAt: 'desc' }, { id: 'desc' }],
+        take: DONATION_LIST_LIMIT,
+        select: sentSelect,
+      }),
+    ]);
+    return {
+      total: aggregate._sum.amount ?? 0,
+      count: aggregate._count,
+      donations: rows.map(({ broadcast, ...donation }) => ({
+        ...donation,
+        ...toDonationTarget({ broadcast }),
+      })),
     };
   }
 

@@ -17,6 +17,7 @@ import {
   type ConfirmedCharge,
   type LimeBalance,
   type LimeChargeOrder,
+  type LimeLedgerEntry,
 } from './lime.service.js';
 
 const amount = z.number().int();
@@ -61,5 +62,10 @@ export class LimeController {
   @Get('me/lime')
   balance(@CurrentUser() user: AuthUser): Promise<LimeBalance> {
     return this.lime.balance(user.id);
+  }
+
+  @Get('me/lime/ledger')
+  ledger(@CurrentUser() user: AuthUser): Promise<LimeLedgerEntry[]> {
+    return this.lime.ledger(user.id);
   }
 }

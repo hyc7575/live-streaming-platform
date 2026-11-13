@@ -55,5 +55,7 @@ it('restores the logged-in header from GET /api/auth/me', async () => {
   );
   renderAt('/');
   expect(await screen.findByText('불씨')).toBeDefined();
-  expect(screen.getByRole('button', { name: '로그아웃' })).toBeDefined();
+  expect(
+    screen.getByRole('button', { name: '불씨', expanded: false }),
+  ).toBeDefined();
 });

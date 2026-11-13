@@ -16,6 +16,17 @@ export interface FollowedStreamer {
   live: { broadcastId: string; title: string; startedAt: Date } | null;
 }
 
+// Enough for the test data; the list has no pagination (PRD-mypage 7.4).
+export const FOLLOWER_LIST_LIMIT = 50;
+
+// GET /me/followers. `count` covers every follower, `followers` only the
+// newest FOLLOWER_LIST_LIMIT of them. Only the streamer sees the list; the
+// public channel page shows the count alone (PRD-mypage 7.2).
+export interface FollowerList {
+  count: number;
+  followers: { id: string; nickname: string; followedAt: Date }[];
+}
+
 @Injectable()
 export class FollowsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -80,6 +91,28 @@ export class FollowsService {
       };
     });
     return streamers.sort(compareFollowed);
+  }
+
+  async followers(streamerId: string): Promise<FollowerList> {
+    const [count, rows] = await Promise.all([
+      this.prisma.follow.count({ where: { streamerId } }),
+      this.prisma.follow.findMany({
+        where: { streamerId },
+        orderBy: [{ createdAt: 'desc' }, { followerId: 'desc' }],
+        take: FOLLOWER_LIST_LIMIT,
+        select: {
+          createdAt: true,
+          follower: { select: { id: true, nickname: true } },
+        },
+      }),
+    ]);
+    return {
+      count,
+      followers: rows.map(({ createdAt, follower }) => ({
+        ...follower,
+        followedAt: createdAt,
+      })),
+    };
   }
 
   // Unfollow runs the same checks as follow, so the API answers one
