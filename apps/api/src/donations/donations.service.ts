@@ -27,8 +27,8 @@ export const DONATION_MIN_AMOUNT = 1_000;
 export const DONATION_MAX_AMOUNT = 100_000;
 export const DONATION_MESSAGE_MAX_LENGTH = 100;
 
-// No pagination, like comments: the watch page polls the latest donations,
-// and the total comes from an aggregate rather than from this list.
+// 댓글처럼 페이지네이션이 없다. 시청 페이지는 최신 후원을 폴링하고,
+// 합계는 이 목록이 아니라 집계에서 가져온다.
 export const DONATION_LIST_LIMIT = 50;
 
 export const NOT_CONFIGURED_MESSAGE = '후원 기능이 설정되지 않았습니다.';
@@ -37,19 +37,19 @@ export const NOT_YOUR_ORDER_MESSAGE = '내 후원 주문만 승인할 수 있습
 export const AMOUNT_MISMATCH_MESSAGE = '결제 금액이 주문과 다릅니다.';
 export const PAYMENT_KEY_USED_MESSAGE = '이미 다른 주문에 쓰인 결제입니다.';
 export const BROADCAST_DELETED_MESSAGE = '방송이 삭제되어 후원할 수 없습니다.';
-// Sent with that 409 so the web can tell it from other conflicts without
-// matching the message.
+// 이 409와 함께 보낸다. 그래야 웹이 메시지를 맞춰 보지 않고도 다른 충돌과
+// 구별한다.
 export const BROADCAST_DELETED_CODE = 'BROADCAST_DELETED';
 
-// Toss caps orderName at 100 characters.
+// Toss는 orderName을 100자로 제한한다.
 const ORDER_NAME_MAX_LENGTH = 100;
 const ORDER_NAME_SUFFIX = ' 후원';
 
-// Must outlast the Toss request it waits on while holding the order row.
+// 주문 행을 잡은 채 기다리는 Toss 요청보다 길어야 한다.
 const CONFIRM_TRANSACTION_TIMEOUT_MS = 2 * TOSS_REQUEST_TIMEOUT_MS;
 
-// What the API reveals about a donation. The donor appears by nickname only.
-// `method` tells a card donation (TOSS) from one paid in lime (LIME).
+// API가 후원에 대해 공개하는 정보. 후원자는 닉네임으로만 나온다.
+// `method`로 카드 후원(TOSS)과 라임 후원(LIME)을 구별한다.
 const donationSelect = {
   id: true,
   method: true,
@@ -78,12 +78,12 @@ export interface DonationList {
   donations: DonationView[];
 }
 
-// A donation the caller sent, for their own history: whom it went to rather
-// than who sent it.
+// 호출자 본인의 내역에 쓰는, 호출자가 보낸 후원. 누가 보냈는지가 아니라
+// 누구에게 갔는지를 담는다.
 export type SentDonation = Omit<DonationView, 'donor'> & DonationTarget;
 
-// GET /me/donations. Like DonationList, the sums cover every PAID donation
-// and the list only the newest DONATION_LIST_LIMIT.
+// GET /me/donations. DonationList처럼 합계는 PAID 후원 전부를 셈하고
+// 목록은 최신 DONATION_LIST_LIMIT개만 담는다.
 export interface SentDonationList {
   total: number;
   count: number;
@@ -99,9 +99,9 @@ const sentSelect = {
   ...donationTargetSelect,
 } as const satisfies Prisma.DonationSelect;
 
-// A donation the caller received: who sent it and on which broadcast, which
-// is null once deleted. Read by recipient, so deleting a broadcast never
-// shrinks the streamer's total (PRD-mypage KR4).
+// 호출자가 받은 후원. 누가 보냈는지, 어느 방송에서인지(삭제되면 null)를
+// 담는다. 받는 사람 기준으로 읽으므로 방송을 지워도 스트리머의 합계는
+// 줄지 않는다(PRD-mypage KR4).
 const receivedSelect = {
   ...donationSelect,
   broadcast: { select: { id: true, title: true } },
@@ -111,7 +111,7 @@ export type ReceivedDonation = Prisma.DonationGetPayload<{
   select: typeof receivedSelect;
 }>;
 
-// GET /me/received-donations, summed like DonationList.
+// GET /me/received-donations. DonationList처럼 합산한다.
 export interface ReceivedDonationList {
   total: number;
   count: number;
@@ -142,7 +142,7 @@ export class DonationsService {
     @Inject(TOSS_PAYMENTS) private readonly toss: TossPayments | null,
   ) {}
 
-  // Both methods land here: a lime donation is stored PAID from the start.
+  // 두 결제 방식 모두 여기로 온다. 라임 후원은 처음부터 PAID로 저장된다.
   async list(broadcastId: string): Promise<DonationList> {
     await this.broadcasts.get(broadcastId);
     const where = { broadcastId, status: 'PAID' } as const;
@@ -166,8 +166,8 @@ export class DonationsService {
     };
   }
 
-  // PENDING orders are left out: they were never paid, and a lime donation
-  // is PAID from the start.
+  // PENDING 주문은 뺀다. 결제된 적이 없고, 라임 후원은
+  // 처음부터 PAID이다.
   async sentBy(donorId: string): Promise<SentDonationList> {
     const where = { donorId, status: 'PAID' } as const;
     const [aggregate, rows] = await Promise.all([
@@ -212,8 +212,8 @@ export class DonationsService {
     };
   }
 
-  // DonationTargetGuard has already checked the broadcast is someone else's
-  // and LIVE.
+  // DonationTargetGuard가 이미 방송이 남의 것이고 LIVE인지
+  // 확인했다.
   async createOrder(
     broadcastId: string,
     donorId: string,
@@ -233,7 +233,7 @@ export class DonationsService {
         },
       });
     } catch (error) {
-      // The broadcast was deleted between the check and the insert.
+      // 확인과 삽입 사이에 방송이 삭제됐다.
       if (hasPrismaCode(error, 'P2003')) {
         throw new NotFoundException('Broadcast not found');
       }
@@ -252,11 +252,11 @@ export class DonationsService {
     };
   }
 
-  // The success page calls this on every load, so a refresh, a retry after a
-  // lost response, and two tabs racing must all credit the order once. The
-  // row lock serializes confirms of one order. Whoever comes second finds it
-  // PAID and returns it without asking Toss again. A Toss failure leaves the
-  // order PENDING, and a retry reuses the Idempotency-Key Toss already saw.
+  // 성공 페이지는 로드할 때마다 이것을 부른다. 그래서 새로고침, 응답을 잃은 뒤의
+  // 재시도, 두 탭의 경합이 모두 주문을 한 번만 적립해야 한다.
+  // 행 잠금이 한 주문의 확정을 차례로 세운다. 두 번째로 온 쪽은 주문이
+  // PAID인 것을 보고 Toss에 다시 묻지 않고 그대로 돌려준다. Toss가 실패하면
+  // 주문은 PENDING으로 남고, 재시도는 Toss가 이미 본 Idempotency-Key를 다시 쓴다.
   async confirm(
     donorId: string,
     input: TossConfirmInput,
@@ -292,16 +292,16 @@ export class DonationsService {
               throw new ConflictException(PAYMENT_KEY_USED_MESSAGE);
             }
           } else if (locked.broadcastId === null) {
-            // The order outlived its deleted broadcast (#114) and is refused
-            // without asking Toss. A delete racing a confirm waits on this
-            // row lock: if the confirm commits, the delete then unlinks a
-            // PAID donation that stays on record.
+            // 주문이 삭제된 방송보다 오래 남았으므로(#114) Toss에 묻지 않고
+            // 거부한다. 확정과 경합하는 삭제는 이 행 잠금을
+            // 기다린다. 확정이 커밋되면 그 뒤에 삭제가
+            // PAID 후원의 방송 연결을 끊고, 후원은 기록으로 남는다.
             //
-            // Known gap: a confirm that ended in 502 rolled back and left the
-            // order PENDING although Toss may have taken the money. If the
-            // broadcast is deleted before the retry, the retry lands here
-            // and never asks Toss again, so that payment is not recorded.
-            // The cascade before #114 lost it the same way (404).
+            // 알려진 빈틈: 502로 끝난 확정은 롤백되어 주문을 PENDING으로 남긴다.
+            // Toss는 돈을 받았을 수도 있다. 재시도 전에 방송이
+            // 삭제되면 재시도는 여기로 와서
+            // Toss에 다시 묻지 않으므로, 그 결제는 기록되지 않는다.
+            // #114 이전의 cascade도 같은 식으로 그 결제를 잃었다(404).
             throw new ConflictException({
               message: BROADCAST_DELETED_MESSAGE,
               code: BROADCAST_DELETED_CODE,

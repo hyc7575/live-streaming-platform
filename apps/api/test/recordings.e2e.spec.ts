@@ -84,8 +84,8 @@ describe('recording reconciler', () => {
     return row.id;
   }
 
-  // Writes a file the way OME leaves it, with an mtime in seconds since the
-  // epoch so recording order is under the test's control.
+  // OME가 남기는 방식대로 파일을 쓴다. mtime을 epoch 기준 초로 줘서
+  // 녹화 순서를 테스트가 정할 수 있게 한다.
   async function record(
     id: string,
     name: string,
@@ -98,7 +98,7 @@ describe('recording reconciler', () => {
     await utimes(path, mtime, mtime);
   }
 
-  // A part OME finished, with a video track of the given length.
+  // OME가 마친 녹화 조각. 주어진 길이의 비디오 트랙을 가진다.
   async function recordPart(
     id: string,
     name: string,

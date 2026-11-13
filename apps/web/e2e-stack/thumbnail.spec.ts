@@ -9,9 +9,9 @@ import {
   watchUntilPlaying,
 } from './support';
 
-// One launch for both sources: tab capture picked by title for the screen
-// share (as in pcPublish.spec.ts), and granted camera permission for the
-// camera.
+// 브라우저를 한 번 띄워 두 소스를 쓴다: 화면 공유는 제목으로 고른 탭을
+// 캡처하고(pcPublish.spec.ts와 같다), 카메라는 카메라 권한을 허용해
+// 쓴다.
 test.use({
   launchOptions: {
     args: [
@@ -23,13 +23,13 @@ test.use({
   permissions: ['camera', 'microphone'],
 });
 
-// How long the viewer must keep playing while captures run. The issue's
-// check is 5 minutes: THUMBNAIL_SOAK_MS=300000.
+// 캡처가 도는 동안 시청자가 계속 재생해야 하는 시간. 이슈의 확인 기준은
+// 5분이다: THUMBNAIL_SOAK_MS=300000.
 const SOAK_MS = Number(process.env.THUMBNAIL_SOAK_MS || 65_000);
 const CAPTURE_INTERVAL_MS = 30_000;
 const LIST_REFRESH_MS = 30_000;
 
-// The tab the screen share captures, as in pcPublish.spec.ts.
+// 화면 공유가 캡처하는 탭. pcPublish.spec.ts와 같다.
 const TONE_PAGE = `<!doctype html><title>${TONE_TAB_TITLE}</title>
 <p>440Hz</p>
 <script>
@@ -61,8 +61,8 @@ async function expectLoaded(list: Page, id: string, src?: string | null) {
     });
 }
 
-// Samples the viewer once a second for `ms`, failing on any 5 s stretch
-// with under 3 s of playback, or any moment the publish page is not live.
+// `ms` 동안 1초마다 시청자를 확인한다. 어느 5초 구간에서든 재생이 3초 미만이거나,
+// 송출 페이지가 라이브가 아닌 순간이 있으면 실패한다.
 async function soak(publisher: Page, viewer: Page, ms: number) {
   const video = viewer.getByLabel('방송 화면');
   const live = publisher.getByText('송출 중입니다.');
@@ -152,8 +152,8 @@ test('a shared screen becomes the card thumbnail and keeps it after the end', as
   const id = await createBroadcast(page.request, '썸네일 화면 공유');
   await page.goto(`/studio/broadcasts/${id}`);
 
-  // The tab opened last holds focus, and getDisplayMedia from an unfocused
-  // document rejects. Chrome then focuses the captured tab.
+  // 마지막에 연 탭이 포커스를 쥐고, 포커스 없는 문서에서 부른 getDisplayMedia는
+  // 거부된다. 그 뒤 Chrome은 캡처한 탭에 포커스를 준다.
   await page.bringToFront();
   await page.getByRole('button', { name: '화면 공유' }).click();
   await expect(page.getByRole('button', { name: '방송 시작' })).toBeVisible();
@@ -167,8 +167,8 @@ test('a shared screen becomes the card thumbnail and keeps it after the end', as
 });
 
 test.describe('camera', () => {
-  // Everything of PHONE but Pixel 7's browser type, which is per worker and
-  // cannot change inside a file.
+  // PHONE에서 Pixel 7의 브라우저 종류만 뺀 전부. 브라우저 종류는 worker마다 정해져
+  // 파일 안에서 바꿀 수 없다.
   const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = PHONE;
   test.use({
     viewport,

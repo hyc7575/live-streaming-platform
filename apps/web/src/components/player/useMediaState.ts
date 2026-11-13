@@ -4,11 +4,11 @@ export type MediaState = {
   paused: boolean;
   muted: boolean;
   volume: number;
-  // readyState >= HAVE_METADATA: there is a picture to resume, not a load.
+  // readyState >= HAVE_METADATA: 로드 중이 아니라 이어서 재생할 화면이 있다.
   ready: boolean;
   fullscreen: boolean;
   currentTime: number;
-  // NaN before metadata, Infinity for a live source.
+  // 메타데이터 전에는 NaN, 라이브 소스는 Infinity.
   duration: number;
   playbackRate: number;
 };
@@ -36,7 +36,7 @@ const INITIAL: MediaState = {
   playbackRate: 1,
 };
 
-// useSyncExternalStore needs the same object back while nothing changed.
+// useSyncExternalStore는 바뀐 것이 없는 동안 같은 객체를 돌려받아야 한다.
 const snapshots = new WeakMap<HTMLVideoElement, MediaState>();
 
 function read(video: HTMLVideoElement): MediaState {

@@ -27,10 +27,10 @@ interface Probe {
   liveFrontWhenRearOpened: number | null;
 }
 
-// Runs after emulatePhoneCameras. The rear camera opens at a different size
-// so the switch also changes the published resolution, and each clone is
-// kept so the test can see whether the sent front camera was let go before
-// the rear one opened.
+// emulatePhoneCameras 뒤에 실행한다. 후면 카메라는 다른 크기로 열려 전환하면
+// 송출 해상도도 바뀐다. 각 clone을 남겨 두어, 보내던 전면 카메라를
+// 후면 카메라를 열기 전에 놓았는지 테스트가
+// 확인할 수 있게 한다.
 function recordPublish(rear: typeof REAR) {
   const probe = window as unknown as Probe & Window;
   probe.peerConnections = [];

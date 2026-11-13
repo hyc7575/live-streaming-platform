@@ -7,8 +7,8 @@ import { IMAGE_FORMATS, type ImageFormat } from './image-rules.js';
 
 export const THUMBNAILS_DIR = Symbol('THUMBNAILS_DIR');
 
-// Resolves to the repository root from both src/images and dist/images,
-// which sit at the same depth.
+// src/images와 dist/images 어디서든 저장소 루트로 풀린다.
+// 두 폴더의 깊이가 같기 때문이다.
 const DEFAULT_DIR = fileURLToPath(
   new URL('../../../../thumbnails/', import.meta.url),
 );
@@ -19,13 +19,13 @@ export function thumbnailsDirFromEnv(
   return resolve(env.THUMBNAILS_DIR || DEFAULT_DIR);
 }
 
-// One image per user per slot: users/<id>/<slot>.<ext>. The standby image
-// shows on the streamer's READY broadcasts, the avatar on their channel.
+// 사용자마다 슬롯마다 이미지 하나: users/<id>/<slot>.<ext>. 기본 대기 이미지는
+// 스트리머의 READY 방송에, 아바타는 그 스트리머의 채널에 나온다.
 export const USER_IMAGE_SLOTS = ['standby', 'avatar'] as const;
 export type UserImageSlot = (typeof USER_IMAGE_SLOTS)[number];
 
-// The folder layout, shared by the writes and the URLs the static server
-// answers. Broadcast ids are uuids, so no broadcast folder is named `users`.
+// 폴더 구조. 쓰기와, 정적 서버가 답하는 URL이 함께 쓴다.
+// 방송 id는 uuid이므로 `users`라는 이름의 방송 폴더는 없다.
 const thumbnailPath = (broadcastId: string) => [broadcastId, 'live.jpg'];
 const userFolder = (userId: string) => ['users', userId];
 const userImagePath = (userId: string, slot: UserImageSlot, ext: string) => [
@@ -55,8 +55,8 @@ export function userImageUrl(
     : null;
 }
 
-// The server picks every file name, so nothing the client sends reaches the
-// path.
+// 파일 이름은 모두 서버가 정한다. 그래서 클라이언트가 보낸 어떤 값도
+// 경로에 들어가지 않는다.
 @Injectable()
 export class ImageStore {
   constructor(@Inject(THUMBNAILS_DIR) private readonly dir: string) {}
@@ -80,8 +80,8 @@ export class ImageStore {
     return ext;
   }
 
-  // Removes every file of `slot` but the one with extension `keep`, or all
-  // of them when `keep` is null. Other slots' files are left alone.
+  // `slot`의 파일 중 확장자가 `keep`인 것만 빼고 모두 지운다. `keep`이 null이면
+  // 전부 지운다. 다른 슬롯의 파일은 건드리지 않는다.
   async pruneUserImage(
     userId: string,
     slot: UserImageSlot,
@@ -100,8 +100,8 @@ export class ImageStore {
     );
   }
 
-  // Writing beside the target and renaming over it means a reader sees the
-  // old image or the new one, never a half-written file.
+  // 대상 옆에 쓰고 그 위로 이름을 바꾸므로, 읽는 쪽은
+  // 이전 이미지나 새 이미지를 본다. 반쯤 쓰인 파일은 보지 않는다.
   private async write(path: string[], bytes: Uint8Array): Promise<void> {
     const target = join(this.dir, ...path);
     const folder = join(target, '..');

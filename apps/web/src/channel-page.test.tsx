@@ -24,8 +24,8 @@ const me = {
 };
 const INVALID = '2MB 이하의 JPEG·PNG·WebP 이미지만 올릴 수 있습니다.';
 
-// Answers each `METHOD /api/path` with the Response the table builds;
-// anything else is a 404. Returns the keys it was called with.
+// 각 `METHOD /api/path`에 표가 만든 Response로 답한다.
+// 나머지는 404다. 호출된 키 목록을 돌려준다.
 function stubApi(routes: Record<string, () => Response>) {
   const calls: string[] = [];
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
@@ -115,8 +115,8 @@ it('shows that the upload is in progress', async () => {
   stubApi({ 'GET /api/auth/me': () => Response.json(me) });
   const { container } = renderAt('/studio/channel');
   await screen.findByRole('heading', { name: '기본 대기 이미지' });
-  // Holds only the upload. Other reads (the follow list may still be on its
-  // way) keep their answers, so `answer` cannot end up resolving them.
+  // 업로드만 붙잡아 둔다. 다른 읽기(팔로우 목록이 아직 오는 중일 수 있다)는
+  // 제 응답을 그대로 받으므로, `answer`가 그 요청들을 풀어 버릴 일이 없다.
   const routed = globalThis.fetch;
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
     init?.method === 'PUT'

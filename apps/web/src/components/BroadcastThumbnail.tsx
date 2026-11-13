@@ -12,16 +12,16 @@ const TINT: Record<BroadcastStatus, string> = {
 
 type ImageKind = 'thumbnail' | 'standby';
 
-// The images a card tries, in order, before it draws the title's first
-// letter. A READY broadcast has no captured frame yet.
+// 카드가 제목 첫 글자를 그리기 전에 차례로 시도하는 이미지.
+// READY 방송은 아직 캡처한 프레임이 없다.
 const IMAGE_ORDER: Record<BroadcastStatus, readonly ImageKind[]> = {
   READY: ['standby'],
   LIVE: ['thumbnail', 'standby'],
   ENDED: ['thumbnail', 'standby'],
 };
 
-// A captured frame fills the card. The standby image is the streamer's own
-// picture, so all of it shows on the video background, as in the studio.
+// 캡처한 프레임은 카드를 채운다. 기본 대기 이미지는 스트리머가 직접 올린
+// 그림이라, 스튜디오에서처럼 영상 배경 위에 전부 보인다.
 const FIT: Record<ImageKind, string> = {
   thumbnail: styles.cover,
   standby: styles.contain,
@@ -51,9 +51,9 @@ function sourcesOf(
   });
 }
 
-// A 16:9 picture: the first image in IMAGE_ORDER that has not failed to
-// load, otherwise `text`'s first letter on the status tint. A URL that
-// changes is tried again.
+// 16:9 그림: IMAGE_ORDER에서 로드에 실패하지 않은 첫 이미지, 없으면
+// 상태 색 위에 `text`의 첫 글자. URL이
+// 바뀌면 다시 시도한다.
 export function ThumbnailPicture({
   status,
   text,
@@ -70,8 +70,8 @@ export function ThumbnailPicture({
   return (
     <div className={`${styles.thumbnail} ${TINT[status]}`}>
       {source ? (
-        // The title or heading sits right next to the picture, so alt stays
-        // empty.
+        // 제목이나 heading이 그림 바로 옆에 있으므로 alt는 비워
+        // 둔다.
         <img
           key={source.url}
           className={`${styles.image} ${source.className}`}

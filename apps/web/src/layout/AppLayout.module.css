@@ -1,6 +1,6 @@
 .shell {
-  /* dvh, not vh: on a phone, 100vh counts the space under the address bar
-     and would let a screen-filling page scroll by that much. */
+  /* vh가 아니라 dvh: 휴대폰에서 100vh는 주소 표시줄 아래 공간까지 세어,
+     화면을 채우는 페이지가 그만큼 스크롤되게 한다. */
   min-height: 100dvh;
 }
 
@@ -29,9 +29,9 @@
     gap: var(--space-3);
   }
 
-  /* Nicknames run up to 20 characters; the initial shows the session.
-     Hidden only visually, so the menu button keeps the nickname as its
-     name. */
+  /* 닉네임은 최대 20자다. 첫 글자로 세션을 보여 준다.
+     시각적으로만 숨기므로 메뉴 버튼은 닉네임을 이름으로
+     유지한다. */
   .nickname {
     position: absolute;
     width: 1px;
@@ -40,7 +40,7 @@
     clip-path: inset(50%);
   }
 
-  /* Too long for a phone header; the retry button stays. */
+  /* 휴대폰 헤더에는 너무 길다. 재시도 버튼은 남는다. */
   .authError {
     display: none;
   }
@@ -63,8 +63,8 @@
   position: relative;
 }
 
-/* Sits where the i's tittle would be; transform-origin at the bottom so the
-   squash on landing flattens it against the stem. */
+/* i의 점 자리에 놓인다. transform-origin을 아래에 두어, 착지할 때
+   찌그러지면서 점이 기둥 쪽으로 납작해진다. */
 .dot {
   position: absolute;
   top: 0.12em;
@@ -74,7 +74,7 @@
   margin-left: -0.13em;
   border-radius: 50%;
   background: var(--color-brand);
-  /* Lime alone is 1.3:1 on the white header; the ring keeps the dot visible. */
+  /* 흰 헤더에서 라임색만으로는 1.3:1이다. 테두리가 점을 보이게 한다. */
   box-shadow: inset 0 0 0 0.06em var(--color-brand-strong);
   transform-origin: 50% 100%;
 }
@@ -241,15 +241,15 @@
   flex-direction: column;
 }
 
-/* Below 1024px the left column is hidden or, for the studio and my page,
-   a row of tabs above the page. */
+/* 1024px 아래에서 왼쪽 열은 숨기거나, 스튜디오와 마이페이지에서는
+   페이지 위 탭 줄로 바꾼다. */
 @media (min-width: 1024px) {
   .body {
     flex-direction: row;
   }
 }
 
-/* The left panel shows the follow list from 1024px up. */
+/* 왼쪽 패널은 1024px 이상에서 팔로우 목록을 보인다. */
 @media (min-width: 1024px) {
   .narrowOnly {
     display: none;
@@ -258,8 +258,8 @@
 
 .main {
   flex: 1;
-  /* The body is a column below 1024px, where auto margins would otherwise
-     shrink the page to its content instead of stretching it. */
+  /* 1024px 아래에서 body는 column이라, 이것이 없으면 auto margin이
+     페이지를 늘리지 않고 내용 크기로 줄인다. */
   width: 100%;
   min-width: 0;
   max-width: var(--content-max-width);

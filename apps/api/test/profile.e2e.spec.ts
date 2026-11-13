@@ -22,8 +22,8 @@ const PNG = Buffer.from([
 ]);
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
-// PRD-mypage 7.2: the caller edits their own introduction, nickname and
-// profile image. Test accounts keep their nickname.
+// PRD-mypage 7.2: 호출자는 자신의 소개, 닉네임,
+// 프로필 이미지를 수정한다. 테스트 계정은 닉네임을 유지한다.
 describe('profile editing', () => {
   let app: NestExpressApplication;
   let user: { user: TestUser; agent: TestAgent };

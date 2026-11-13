@@ -6,7 +6,7 @@
   border-radius: var(--radius-md);
 }
 
-/* Over the video, but lets clicks reach it. */
+/* 영상 위에 있지만 클릭은 영상에 닿게 한다. */
 .notice {
   position: absolute;
   inset: 0;

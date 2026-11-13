@@ -41,7 +41,7 @@ function orderErrorMessage(err: unknown): string {
   }
 }
 
-// Step 1 saves an order; step 2 pays it through the Toss payment widget.
+// 1단계에서 주문을 저장하고, 2단계에서 Toss 결제 위젯으로 결제한다.
 export function DonatePage() {
   useDocumentTitle('후원하기');
   const { id = '' } = useParams();

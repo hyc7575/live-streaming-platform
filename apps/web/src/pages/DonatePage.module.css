@@ -1,4 +1,4 @@
-/* Wider than the login card: the Toss payment widget needs the room. */
+/* 로그인 카드보다 넓다. Toss 결제 위젯에 그만큼 자리가 필요하다. */
 .card {
   max-width: var(--donate-card-width);
   margin: var(--space-8) auto;

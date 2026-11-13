@@ -22,8 +22,8 @@ function startsWith(bytes: Uint8Array, prefix: number[], at = 0): boolean {
   return prefix.every((byte, i) => bytes[at + i] === byte);
 }
 
-// The magic bytes decide the format, never the name or Content-Type the
-// client claims. The extension is the server's, used in the stored file name.
+// 형식은 매직 바이트로 정한다. 클라이언트가 주장하는 이름이나 Content-Type은
+// 보지 않는다. 확장자는 서버가 정하며, 저장 파일 이름에 쓴다.
 export const IMAGE_FORMATS: Record<
   ImageFormat,
   { ext: string; matches: (bytes: Uint8Array) => boolean }
@@ -59,7 +59,7 @@ export const IMAGE_RULES = {
     invalidMessage: '512KB 이하의 JPEG 이미지만 올릴 수 있습니다.',
   },
   standby: USER_IMAGE_RULE,
-  // PRD-mypage 7.2: the profile image takes the standby image's rule as is.
+  // PRD-mypage 7.2: 프로필 이미지는 기본 대기 이미지 규칙을 그대로 따른다.
   avatar: USER_IMAGE_RULE,
 } as const satisfies Record<string, ImageRule>;
 
@@ -70,14 +70,14 @@ export interface ParsedImage {
   bytes: Buffer;
 }
 
-// The part of a multer file this module reads. @types/multer is not a
-// dependency.
+// 이 모듈이 읽는 multer 파일의 일부. @types/multer는
+// 의존성이 아니다.
 interface MulterFile {
   buffer: Buffer;
 }
 
-// Multer reports an oversized file as 413. To a client it is one more way the
-// image is invalid, so it gets the same 400 as a wrong format.
+// Multer는 너무 큰 파일을 413으로 알린다. 클라이언트에게는 이것도 이미지가
+// 유효하지 않은 한 경우이므로, 형식이 틀렸을 때와 같은 400을 준다.
 @Catch(PayloadTooLargeException)
 class FileTooLargeFilter implements ExceptionFilter {
   constructor(private readonly message: string) {}
@@ -88,8 +88,8 @@ class FileTooLargeFilter implements ExceptionFilter {
   }
 }
 
-// A missing file covers both a multipart body without the `image` field and
-// a body that is not multipart at all.
+// 파일이 없는 경우는 `image` 필드가 없는 multipart body와
+// multipart가 아닌 body를 모두 포함한다.
 class ParseImagePipe implements PipeTransform<
   MulterFile | undefined,
   ParsedImage

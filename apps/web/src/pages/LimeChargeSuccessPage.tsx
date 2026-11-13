@@ -47,8 +47,8 @@ function confirmErrorMessage(err: unknown): string {
   return '결제를 확인하지 못했습니다. 페이지를 새로 고쳐 다시 시도해 주세요.';
 }
 
-// Toss redirects here after the buyer approves. Only the API's confirm
-// credits the lime; a refresh confirms again and gets the same answer.
+// 구매자가 승인하면 Toss가 이곳으로 리디렉션한다. 라임은 API의 confirm만
+// 적립한다. 새로고침하면 다시 confirm하고 같은 응답을 받는다.
 export function LimeChargeSuccessPage() {
   useDocumentTitle('라임 충전');
   const [params] = useSearchParams();
@@ -68,7 +68,7 @@ export function LimeChargeSuccessPage() {
     key: string;
     confirmation: Confirmation;
   } | null>(null);
-  // Survives StrictMode's double effect, so each mount confirms once.
+  // StrictMode가 effect를 두 번 돌려도 남으므로, 마운트마다 한 번만 confirm한다.
   const sentFor = useRef<string | null>(null);
   const loginPath = location.pathname + location.search;
 

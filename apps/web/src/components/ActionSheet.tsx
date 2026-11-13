@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import styles from './ActionSheet.module.css';
 
-// A `···` button and the sheet it slides up from the bottom of the screen.
-// The native modal dialog keeps focus inside and closes on Esc; a tap on
-// the backdrop or 닫기 closes it too, and focus goes back to the button.
+// `···` 버튼과, 그 버튼이 화면 아래에서 밀어 올리는 시트다.
+// 네이티브 모달 dialog가 포커스를 안에 가두고 Esc로 닫힌다. 배경이나
+// 닫기를 탭해도 닫히고, 포커스는 버튼으로 돌아간다.
 export function ActionSheet({
   label,
   title,
@@ -50,8 +50,8 @@ export function ActionSheet({
           triggerRef.current?.focus();
         }}
         onClick={(e) => {
-          // The sheet's content fills the dialog box, so only a tap on the
-          // backdrop lands on the dialog itself.
+          // 시트 내용이 dialog 상자를 채우므로, dialog 자체에 닿는 탭은
+          // 배경을 탭했을 때뿐이다.
           if (e.target === e.currentTarget) onOpenChange(false);
         }}
       >

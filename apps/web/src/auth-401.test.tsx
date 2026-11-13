@@ -34,9 +34,9 @@ const endedBroadcast: Broadcast = {
   streamer,
 };
 
-// Answers each `METHOD /api/path` from the table, which the test may change
-// mid-way; a number is an empty response with that status, anything missing
-// is a 404.
+// 각 `METHOD /api/path`에 표의 값으로 답한다. 테스트가 중간에 표를 바꿀 수 있다.
+// 숫자는 그 상태 코드의 빈 응답이고, 표에 없는 요청은
+// 404다.
 function stubApi(routes: Record<string, unknown>) {
   const calls: string[] = [];
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
@@ -78,7 +78,7 @@ it('opens the login page when posting a comment answers 401, then returns to the
     'GET /api/me/follows': [],
     'GET /api/broadcasts/b1': endedBroadcast,
     'GET /api/broadcasts/b1/comments': [],
-    // The session ended elsewhere (another tab logged out).
+    // 세션이 다른 곳에서 끝났다(다른 탭에서 로그아웃했다).
     'POST /api/broadcasts/b1/comments': 401,
     'POST /api/auth/login': viewer,
   };
@@ -90,8 +90,8 @@ it('opens the login page when posting a comment answers 401, then returns to the
   });
   fireEvent.click(screen.getByRole('button', { name: '등록' }));
 
-  // Before the fix the login page saw `authenticated` and bounced straight
-  // back to the broadcast.
+  // 고치기 전에는 로그인 페이지가 `authenticated`를 보고 곧바로
+  // 방송으로 되돌려 보냈다.
   expect(await screen.findByRole('heading', { name: '로그인' })).toBeDefined();
   expect(screen.getByRole('link', { name: '로그인' })).toBeDefined();
 
@@ -143,7 +143,7 @@ it('keeps the comment being typed when another request answers 401', async () =>
   fireEvent.change(draft, { target: { value: '쓰던 댓글' } });
   fireEvent.click(screen.getByRole('button', { name: '팔로우' }));
 
-  // The 401 logs the viewer out, but the text stays put.
+  // 401로 시청자는 로그아웃되지만, 쓰던 댓글은 그대로 남는다.
   expect(
     await screen.findByRole('link', { name: '로그인하고 댓글을 남겨 보세요' }),
   ).toBeDefined();

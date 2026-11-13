@@ -18,10 +18,10 @@ declare global {
 }
 
 /**
- * Rewrites the audio of each getDisplayMedia result by the next entry of
- * `window.displayAudioPlan`. 'drop' is a tab shared with "탭 오디오와 함께 공유"
- * turned off; 'tone' stands in for tab audio, which headless Chrome captures
- * as silence.
+ * getDisplayMedia 결과마다 `window.displayAudioPlan`의 다음 항목대로
+ * 오디오를 바꾼다. 'drop'은 "탭 오디오와 함께 공유"를 끄고 공유한 탭이다.
+ * 'tone'은 탭 오디오를 대신한다. headless Chrome은 탭 오디오를
+ * 무음으로 캡처한다.
  */
 function controlDisplayAudio() {
   window.displayAudioPlan = [];
@@ -76,8 +76,8 @@ async function openStudio(context: BrowserContext, plan: DisplayAudio[]) {
   return page;
 }
 
-// Chrome focuses the captured tab after getDisplayMedia. Come back to the
-// studio tab as a streamer would; see pcCapture.spec.ts for why CI needs it.
+// Chrome은 getDisplayMedia 뒤 캡처한 탭에 포커스를 준다. 스트리머처럼
+// 스튜디오 탭으로 돌아온다. CI에 이게 필요한 이유는 pcCapture.spec.ts를 본다.
 async function pick(page: Page, button: string) {
   await page.getByRole('button', { name: button }).click();
   await expect(page.getByRole('button', { name: '방송 시작' })).toBeVisible();
@@ -190,8 +190,8 @@ for (const browser of OTHER_BROWSERS) {
       page,
     }) => {
       await mockPublishApi(context);
-      // The user agent override leaves Chrome's userAgentData in place;
-      // Firefox and Safari do not have it.
+      // user agent를 덮어써도 Chrome의 userAgentData는 그대로 남는다.
+      // Firefox와 Safari에는 userAgentData가 없다.
       await page.addInitScript(() =>
         Object.defineProperty(Navigator.prototype, 'userAgentData', {
           get: () => undefined,

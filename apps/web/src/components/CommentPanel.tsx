@@ -9,9 +9,9 @@ import { useLoginRedirect } from '../use-login-redirect';
 import { useStickToBottom } from '../use-stick-to-bottom';
 import styles from './SidePanel.module.css';
 
-// Comments are written once the broadcast has ended, so nobody expects them
-// to read like chat (PRD §8.2: no realtime push). The viewer's own change
-// re-reads right away.
+// 댓글은 방송이 끝난 뒤에 쓰므로, 채팅처럼 바로 보이길 기대하지 않는다
+// (PRD §8.2: 실시간 push 없음). 시청자 자신의 변경은
+// 바로 다시 읽는다.
 const COMMENT_POLL_MS = 5000;
 
 const timeFormat = new Intl.DateTimeFormat('ko-KR', {
@@ -21,8 +21,8 @@ const timeFormat = new Intl.DateTimeFormat('ko-KR', {
   minute: '2-digit',
 });
 
-// The board of an ended broadcast: every comment with its author and time,
-// and 수정·삭제 on the viewer's own.
+// 끝난 방송의 게시판: 모든 댓글을 작성자·시각과 함께 보이고,
+// 시청자 자신의 댓글에는 수정·삭제를 단다.
 export function CommentPanel({ broadcastId }: { broadcastId: string }) {
   const { state } = useAuth();
   const { data: comments, reload } = usePolledApi<Comment[]>(
@@ -33,8 +33,8 @@ export function CommentPanel({ broadcastId }: { broadcastId: string }) {
   const { listRef, onScroll, stick } =
     useStickToBottom<HTMLOListElement>(loaded);
   const me = state.status === 'authenticated' ? state.user : null;
-  // Kept here, not in the form, so a 401 elsewhere (the follow poll) that
-  // logs the viewer out does not throw away what they were typing.
+  // 폼이 아니라 여기서 들고 있다. 그래서 다른 곳의 401(팔로우 폴링)로
+  // 시청자가 로그아웃되어도 입력하던 내용이 사라지지 않는다.
   const [draft, setDraft] = useState('');
   const loginState: LoginPageState = { from: `/broadcasts/${broadcastId}` };
 
@@ -187,7 +187,7 @@ function CommentItem({
       onChanged();
     } catch (err) {
       if (toLogin(err)) return;
-      // Already deleted, say from another tab: the next list drops it.
+      // 이미 삭제됐다(예: 다른 탭에서). 다음 목록에서 빠진다.
       if (err instanceof ApiError && err.status === 404) {
         setMode('view');
         onChanged();

@@ -18,7 +18,7 @@ function Item({ entry }: { entry: FollowEntry }) {
       </span>
     </>
   );
-  // A LIVE streamer opens their broadcast, an offline one their channel.
+  // LIVE 스트리머는 방송을, 오프라인 스트리머는 채널을 연다.
   return (
     <li>
       {entry.live ? (
@@ -42,7 +42,7 @@ function Item({ entry }: { entry: FollowEntry }) {
   );
 }
 
-// `collapsible` lets the left panel fold to avatars on mid-width screens.
+// `collapsible`이면 중간 너비 화면에서 왼쪽 패널이 아바타만 남기고 접힌다.
 export function FollowList({
   entries,
   collapsible = false,

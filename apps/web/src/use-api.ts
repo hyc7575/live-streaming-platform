@@ -6,9 +6,9 @@ export type Loadable<T> =
   | { status: 'loaded'; data: T }
   | { status: 'failed'; error: unknown };
 
-// GETs `path` and re-fetches when it changes. The result is tagged with the
-// path it answers, so a slow response for an old path never shows up as the
-// answer for the current one.
+// `path`를 GET하고, path가 바뀌면 다시 가져온다. 결과에는 그 결과가 답한
+// path를 붙인다. 그래서 예전 path에 대한 늦은 응답이 지금 path의
+// 응답으로 보이지 않는다.
 export function useApi<T>(path: string): Loadable<T> {
   const [result, setResult] = useState<{
     path: string;
@@ -35,8 +35,8 @@ export function useApi<T>(path: string): Loadable<T> {
   return result?.path === path ? result.loadable : { status: 'loading' };
 }
 
-// Like useApi, but re-reads every `intervalMs` and on `reload()`. A failed
-// re-read keeps the last answer on screen.
+// useApi와 같지만, `intervalMs`마다와 `reload()` 때 다시 읽는다. 다시 읽기에
+// 실패하면 마지막 응답을 화면에 둔다.
 export function usePolledApi<T>(
   path: string,
   intervalMs: number,

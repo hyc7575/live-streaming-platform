@@ -12,9 +12,9 @@ export interface BroadcastView {
 
 let clientCounter = 0;
 
-// Signup is rate limited per client IP. The API trusts one proxy hop, and
-// the Vite proxy adds none, so a fresh forwarded address per run keeps
-// repeated local runs under the limit.
+// 가입은 클라이언트 IP마다 rate limit이 걸린다. API는 프록시 한 단계를 믿고
+// Vite 프록시는 단계를 더하지 않는다. 그래서 실행마다 새 forwarded 주소를 주면
+// 로컬에서 거듭 돌려도 한도에 걸리지 않는다.
 export function clientIp(): string {
   clientCounter += 1;
   const n = (Date.now() + clientCounter) % 250;
@@ -28,7 +28,7 @@ export interface Account {
   password: string;
 }
 
-// Signup does not log in, so the account can be used from another context.
+// 가입은 로그인하지 않으므로 계정을 다른 context에서 쓸 수 있다.
 export async function signUp(
   request: APIRequestContext,
   nickname = '송출 확인',
@@ -44,7 +44,7 @@ export async function signUp(
   return { id: user.id, nickname, email, password };
 }
 
-// Logs an existing account in, for instance in a second browser context.
+// 있는 계정으로 로그인한다. 예를 들어 두 번째 브라우저 context에서 쓴다.
 export async function logIn(
   request: APIRequestContext,
   account: Pick<Account, 'email' | 'password'>,
@@ -111,8 +111,8 @@ export async function watchUntilPlaying(viewer: Page) {
     .toBeGreaterThan(1);
 }
 
-// A real, decodable image drawn by the browser, so the static server and
-// the <img> both see what a streamer's file would be.
+// 브라우저가 그린, 실제로 디코드되는 이미지. 그래서 정적 서버와
+// <img> 모두 스트리머 파일과 같은 것을 본다.
 export async function drawImage(
   page: Page,
   type: 'image/png' | 'image/webp',

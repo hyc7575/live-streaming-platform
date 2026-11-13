@@ -20,8 +20,8 @@ export function configureApp(
   session: SessionSettings,
 ): void {
   app.setGlobalPrefix('api');
-  // Caddy terminates TLS one hop in front. Trusting that hop lets Express see
-  // https (so Secure cookies are issued) and the client IP (for rate limits).
+  // Caddy가 한 홉 앞에서 TLS를 종료한다. 그 홉을 신뢰하면 Express가
+  // https를 알아보고(그래서 Secure 쿠키를 발급한다) 클라이언트 IP도 본다(rate limit용).
   app.set('trust proxy', 1);
   app.use(sessionMiddleware(app.get(SESSION_STORE), session));
 }

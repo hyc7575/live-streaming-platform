@@ -1,3 +1,3 @@
-// The API returns at most this many rows per history list (PRD-mypage 7.4:
-// no pagination at the test data's scale).
+// API는 내역 목록마다 최대 이만큼의 행을 돌려준다(PRD-mypage 7.4:
+// 테스트 데이터 규모에서는 페이지를 나누지 않는다).
 export const HISTORY_LIMIT = 50;

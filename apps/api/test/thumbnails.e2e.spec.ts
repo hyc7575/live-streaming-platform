@@ -51,8 +51,8 @@ describe('broadcast thumbnails', () => {
   const detail = async (id: string) =>
     (await anonymous().get(`/api/broadcasts/${id}`)).body as BroadcastView;
 
-  // The file a viewer's browser gets for a thumbnailUrl: the static server's
-  // root is the thumbnails folder, with the /thumbnails prefix stripped.
+  // 시청자 브라우저가 thumbnailUrl로 받는 파일. 정적 서버의
+  // 루트는 thumbnails 폴더이고, /thumbnails 접두사는 떼어 낸다.
   const served = (url: string) =>
     readFile(
       join(dir, new URL(url, 'http://x').pathname.replace(/^\/thumbnails/, '')),

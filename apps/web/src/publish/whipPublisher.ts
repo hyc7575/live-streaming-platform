@@ -2,9 +2,9 @@ import OvenLiveKit from 'ovenlivekit';
 
 export type PublishEvent =
   | { kind: 'connected' }
-  // `status` is OME's HTTP answer to the WHIP offer when there was one. A 401
-  // is the Admission Webhook saying no. `null` with no answer at all, as when
-  // ICE fails or never connects on a network that blocks both UDP and TURN.
+  // `status`는 WHIP offer에 대한 OME의 HTTP 응답이다(응답이 있었다면). 401은
+  // Admission Webhook이 거절한 것이다. 응답이 전혀 없으면 `null`이다. UDP와 TURN을
+  // 모두 막은 네트워크에서 ICE가 실패하거나 끝내 연결되지 않을 때가 그렇다.
   | { kind: 'failed'; status: number | null }
   | { kind: 'disconnected' };
 
@@ -12,28 +12,28 @@ type TrackKind = 'audio' | 'video';
 
 export interface WhipPublisher {
   /**
-   * Sends a clone of `track` in place of the track of the same kind, as when
-   * the streamer picks another screen or camera.
+   * 같은 종류의 트랙 대신 `track`의 복제본을 보낸다. 스트리머가
+   * 다른 화면이나 카메라를 고를 때 쓴다.
    */
   replaceTrack: (track: MediaStreamTrack) => void;
   /**
-   * Stops sending `kind` until the next `replaceTrack`. The sent clone holds
-   * the camera just like the capture's own track, and most phones open only
-   * one camera at a time.
+   * 다음 `replaceTrack` 전까지 `kind` 트랙을 보내지 않는다. 보내던 복제본도
+   * 캡처의 원래 트랙처럼 카메라를 붙잡고, 대부분의 휴대폰은 카메라를
+   * 한 번에 하나만 연다.
    */
   releaseTrack: (kind: TrackKind) => void;
   stop: () => void;
 }
 
-// PRD §7.2: H.264 is pinned because a VP8 publish reaches LL-HLS as audio
-// only, and `iceTransportPolicy: 'all'` keeps OvenLiveKit from forcing TURN
-// once OME advertises it for `transport=all`.
+// PRD §7.2: VP8로 송출하면 LL-HLS에 오디오만 도착하므로 H.264로 고정한다.
+// `iceTransportPolicy: 'all'`은 OME가 `transport=all`용으로 TURN을 알린 뒤에도
+// OvenLiveKit이 TURN을 강제하지 않게 한다.
 const CONNECTION_CONFIG = {
   iceTransportPolicy: 'all',
   preferredVideoFormat: 'H264',
 } as const;
 
-/** How long a started connection may take to reach ICE `connected`. */
+/** 시작한 연결이 ICE `connected`에 닿기까지 기다리는 최대 시간이다. */
 export const CONNECT_TIMEOUT_MS = 15_000;
 
 function statusOf(error: unknown): number | null {
@@ -42,17 +42,17 @@ function statusOf(error: unknown): number | null {
   return match ? Number(match[1]) : null;
 }
 
-// Sends clones of the stream's tracks and owns them: the caller's tracks
-// must outlive a failed attempt (the preview keeps running), and a clone left
-// live would keep the camera light on after the publish is over.
-// Emits at most one event after `connected`, then cleans up on its own.
+// 스트림 트랙의 복제본을 보내고 그 복제본을 직접 가진다. 호출한 쪽의 트랙은
+// 시도가 실패해도 살아 있어야 하고(미리보기가 계속 돈다), 복제본이 살아 있으면
+// 송출이 끝난 뒤에도 카메라 불이 켜져 있다.
+// `connected` 뒤에는 이벤트를 많아야 하나 내보내고, 스스로 정리한다.
 export function startWhipPublish(
   stream: MediaStream,
   publishPath: string,
   onEvent: (event: PublishEvent) => void,
 ): WhipPublisher {
-  // OvenLiveKit reads this stream when it builds the connection, so a
-  // replacement made before then must land here too.
+  // OvenLiveKit은 연결을 만들 때 이 스트림을 읽는다. 그래서 그 전에
+  // 바꾼 트랙도 여기에 반영해야 한다.
   const sent = new MediaStream(
     stream.getTracks().map((track) => track.clone()),
   );
@@ -67,7 +67,7 @@ export function startWhipPublish(
     kit.remove();
     for (const track of tracks) track.stop();
   };
-  // By transceiver, because a released sender has no track to match on.
+  // transceiver로 찾는다. 트랙을 놓은 sender에는 맞춰 볼 트랙이 없다.
   const senderOf = (kind: string) =>
     kit.peerConnection
       ?.getTransceivers()
@@ -76,7 +76,7 @@ export function startWhipPublish(
     const previous = sent.getTracks().find((t) => t.kind === kind);
     if (previous) sent.removeTrack(previous);
     if (next) sent.addTrack(next);
-    // A closed connection is already reported through the callbacks.
+    // 닫힌 연결은 이미 콜백으로 알렸다.
     senderOf(kind)
       ?.replaceTrack(next)
       .catch(() => {});
@@ -88,11 +88,11 @@ export function startWhipPublish(
   const releaseTrack = (kind: TrackKind) => {
     if (!done) swap(kind, null);
   };
-  // The browser cancels OvenLiveKit's own WHIP DELETE (a plain fetch) when
-  // the page unloads, and OME then notices the drop only at its ICE timeout,
-  // about 30 s later. Until it does, a reload cannot publish again because
-  // the API still sees the broadcast connected. A keepalive request outlives
-  // the page, so OME sends `closing` within a second.
+  // 페이지가 unload되면 브라우저는 OvenLiveKit의 WHIP DELETE(일반 fetch)를
+  // 취소한다. 그러면 OME는 약 30 s 뒤 ICE timeout에야 끊김을 알아챈다.
+  // 그때까지는 API가 방송을 연결된 상태로 보므로, 새로고침해도
+  // 다시 송출할 수 없다. keepalive 요청은 페이지보다 오래 살아남으므로,
+  // OME가 1초 안에 `closing`을 보낸다.
   const leave = () => {
     if (kit.resourceUrl) {
       void fetch(kit.resourceUrl, { method: 'DELETE', keepalive: true });
@@ -114,9 +114,9 @@ export function startWhipPublish(
       connectionClosed: (type) => {
         if (type !== 'user') report({ kind: 'disconnected' });
       },
-      // OvenLiveKit 1.5.8 reports ICE `failed` by calling an `errorHandler`
-      // callback it never defines, so the TypeError is all it does. This
-      // callback runs just before that.
+      // OvenLiveKit 1.5.8은 정의하지도 않은 `errorHandler` 콜백을 불러
+      // ICE `failed`를 알린다. 그래서 TypeError만 나고 끝난다. 이
+      // 콜백은 그 직전에 실행된다.
       iceStateChange: (state) => {
         if (state === 'failed') report({ kind: 'failed', status: null });
       },
@@ -126,7 +126,7 @@ export function startWhipPublish(
   kit.setMediaStream(sent).then(
     () => {
       if (done) return;
-      // ICE may sit in `checking` for good, with no event at all.
+      // ICE는 아무 이벤트 없이 `checking`에 영영 머물 수 있다.
       connectTimer = setTimeout(
         () => report({ kind: 'failed', status: null }),
         CONNECT_TIMEOUT_MS,
@@ -136,7 +136,7 @@ export function startWhipPublish(
         CONNECTION_CONFIG,
       );
     },
-    // Already reported through the `error` callback.
+    // 이미 `error` 콜백으로 알렸다.
     () => {},
   );
   return { replaceTrack, releaseTrack, stop: finish };

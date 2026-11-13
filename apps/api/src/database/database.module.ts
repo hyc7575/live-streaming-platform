@@ -18,8 +18,8 @@ export class PrismaService extends PrismaClient {
   }
 }
 
-// Prisma and the session store share one pg pool, so the app holds a single
-// set of connections and closes it once, after every consumer is done.
+// Prisma와 세션 저장소가 pg 풀 하나를 함께 쓴다. 그래서 앱은 연결 묶음을 하나만 갖고,
+// 모든 사용처가 끝난 뒤 한 번만 닫는다.
 @Global()
 @Module({
   providers: [

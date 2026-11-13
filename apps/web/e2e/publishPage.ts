@@ -16,9 +16,9 @@ const broadcast = {
 };
 
 /**
- * Answers the publish page's API calls without the API server. The token
- * request never gets an answer, so "방송 시작" leaves the page connecting
- * with the capture running, which is all these tests look at.
+ * API 서버 없이 송출 페이지의 API 호출에 응답한다. 토큰 요청에는
+ * 끝내 응답하지 않으므로 "방송 시작"을 누르면 페이지가 캡처를 켠 채 연결 중에
+ * 머문다. 이 테스트들이 보는 것은 그것뿐이다.
  */
 export async function mockPublishApi(context: BrowserContext) {
   await context.route('**/api/**', (route) => route.fulfill({ status: 404 }));

@@ -1,14 +1,14 @@
 import { defineConfig } from '@playwright/test';
 import { loadEnv } from 'vite';
 
-// Same lookup as vite.config.ts, so the dev server and the tests agree on
-// WEB_PORT from the repo-root .env. A WEB_PORT in the shell still wins.
+// vite.config.ts와 같은 방식으로 찾아, 개발 서버와 테스트가 저장소 루트 .env의
+// WEB_PORT를 똑같이 쓴다. 셸에 WEB_PORT가 있으면 그 값이 우선한다.
 const repoRoot = new URL('../..', import.meta.url).pathname;
 const port = Number(loadEnv('development', repoRoot, '').WEB_PORT || 5173);
 
-// Publish → watch against the whole local stack: web dev server, API,
-// PostgreSQL and OME (README "송출에서 시청까지"). CI's `e2e` job does not run
-// it because CI has no OME.
+// 로컬 스택 전체에서 송출 → 시청을 확인한다: 웹 개발 서버, API,
+// PostgreSQL, OME(README "송출에서 시청까지"). CI에는 OME가 없어 CI의 `e2e` job은
+// 이것을 돌리지 않는다.
 export default defineConfig({
   testDir: 'e2e-stack',
   timeout: 120_000,

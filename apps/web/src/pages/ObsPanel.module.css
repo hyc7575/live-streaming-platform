@@ -27,7 +27,7 @@
   gap: var(--space-2);
 }
 
-/* Long enough to overflow a 360px screen, so it shrinks and scrolls inside. */
+/* 360px 화면을 넘칠 만큼 길어서, 줄어든 채 안에서 스크롤한다. */
 .url {
   flex: 1;
   min-width: 0;

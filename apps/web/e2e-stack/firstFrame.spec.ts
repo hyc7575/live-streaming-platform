@@ -3,14 +3,14 @@ import { expect, test } from '@playwright/test';
 import { createBroadcast, detailOf, signUpAndLogIn } from './support';
 import { installWallClockCamera, wallClockOf } from './wallClock';
 
-// #102: how long a viewer who opens the page right after the publish
-// connects waits, measured from the LIVE transition (startedAt, written by
-// the admission webhook on this machine's clock). Run with --repeat-each to
-// collect several samples; each run prints one `first-frame {...}` line.
-// The master playlist answers seconds before the media playlist, which OME
-// holds until the first segment closes, so both are timed.
-// FIRST_FRAME_TRACE_DIR keeps each viewer's request log, including runs
-// that never play.
+// #102: 송출이 연결된 직후 페이지를 연 시청자가 얼마나 기다리는지 잰다.
+// 기준은 LIVE 전환 시각이다(startedAt. 이 기기의 시계로 Admission Webhook이
+// 기록한다). 표본을 여럿 모으려면 --repeat-each로 돌린다. 실행마다
+// `first-frame {...}` 줄을 하나 출력한다.
+// master playlist는 media playlist보다 몇 초 먼저 응답한다. OME가 media playlist를
+// 첫 세그먼트가 닫힐 때까지 붙잡아 두므로 둘 다 잰다.
+// FIRST_FRAME_TRACE_DIR를 주면 시청자마다 요청 로그를 남긴다. 끝내 재생하지
+// 못한 실행도 남긴다.
 const OME = `http://localhost:${process.env.OME_HTTP_PORT || 3333}`;
 
 test('first frame after the publish connects', async ({ page, browser }) => {
@@ -122,7 +122,7 @@ test('first frame after the publish connects', async ({ page, browser }) => {
   }
   await playlist;
 
-  // KR2 is the steady-state delay, not the catch-up right after start.
+  // KR2는 시작 직후 따라잡는 구간이 아니라 안정 상태의 지연이다.
   await viewer.waitForTimeout(20_000);
   const video = viewer.getByLabel('방송 화면');
   const latencies: number[] = [];

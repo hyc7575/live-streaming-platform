@@ -1,8 +1,8 @@
-// Areas that are the user's own workspace rather than places to watch. Their
-// pages show the area's menu on the left instead of the follow panel.
+// 시청하는 곳이 아니라 사용자 자신의 작업 공간인 영역. 이 영역의
+// 페이지는 왼쪽에 팔로우 패널 대신 영역 메뉴를 보인다.
 export interface Section {
   label: string;
-  // Paths under this prefix belong to the area.
+  // 이 접두사 아래 경로는 이 영역에 속한다.
   prefix: string;
   items: readonly { to: string; label: string }[];
 }
@@ -37,8 +37,8 @@ export function sectionOf(pathname: string): Section | null {
   );
 }
 
-// Whether `pathname` is one of the menu's own pages, as opposed to a page
-// deeper in the area such as the publish page.
+// `pathname`이 메뉴 자체 페이지인지 여부. 송출 페이지처럼 영역 안의
+// 더 깊은 페이지와 구분한다.
 export function isMenuPage(section: Section, pathname: string): boolean {
   return section.items.some((item) => item.to === pathname);
 }

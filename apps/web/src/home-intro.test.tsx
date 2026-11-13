@@ -45,8 +45,8 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
   };
 }
 
-// Answers like the API. `me` is the session /auth/me reports (a status code
-// for none or a failure); test-login always succeeds as streamer A.
+// API처럼 답한다. `me`는 /auth/me가 알려 주는 세션이다(없거나 실패면
+// 상태 코드). test-login은 늘 스트리머 A로 성공한다.
 function stubApi({
   me,
   accounts = ['A', 'B'],
@@ -98,7 +98,7 @@ it('shows the tagline and test accounts to a logged-out visitor, and stays home 
   expect(await screen.findByRole('button', { name: '사용자 B' })).toBeDefined();
   fireEvent.click(screen.getByRole('button', { name: '스트리머 A' }));
 
-  // The header's menu button, not the test account button of the same name.
+  // 이름이 같은 테스트 계정 버튼이 아니라 헤더의 메뉴 버튼이다.
   expect(
     await screen.findByRole('button', { name: '스트리머 A', expanded: false }),
   ).toBeDefined();
@@ -139,7 +139,7 @@ it('offers no test accounts when logged in or when the login state is unknown', 
         ? { name: '다시 시도' }
         : { name: '스트리머 A', expanded: false },
     );
-    // Give the test-accounts request time to answer before checking.
+    // 확인하기 전에 test-accounts 요청이 답할 시간을 준다.
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(screen.getByText(TAGLINE)).toBeDefined();
     expect(screen.queryByText('테스트 계정으로 로그인')).toBeNull();

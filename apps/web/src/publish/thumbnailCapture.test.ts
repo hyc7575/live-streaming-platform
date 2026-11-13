@@ -2,8 +2,8 @@ import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { captureFrame, useThumbnailCapture } from './thumbnailCapture';
 
-// jsdom has no canvas. This one records what is drawn, so a test can see the
-// frame's geometry and any transform applied before the draw.
+// jsdom에는 canvas가 없다. 이 canvas는 그린 내용을 기록해, 테스트가
+// 프레임의 크기·위치와 그리기 전에 적용한 transform을 볼 수 있게 한다.
 interface CanvasRecord {
   draws: unknown[][];
   transforms: string[];

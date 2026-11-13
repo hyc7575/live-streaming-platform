@@ -43,7 +43,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.clearAllMocks();
-  // jsdom keeps a `closed` override otherwise.
+  // 이렇게 하지 않으면 jsdom이 덮어쓴 `closed`를 계속 갖고 있다.
   delete (window as { closed?: boolean }).closed;
 });
 
@@ -71,7 +71,7 @@ class Reply {
   ) {}
 }
 
-// Answers each `METHOD /api/path` from the table; anything else is a 404.
+// 각 `METHOD /api/path`에 표의 값으로 답하고, 나머지는 404다.
 function stubApi(routes: Record<string, unknown>) {
   const calls: string[] = [];
   const bodies: Record<string, unknown> = {};

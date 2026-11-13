@@ -208,7 +208,7 @@ it('takes keys only while the player has focus', () => {
   player.focus();
   fireEvent.keyDown(player, { key: ' ', code: 'Space' });
   expect(play).toHaveBeenCalledTimes(1);
-  // A Korean layout reports M as ㅡ; the physical key still mutes.
+  // 한국어 자판은 M을 ㅡ로 보고한다. 물리 키로는 여전히 음소거된다.
   fireEvent.keyDown(player, { key: 'ㅡ', code: 'KeyM' });
   expect(video().muted).toBe(true);
   fireEvent.keyDown(player, { key: 'ArrowDown', code: 'ArrowDown' });

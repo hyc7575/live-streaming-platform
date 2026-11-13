@@ -1,5 +1,5 @@
-/* Narrow screens stack the preview at full width with the buttons below.
-   A preview with a width of its own (the avatar circle) keeps it. */
+/* 좁은 화면은 미리보기를 전체 너비로, 버튼을 그 아래로 쌓는다.
+   자기 너비가 있는 미리보기(아바타 원)는 그 너비를 지킨다. */
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

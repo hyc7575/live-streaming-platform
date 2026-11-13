@@ -63,9 +63,9 @@ interface FollowerListJson {
   followers: { id: string; nickname: string; followedAt: string }[];
 }
 
-// PRD-mypage 7.2: the caller's own lime ledger, sent donations and
-// followers. The paths hold no user id, so the only refusal is 401, and a
-// caller never sees another user's rows.
+// PRD-mypage 7.2: 호출자 자신의 라임 원장, 보낸 후원,
+// 팔로워. 경로에 사용자 id가 없으므로 거부는 401뿐이고,
+// 호출자는 다른 사용자의 행을 절대 보지 못한다.
 describe('my history', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
@@ -119,7 +119,7 @@ describe('my history', () => {
     expect(res.status, JSON.stringify(res.body)).toBe(201);
   };
 
-  // Orders and, unless `pay` is false, confirms a card donation.
+  // 카드 후원을 주문하고, `pay`가 false가 아니면 승인까지 한다.
   const donateCard = async (
     agent: TestAgent,
     broadcastId: string,
@@ -191,7 +191,7 @@ describe('my history', () => {
         donation: null,
       }),
     ]);
-    // KR5: the newest row's balance is the balance the API reports.
+    // KR5: 가장 최근 행의 잔액이 API가 알려 주는 잔액이다.
     expect(entries[0]?.balanceAfter).toBe(await balance(viewer.agent));
     expect(await ledger(other.agent)).toEqual([
       expect.objectContaining({ kind: 'CHARGE', balanceAfter: 5_000 }),
@@ -234,8 +234,8 @@ describe('my history', () => {
     });
   });
 
-  // #114: deleting the broadcast keeps the donation and its ledger row, and
-  // the donation still names its streamer.
+  // #114: 방송을 지워도 후원과 그 원장 행은 남고,
+  // 후원은 여전히 스트리머를 가리킨다.
   it('keeps a donation whose broadcast was deleted, without the broadcast', async () => {
     const broadcastId = await goLive(streamer.user.id, '지울 방송');
     await charge(viewer.agent, 10_000);
@@ -308,7 +308,7 @@ describe('my history', () => {
     });
   });
 
-  // PRD-mypage KR4: the total is the same before and after the deletion.
+  // PRD-mypage KR4: 합계는 삭제 전후가 같다.
   it('keeps a streamer’s received total when a broadcast is deleted', async () => {
     const broadcastId = await goLive(streamer.user.id, '지울 방송');
     await charge(viewer.agent, 10_000);

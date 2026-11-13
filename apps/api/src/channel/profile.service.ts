@@ -27,8 +27,8 @@ export class ProfileService {
     private readonly testAccounts: TestAccountsConfig,
   ) {}
 
-  // A test account may resend its own nickname, so one form can save the
-  // introduction alone; only a different nickname is refused.
+  // 테스트 계정도 자기 닉네임은 다시 보낼 수 있다. 그래야 한 폼에서
+  // 소개만 저장할 수 있다. 다른 닉네임만 거부한다.
   async update(user: AuthUser, input: ProfileInput): Promise<AuthUser> {
     if (
       input.nickname !== undefined &&

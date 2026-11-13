@@ -37,8 +37,8 @@ vi.mock('../capture/pcCapture', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../capture/pcCapture')>()),
   startPcCapture: vi.fn(),
 }));
-// jsdom has no getDisplayMedia, so by default the page offers the camera
-// only, as on a phone.
+// jsdom에는 getDisplayMedia가 없어서, 기본으로 페이지는 휴대폰에서처럼
+// 카메라만 제안한다.
 vi.mock('../capture/screenAudioSupport', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('../capture/screenAudioSupport')>();
@@ -139,8 +139,8 @@ function fakePublisher() {
   return { publisher, emit: (event: PublishEvent) => act(() => emit(event)) };
 }
 
-// The returned `routes` can be changed mid-test to answer later calls
-// differently.
+// 돌려받은 `routes`를 테스트 도중에 바꿔 이후 호출에
+// 다르게 응답할 수 있다.
 function renderPage(
   api: Record<string, Reply>,
   { canSwitchCamera = false, entries = ['/studio/broadcasts/b1'] } = {},
@@ -155,7 +155,7 @@ function renderPage(
   const fake = fakeCapture({ canSwitchCamera });
   vi.mocked(startCameraCapture).mockResolvedValue(fake.capture);
   const whip = fakePublisher();
-  // The page uses useBlocker, which needs a data router.
+  // 이 페이지는 useBlocker를 쓰고, useBlocker에는 data router가 필요하다.
   const { router } = renderInDataRouter(
     entries,
     <AuthProvider>
@@ -170,8 +170,8 @@ async function turnOnCameraAndStart() {
   fireEvent.click(await screen.findByRole('button', { name: '방송 시작' }));
 }
 
-// LIVE in the reconnect grace: the publish dropped and nobody has
-// reconnected yet.
+// 유예 시간 중인 LIVE: 송출이 끊겼고 아직 아무도
+// 다시 연결하지 않았다.
 const LIVE_DROPPED = {
   status: 200,
   body: {
@@ -181,7 +181,7 @@ const LIVE_DROPPED = {
   },
 };
 
-// LIVE with a publish connected that is not this page's: OBS or another tab.
+// 이 페이지의 것이 아닌 송출이 연결된 LIVE: OBS나 다른 탭.
 const LIVE_ELSEWHERE = {
   status: 200,
   body: { ...broadcast, status: 'LIVE', disconnectedAt: null },
@@ -236,7 +236,7 @@ it('ends the broadcast after the streamer confirms, stopping publish and camera'
 
   fireEvent.click(screen.getByRole('button', { name: '종료하기' }));
   const done = await screen.findByText('방송을 종료했습니다.');
-  // Only the browser published, so there is no OBS to stop.
+  // 브라우저로만 송출했으므로 멈출 OBS가 없다.
   expect(screen.queryByText(OBS_STOP_REMINDER)).toBeNull();
   expect(page.calls).toContain('POST /api/broadcasts/b1/end');
   expect(page.publisher.stop).toHaveBeenCalled();
@@ -337,7 +337,7 @@ it('says the connection dropped when the broadcast is still LIVE', async () => {
     '송출 연결이 끊겼습니다. 다시 시작하세요.',
   );
   expect(page.capture.stop).not.toHaveBeenCalled();
-  // The reconnect grace is this page's to fill.
+  // 유예 시간은 이 페이지가 채울 수 있다.
   expect(
     screen.getByRole<HTMLButtonElement>('button', { name: '방송 시작' })
       .disabled,
@@ -413,7 +413,7 @@ it('offers a retry when the publish never connects, and retries with a new token
   });
   await turnOnCameraAndStart();
   await screen.findByText('송출을 연결하는 중입니다.');
-  // ICE failed, or no ICE connected within the timeout (whipPublisher).
+  // ICE가 실패했거나, 제한 시간 안에 ICE가 연결되지 않았다 (whipPublisher).
   page.emit({ kind: 'failed', status: null });
   expect((await screen.findByRole('alert')).textContent).toBe(
     '송출 서버에 연결하지 못했습니다. 네트워크를 바꾸거나 다시 시도하세요.',
@@ -891,7 +891,7 @@ it('asks the browser to confirm a reload or a closed tab only while publishing',
 
   await turnOnCameraAndStart();
   await screen.findByText('송출을 연결하는 중입니다.');
-  // The listener comes and goes in an effect, a tick after the render.
+  // 리스너는 렌더 한 틱 뒤 effect에서 붙었다 떨어진다.
   await waitFor(() => expect(unloadIsBlocked()).toBe(true));
   page.emit({ kind: 'connected' });
   expect(unloadIsBlocked()).toBe(true);
@@ -952,7 +952,7 @@ it('issues an OBS URL and shows it whole with when it expires', async () => {
       new Date(2026, 10, 13, 2, 30),
     ),
   });
-  // Keyboard: ← from the first tab wraps to the last.
+  // 키보드: 첫 탭에서 ←를 누르면 마지막 탭으로 넘어간다.
   const browserTab = await screen.findByRole('tab', {
     name: '브라우저로 송출',
   });
@@ -1133,7 +1133,7 @@ it('follows the OBS publish in the OBS tab, through a drop, and ends it there', 
       within(obsPanel).queryByRole('button', { name: '방송 종료' }),
     ).toBeNull();
 
-    // OBS starts publishing.
+    // OBS가 송출을 시작한다.
     page.routes['GET /api/broadcasts/b1'] = LIVE_ELSEWHERE;
     act(() => {
       vi.advanceTimersByTime(5000);

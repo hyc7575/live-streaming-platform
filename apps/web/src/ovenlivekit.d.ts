@@ -1,5 +1,5 @@
-// The package ships no types. This covers only what src/publish uses, read
-// from ovenlivekit@1.5.8 src/OvenLiveKit.js.
+// 이 패키지에는 타입이 없다. src/publish가 쓰는 것만 다루며,
+// ovenlivekit@1.5.8의 src/OvenLiveKit.js를 읽고 적었다.
 declare module 'ovenlivekit' {
   interface OvenLiveKitCallbacks {
     connected?: (event: Event) => void;
@@ -20,13 +20,13 @@ declare module 'ovenlivekit' {
     peerConnection: RTCPeerConnection | null;
     resourceUrl: string | null;
     setMediaStream: (stream: MediaStream) => Promise<MediaStream>;
-    // Needs an absolute http(s) URL for WHIP.
+    // WHIP에는 절대 http(s) URL이 필요하다.
     startStreaming: (
       endpointUrl: string,
       connectionConfig?: OvenLiveKitConnectionConfig,
     ) => void;
-    // Closes the connection, DELETEs the WHIP resource and stops every
-    // track of the stream given to setMediaStream.
+    // 연결을 닫고, WHIP 리소스를 DELETE하고, setMediaStream에 넘긴
+    // 스트림의 모든 트랙을 멈춘다.
     remove: () => void;
   }
 

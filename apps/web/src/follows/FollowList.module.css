@@ -75,7 +75,7 @@ a.item:hover {
   color: var(--color-text-muted);
 }
 
-/* Folded to a column of avatars; the title attribute carries the names. */
+/* 아바타만 세로 한 줄로 접힌다. 이름은 title 속성이 담는다. */
 @media (max-width: 1279px) {
   .collapsible .item {
     justify-content: center;

@@ -56,7 +56,7 @@ describe('lime charges', () => {
   };
   const ledgerCount = () => prisma.limeLedger.count();
 
-  // Orders a charge and returns what the success page would post back.
+  // 충전을 주문하고, 성공 페이지가 다시 보낼 값을 돌려준다.
   const ordered = async (amount = 10_000, agent = buyer.agent) => {
     const res = await charge(agent, { amount });
     expect(res.status, JSON.stringify(res.body)).toBe(201);

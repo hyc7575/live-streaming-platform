@@ -50,7 +50,7 @@
 }
 
 .status {
-  /* No box of its own, so an empty status adds no gap to the panel. */
+  /* 자기 상자가 없어서, 빈 상태 문구가 패널에 간격을 더하지 않는다. */
   display: contents;
 }
 

@@ -35,8 +35,8 @@ const confirmSchema = z.object({
 type ChargeInput = z.infer<typeof chargeSchema>;
 type ConfirmInput = z.infer<typeof confirmSchema>;
 
-// Guards run before the body pipe, so a logged-out caller gets 401 before
-// any 400.
+// guard가 body pipe보다 먼저 돌므로, 로그아웃한 호출자는 400보다
+// 먼저 401을 받는다.
 @Controller()
 @UseGuards(LoggedInGuard)
 export class LimeController {

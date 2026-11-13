@@ -14,9 +14,9 @@ export interface TossPayment {
   approvedAt: string | null;
 }
 
-// Toss's payment API, narrowed to what the API asks of it.
+// Toss 결제 API 중 이 API가 요청하는 부분만 좁힌 것.
 export interface TossPayments {
-  // Approves the payment the donor authorized in the payment widget.
+  // 후원자가 결제 위젯에서 인증한 결제를 승인한다.
   confirm(input: TossConfirmInput): Promise<TossPayment>;
 }
 
@@ -39,8 +39,8 @@ export interface TossConfig {
   secretKey: string;
 }
 
-// Null turns donations off with 503 while the rest of the API still runs.
-// The production compose file refuses to start without both keys.
+// null이면 후원은 503으로 꺼지고 나머지 API는 계속 돈다.
+// 운영 compose 파일은 두 키가 모두 없으면 시작을 거부한다.
 export function tossConfigFromEnv(
   env: Record<string, string | undefined>,
 ): TossConfig | null {
@@ -50,8 +50,8 @@ export function tossConfigFromEnv(
   return { clientKey, secretKey };
 }
 
-// Shorter than the confirm transaction's timeout, which holds the order row
-// locked while it waits for this request.
+// 확정 트랜잭션의 타임아웃보다 짧다. 그 트랜잭션은 이 요청을 기다리는 동안
+// 주문 행을 잠가 둔다.
 export const TOSS_REQUEST_TIMEOUT_MS = 10_000;
 
 const BASE_URL = 'https://api.tosspayments.com';
@@ -73,9 +73,9 @@ export class HttpTossPayments implements TossPayments {
     this.authorization = `Basic ${Buffer.from(`${config.secretKey}:`).toString('base64')}`;
   }
 
-  // Toss replays the first answer for a repeated Idempotency-Key, so a retry
-  // after a lost response gets the approval instead of
-  // ALREADY_PROCESSED_PAYMENT.
+  // Toss는 같은 Idempotency-Key에 첫 응답을 다시 돌려준다. 그래서 응답을
+  // 잃은 뒤의 재시도는 ALREADY_PROCESSED_PAYMENT 대신
+  // 승인 결과를 받는다.
   async confirm(input: TossConfirmInput): Promise<TossPayment> {
     const res = await fetch(`${BASE_URL}/v1/payments/confirm`, {
       method: 'POST',

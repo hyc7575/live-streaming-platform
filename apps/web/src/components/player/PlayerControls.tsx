@@ -14,8 +14,8 @@ import { FullscreenIcon, PauseIcon, PlayIcon, VolumeIcon } from './PlayerIcons';
 import styles from './PlayerControls.module.css';
 import { useMediaState } from './useMediaState';
 
-// The live edge of the playing source. position() is null while the engine
-// cannot tell (before the playlist loads, or native HLS without seekable).
+// 재생 중인 소스의 라이브 엣지. 엔진이 알 수 없는 동안 position()은 null이다
+// (playlist 로드 전, 또는 seekable 없는 네이티브 HLS).
 export type LiveEdge = { position(): number | null; seek(): void };
 
 export const LIVE_THRESHOLD_S = 3;
@@ -27,13 +27,13 @@ const PLAYBACK_RATES: readonly number[] = [1, 1.25, 1.5, 2, 0.5];
 
 type EdgeState = 'unknown' | 'live' | 'behind';
 
-// iPhone Safari has no element fullscreen, only the video's own player.
+// iPhone Safari에는 요소 전체 화면이 없고, 영상 자체 플레이어만 있다.
 type IosVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
 
 function storedVolume(): number | null {
   try {
     const value = Number(localStorage.getItem(VOLUME_KEY) ?? NaN);
-    // A stored 0 would start the next visit in silence with no way back.
+    // 0을 저장하면 다음 방문이 소리 없이 시작되고 되돌릴 방법이 없다.
     return value > 0 && value <= 1 ? value : null;
   } catch {
     return null;
@@ -45,12 +45,12 @@ function storeVolume(volume: number) {
   try {
     localStorage.setItem(VOLUME_KEY, String(volume));
   } catch {
-    // Private mode or blocked storage: the volume just is not remembered.
+    // 시크릿 모드거나 저장소가 막혔다. 그러면 볼륨을 기억하지 않을 뿐이다.
   }
 }
 
-// Focus is read when the timer fires, not tracked by events: a focused
-// control that unmounts (라이브로 이동 turning into LIVE) sends no blur.
+// 포커스는 이벤트로 추적하지 않고 타이머가 울릴 때 읽는다. 포커스된
+// 컨트롤이 언마운트되면(라이브로 이동이 LIVE로 바뀔 때) blur가 오지 않는다.
 function hideWhenIdle(
   timer: RefObject<ReturnType<typeof setTimeout> | undefined>,
   container: RefObject<HTMLElement | null>,
@@ -68,12 +68,12 @@ function hideWhenIdle(
   }, HIDE_DELAY_MS);
 }
 
-// Steps of 0.1 add up to 0.7000000000000001; keep the value a slider shows.
+// 0.1씩 더하면 0.7000000000000001이 된다. 슬라이더가 보여 주는 값을 유지한다.
 function roundVolume(volume: number) {
   return Math.min(1, Math.max(0, Math.round(volume * 100) / 100));
 }
 
-// Volume 0 is as silent as muted, so the controls treat both as muted.
+// 볼륨 0은 음소거만큼 조용하므로, 컨트롤은 둘 다 음소거로 다룬다.
 function isSilent(video: { muted: boolean; volume: number }) {
   return video.muted || video.volume === 0;
 }
@@ -94,7 +94,7 @@ export function PlayerControls({
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   live?: LiveEdge;
-  // The video (and anything drawn over it beneath the controls).
+  // 영상(그리고 컨트롤 아래에서 영상 위에 그린 것).
   children: ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -107,7 +107,7 @@ export function PlayerControls({
   const tapWhileHidden = useRef(false);
 
   const shown = active || media.paused || dragging;
-  // A recording has an end to seek within; live has the live edge instead.
+  // 녹화본에는 탐색할 끝이 있다. 라이브에는 대신 라이브 엣지가 있다.
   const seekable = !live && Number.isFinite(media.duration);
   const timeText = seekable
     ? `${formatClock(media.currentTime * 1000)} / ${formatClock(media.duration * 1000)}`
@@ -144,15 +144,15 @@ export function PlayerControls({
 
   const tick = useEffectEvent(() => setEdge(readEdge()));
 
-  // timeupdate stops while paused, yet a paused live player keeps falling
-  // behind, so the gap is sampled on a clock instead.
+  // 일시정지 중에는 timeupdate가 멈추지만, 멈춘 라이브 플레이어는 계속
+  // 뒤처진다. 그래서 간격을 시계로 샘플링한다.
   useEffect(() => {
     if (!live) return;
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, [live]);
 
-  // Handlers read the ref when called: it is still null on the first render.
+  // 핸들러는 호출될 때 ref를 읽는다. 첫 렌더에서는 아직 null이다.
   function withVideo(action: (video: HTMLVideoElement) => void) {
     if (videoRef.current) action(videoRef.current);
   }
@@ -189,8 +189,8 @@ export function PlayerControls({
       PLAYBACK_RATES[
         (PLAYBACK_RATES.indexOf(media.playbackRate) + 1) % PLAYBACK_RATES.length
       ];
-    // A new src resets playbackRate to the default, so the next part of a
-    // recording keeps the speed only if both change.
+    // 새 src는 playbackRate를 기본값으로 되돌린다. 그래서 녹화의 다음 파트는
+    // 둘 다 바꿔야 속도를 유지한다.
     video.defaultPlaybackRate = next;
     video.playbackRate = next;
   }
@@ -208,7 +208,7 @@ export function PlayerControls({
     const target = event.target as HTMLElement;
     const onButton = target instanceof HTMLButtonElement;
     const onRange = target instanceof HTMLInputElement;
-    // event.code, not key: a Korean layout turns M into ㅡ.
+    // key가 아니라 event.code를 쓴다. 한국어 자판은 M을 ㅡ로 바꾼다.
     switch (event.code) {
       case 'Space':
       case 'KeyK':
@@ -240,7 +240,7 @@ export function PlayerControls({
           video.volume +
             (event.code === 'ArrowUp' ? VOLUME_STEP : -VOLUME_STEP),
         );
-        // Turning it up means the viewer wants sound, as with the slider.
+        // 볼륨을 올린다는 것은 슬라이더처럼 시청자가 소리를 원한다는 뜻이다.
         if (event.code === 'ArrowUp' && video.muted) unmute(video);
         break;
       default:
@@ -257,7 +257,7 @@ export function PlayerControls({
   function onSurfaceClick(event: MouseEvent<HTMLDivElement>) {
     const video = videoRef.current;
     if (!video || event.target !== video) return;
-    // On a phone the first tap only brings the controls back.
+    // 휴대폰에서는 첫 탭이 컨트롤만 다시 보이게 한다.
     if (tapWhileHidden.current) return;
     togglePlay(video);
   }
@@ -351,15 +351,15 @@ export function PlayerControls({
             min={0}
             max={1}
             step={0.05}
-            // Muted plays nothing, so the slider says 0; the volume
-            // underneath is kept for unmuting.
+            // 음소거는 아무 소리도 내지 않으므로 슬라이더는 0을 보인다. 그 아래
+            // 볼륨은 음소거를 풀 때를 위해 유지한다.
             value={silent ? 0 : media.volume}
             onPointerDown={onDragStart}
             onChange={(event) => {
               const volume = Number(event.currentTarget.value);
               withVideo((video) => {
                 video.volume = volume;
-                // Dragging the slider while muted means the viewer wants sound.
+                // 음소거 중에 슬라이더를 끄는 것은 시청자가 소리를 원한다는 뜻이다.
                 if (video.muted && volume > 0) unmute(video);
               });
             }}

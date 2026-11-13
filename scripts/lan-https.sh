@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Prepares the local stack for a phone on the same Wi-Fi: a mkcert certificate
-# for the Mac's LAN IP, and the .env lines to add by hand. It never edits .env.
+# 같은 Wi-Fi의 휴대폰을 위해 로컬 스택을 준비한다: Mac의 LAN IP용 mkcert 인증서와,
+# 손으로 넣을 .env 줄. .env는 절대 고치지 않는다.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

@@ -33,10 +33,10 @@ function failureMessage(action: Action, err: unknown): string {
     : '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
-// Publish, end, edit and delete for the broadcast's own streamer. The caller
-// decides who sees this; the API refuses everyone else regardless.
-// `onEnded` lets the page re-read the broadcast instead of waiting for its
-// next poll.
+// 방송 주인 스트리머의 송출·종료·수정·삭제. 누가 이것을 볼지는 호출자가
+// 정한다. 다른 사람의 요청은 어차피 API가 거부한다.
+// `onEnded`로 페이지는 다음 폴링을 기다리지 않고 방송을
+// 다시 읽는다.
 export function OwnerActions({
   broadcast,
   onEnded,
@@ -72,8 +72,8 @@ export function OwnerActions({
         void navigate('/login', { state: next });
         return;
       }
-      // Already deleted, say from another tab: there is nothing left to end
-      // or delete.
+      // 이미 삭제됐다(예: 다른 탭에서). 종료하거나 삭제할 것이 남아 있지
+      // 않다.
       if (err instanceof ApiError && err.status === 404) {
         if (action === 'delete') {
           void navigate('/studio');

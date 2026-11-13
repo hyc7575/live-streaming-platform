@@ -3,7 +3,7 @@ import { closeTabOr } from '../donation/donationChannel';
 import { useDocumentTitle } from '../use-document-title';
 import form from './AuthForm.module.css';
 
-// Toss's code when the buyer closed the payment window.
+// 구매자가 결제 창을 닫았을 때 Toss가 주는 코드.
 const CANCELED = 'PAY_PROCESS_CANCELED';
 
 export function LimeChargeFailPage() {

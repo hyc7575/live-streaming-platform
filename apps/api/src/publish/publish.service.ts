@@ -24,8 +24,8 @@ export const ENDED_PUBLISH_MESSAGE =
   '종료된 방송은 다시 송출할 수 없습니다. 새 방송을 만드세요.';
 
 export interface PublishTicket {
-  // Same-origin path: the web app and OME sit behind one origin (Vite proxy
-  // in development, Caddy in production).
+  // 같은 origin 경로. 웹 앱과 OME가 한 origin 뒤에 있다(개발에서는 Vite proxy,
+  // 운영에서는 Caddy).
   publishUrl: string;
   expiresAt: Date;
 }
@@ -43,8 +43,8 @@ export class PublishService {
     @Inject(OME_API) private readonly ome: OmeApi,
   ) {}
 
-  // The caller already passed BroadcastOwnerGuard, so the broadcast exists
-  // and belongs to `streamerId`.
+  // 호출자는 이미 BroadcastOwnerGuard를 통과했다. 그래서 방송이 있고
+  // `streamerId`의 것이다.
   async issue(
     broadcastId: string,
     streamerId: string,
@@ -116,9 +116,9 @@ export class PublishService {
     return count === 1;
   }
 
-  // The status filter makes READY → LIVE one conditional write, so two
-  // admissions racing for one broadcast let exactly one through. The partial
-  // unique index does the same across one streamer's broadcasts.
+  // status 필터로 READY → LIVE를 조건부 쓰기 한 번으로 만든다. 그래서 한 방송을 두고
+  // 경합하는 송출 허가 두 개 중 정확히 하나만 통과한다. 부분
+  // unique index는 한 스트리머의 방송들 사이에서 같은 일을 한다.
   private async goLive(id: string, now: Date): Promise<AdmissionDecision> {
     try {
       const { count } = await this.prisma.broadcast.updateMany({
@@ -139,10 +139,10 @@ export class PublishService {
     }
   }
 
-  // OME waits at most 3 s for the admission reply and refuses the publish on
-  // a timeout, so the reply never waits on the recording request. OME starts
-  // a task before its stream exists, and RecordingReconciler retries a
-  // failed start.
+  // OME는 송출 허가 응답을 최대 3초 기다리고, 시간이 넘으면 송출을
+  // 거부한다. 그래서 응답은 녹화 요청을 기다리지 않는다. OME는 스트림이
+  // 생기기 전에도 작업을 시작하고, 시작에 실패하면 RecordingReconciler가
+  // 재시도한다.
   private startRecording(id: string): void {
     this.ome
       .startRecord(id)

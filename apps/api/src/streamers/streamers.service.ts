@@ -6,15 +6,15 @@ import {
 import { PrismaService } from '../database/database.module.js';
 import { userImageUrl } from '../images/image-store.js';
 
-// GET /streamers/:id, what the channel page shows anyone. Followers are a
-// count only: the list is the streamer's own (PRD-mypage 7.2).
+// GET /streamers/:id. 채널 페이지가 누구에게나 보여 주는 내용. 팔로워는
+// 수만 보여 준다. 목록은 스트리머 본인만 본다(PRD-mypage 7.2).
 export interface StreamerProfile {
   id: string;
   nickname: string;
   bio: string;
   avatarUrl: string | null;
   followerCount: number;
-  // The one LIVE broadcast the database allows per streamer, if any.
+  // 데이터베이스가 스트리머마다 허용하는 단 하나의 LIVE 방송. 없으면 없다.
   liveBroadcastId: string | null;
 }
 

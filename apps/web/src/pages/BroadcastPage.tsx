@@ -25,33 +25,33 @@ const PLAYER_NOTICE: Record<Exclude<BroadcastStatus, 'LIVE'>, string> = {
   ENDED: '방송이 끝났습니다.',
 };
 
-// A viewer who was watching when the broadcast ended still reads that it
-// ended (T9), even when the recording is already up in the player's place.
+// 방송이 끝날 때 보고 있던 시청자는, 플레이어 자리에 녹화가 이미 올라와
+// 있어도 방송이 끝났다는 안내를 읽는다 (T9).
 const REPLAY_NOTICE = '방송이 끝났습니다. 녹화된 방송을 다시 볼 수 있습니다.';
 
-// PRD §7.4 T9: viewers notice an ended broadcast within 10 s, so the status
-// is polled at half that.
+// PRD §7.4 T9: 시청자는 10초 안에 방송 종료를 알아야 하므로, 상태를
+// 그 절반 간격으로 폴링한다.
 const STATUS_POLL_MS = 5000;
 
-// The API's recording reconciler fills recordingFiles some time after the
-// broadcast ends: it runs every 30 s, and OME first has to close the file.
-// Until this long after endedAt an ENDED broadcast with no files may still
-// get a replay, so the page keeps polling; after it, there is none.
+// API의 녹화 reconciler는 방송이 끝나고 얼마 뒤에 recordingFiles를 채운다.
+// 30초마다 돌고, 그 전에 OME가 파일을 닫아야 한다.
+// endedAt에서 이만큼 지나기 전에는 파일 없는 ENDED 방송에도 다시보기가
+// 생길 수 있어 페이지가 계속 폴링한다. 그 뒤로는 다시보기가 없다.
 const REPLAY_WAIT_MS = 90_000;
 
 const REPLAY_PREPARING_NOTICE = '다시보기를 준비하는 중입니다.';
 
-// True while an ENDED broadcast has no recording yet but may still get one.
-// `readAt` is when this answer arrived, so the check stays pure in render.
+// ENDED 방송에 아직 녹화가 없지만 생길 수 있는 동안 true다.
+// `readAt`은 이 응답이 도착한 시각이라, 렌더 안에서도 검사가 순수하다.
 function isWaitingForReplay(b: Broadcast, readAt: number): boolean {
   if (b.status !== 'ENDED' || b.recordingFiles.length > 0) return false;
   if (b.endedAt === null) return false;
   return readAt - Date.parse(b.endedAt) < REPLAY_WAIT_MS;
 }
 
-// Keeps re-reading the broadcast until it is gone, or ENDED with nothing
-// more to wait for (see isWaitingForReplay). A re-read that fails for
-// another reason keeps the last answer.
+// 방송이 사라지거나, ENDED가 되어 더 기다릴 것이 없을 때까지
+// 방송을 다시 읽는다 (isWaitingForReplay 참고). 다른 이유로 다시 읽기에
+// 실패하면 마지막 응답을 유지한다.
 function useWatchedBroadcast(path: string): {
   broadcast: Loadable<Broadcast>;
   waitingForReplay: boolean;
@@ -132,8 +132,8 @@ export function BroadcastPage() {
     `/broadcasts/${encodeURIComponent(id)}`,
   );
   useDocumentTitle(broadcast.status === 'loaded' ? broadcast.data.title : null);
-  // Tagged with the broadcast it was heard on, so moving to another
-  // broadcast starts its chat log from no playhead.
+  // 재생 위치를 받은 방송을 함께 적어 둔다. 그래서 다른 방송으로 옮기면
+  // 그 방송의 채팅 기록은 재생 위치 없이 시작한다.
   const [heard, setHeard] = useState<{
     broadcastId: string;
     playhead: Playhead;
@@ -145,8 +145,8 @@ export function BroadcastPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const wide = useWideScreen();
 
-  // Until we know whether this is the owner, the player cannot know whether
-  // to start muted (T7).
+  // 소유자인지 알기 전까지 플레이어는 음소거로 시작할지
+  // 정할 수 없다 (T7).
   if (broadcast.status === 'loading' || state.status === 'loading') return null;
   if (broadcast.status === 'failed') {
     const notFound =
@@ -172,8 +172,8 @@ export function BroadcastPage() {
     setSheetOpen(false);
   };
 
-  // Each piece below is drawn once: around the player on a wide screen, or
-  // in the 더 보기 sheet on a narrow one, where the chat takes the space.
+  // 아래 조각은 한 번만 그린다. 넓은 화면에서는 플레이어 주변에, 좁은
+  // 화면에서는 채팅이 자리를 차지하므로 더 보기 시트 안에 그린다.
   const parts = hasReplay && (
     <ReplayParts files={b.recordingFiles} part={part} onPart={pickPart} />
   );

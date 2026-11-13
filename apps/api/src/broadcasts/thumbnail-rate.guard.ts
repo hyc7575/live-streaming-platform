@@ -11,11 +11,11 @@ import { CLOCK, type Clock } from '../clock.js';
 
 export const THUMBNAIL_INTERVAL_MS = 10_000;
 
-// One upload attempt per broadcast every 10 s, counted per broadcast rather
-// than per IP, since only the owner reaches it. List it after
-// BroadcastOwnerGuard so strangers cannot use up the owner's slot. Every
-// attempt that gets here counts, valid or not. In memory: a restart only
-// forgets the last 10 s.
+// 방송마다 10초에 업로드 시도 한 번. 소유자만 여기까지 오므로 IP가 아니라
+// 방송 단위로 센다. 모르는 사람이 소유자의 몫을 써 버리지 못하게
+// BroadcastOwnerGuard 뒤에 둔다. 여기까지 온 시도는 유효하든 아니든
+// 모두 센다. 메모리에 두므로 재시작하면 마지막 10초만
+// 잊는다.
 @Injectable()
 export class ThumbnailRateGuard implements CanActivate {
   private readonly lastAttemptMs = new Map<string, number>();

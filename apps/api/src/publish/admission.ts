@@ -7,8 +7,8 @@ export function publishPath(broadcastId: string, token: string): string {
   return `/${OME_APP}/${broadcastId}?direction=whip&transport=all&token=${token}`;
 }
 
-// OME signs the exact request bytes: base64url(HMAC-SHA1(secret, body)),
-// without padding.
+// OME는 요청 바이트를 그대로 서명한다: base64url(HMAC-SHA1(secret, body)),
+// 패딩 없음.
 export function isValidOmeSignature(
   secret: string,
   rawBody: Buffer,
@@ -20,8 +20,8 @@ export function isValidOmeSignature(
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-// Only the fields the decision reads. OME sends more (client address,
-// protocol, time) and they pass through unchecked.
+// 판정이 읽는 필드만 둔다. OME는 더 보내지만(클라이언트 주소,
+// 프로토콜, 시각) 검사 없이 통과시킨다.
 export const admissionRequestSchema = z.object({
   request: z.object({
     direction: z.enum(['incoming', 'outgoing']),
@@ -66,8 +66,8 @@ export type AdmissionDecision =
 // PRD §7.4
 export const RECONNECT_GRACE_MS = 30_000;
 
-// Both sides of the grace boundary come from one cutoff, so the webhook and
-// the sweeper can never both act on the same broadcast.
+// 유예 경계의 양쪽이 하나의 기준 시각에서 나온다. 그래서 웹훅과
+// sweeper가 같은 방송에 함께 손대는 일은 없다.
 export function graceWindow(now: Date) {
   const cutoff = new Date(now.getTime() - RECONNECT_GRACE_MS);
   return {
@@ -105,7 +105,7 @@ const PHASE_PLAN: Record<PublishPhase, AdmissionPlan> = {
   ended: { kind: 'reject', reason: 'broadcast ended' },
 };
 
-// PRD §7.4 publish admission rule.
+// PRD §7.4 송출 허용 규칙.
 export function decideAdmission(
   broadcast: PublishState | null,
   token: TokenCheck,

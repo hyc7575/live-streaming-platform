@@ -10,8 +10,8 @@ import { useLoginRedirect } from '../use-login-redirect';
 import { useStickToBottom } from '../use-stick-to-bottom';
 import styles from './SidePanel.module.css';
 
-// Other viewers' messages show up within a second (PRD §8.2: polling, not
-// push); each poll asks only for what came after the last one.
+// 다른 시청자의 메시지는 1초 안에 보인다(PRD §8.2: push가 아니라 폴링).
+// 폴링마다 지난번 이후에 온 것만 요청한다.
 const CHAT_POLL_MS = 1000;
 
 const timeFormat = new Intl.DateTimeFormat('ko-KR', {
@@ -27,8 +27,8 @@ const clockFormat = new Intl.DateTimeFormat('ko-KR', {
   hourCycle: 'h23',
 });
 
-// Live chat of a READY or LIVE broadcast: one line per message, newest at
-// the bottom, and a box to send one.
+// READY나 LIVE 방송의 실시간 채팅: 메시지마다 한 줄, 최신이 맨
+// 아래에 오고, 보낼 입력창이 있다.
 export function ChatPanel({ broadcastId }: { broadcastId: string }) {
   const { state } = useAuth();
   const { messages, status, added } = useChatFeed(broadcastId, {
@@ -37,8 +37,8 @@ export function ChatPanel({ broadcastId }: { broadcastId: string }) {
   const { listRef, onScroll, stick } =
     useStickToBottom<HTMLOListElement>(messages);
   const me = state.status === 'authenticated' ? state.user : null;
-  // Kept here, not in the form, so a 401 elsewhere (the follow poll) that
-  // logs the viewer out does not throw away what they were typing.
+  // 폼이 아니라 여기서 들고 있다. 그래서 다른 곳의 401(팔로우 폴링)로
+  // 시청자가 로그아웃되어도 입력하던 내용이 사라지지 않는다.
   const [draft, setDraft] = useState('');
   const loginState: LoginPageState = { from: `/broadcasts/${broadcastId}` };
 
@@ -83,9 +83,9 @@ export function ChatPanel({ broadcastId }: { broadcastId: string }) {
   );
 }
 
-// The chat an ended broadcast had, oldest first, to read only. While the
-// replay plays, only what was sent by that point in it, as if watching
-// live; with no playhead or no part starts, all of it.
+// 끝난 방송의 채팅을 오래된 순으로, 읽기 전용으로 보여 준다. 다시보기가
+// 재생되는 동안에는 생방송을 보듯 그 시점까지 보낸 것만 보여 준다.
+// 재생 위치나 파트 시작 시각이 없으면 전부 보여 준다.
 export function ChatHistory({
   broadcastId,
   partStarts,
@@ -100,8 +100,8 @@ export function ChatHistory({
     partStarts && playhead
       ? chatUpTo(messages, partStarts, playhead)
       : messages;
-  // The playhead moves several times a second; only a change in what is
-  // shown should move the scroll.
+  // 재생 위치는 1초에 여러 번 움직인다. 보이는 내용이 바뀔 때만
+  // 스크롤을 옮겨야 한다.
   const { listRef, onScroll } = useStickToBottom<HTMLOListElement>(
     shown.length,
   );
@@ -141,7 +141,7 @@ function ChatForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toLogin = useLoginRedirect(broadcastId);
-  // The textarea's maxLength already keeps the draft within the limit.
+  // textarea의 maxLength가 이미 초안을 길이 제한 안에 둔다.
   const canSend = !busy && draft.trim().length > 0;
 
   async function send() {
@@ -169,9 +169,9 @@ function ChatForm({
     }
   }
 
-  // Enter sends and Shift+Enter breaks the line. An Enter that commits a
-  // Hangul syllable is not a send: Chrome marks it isComposing, Safari sends
-  // it after compositionend with keyCode 229.
+  // Enter는 보내고 Shift+Enter는 줄을 바꾼다. 한글 음절을 확정하는 Enter는
+  // 보내기가 아니다. Chrome은 isComposing으로 표시하고, Safari는 compositionend
+  // 뒤에 keyCode 229로 보낸다.
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key !== 'Enter' || e.shiftKey) return;
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
@@ -222,8 +222,8 @@ function ChatForm({
   );
 }
 
-// One message as a line: nickname, body, then the time. Chat is neither
-// edited nor deleted by its author.
+// 메시지 하나를 한 줄로: 닉네임, 본문, 시각 순. 채팅은 작성자가
+// 고치거나 지울 수 없다.
 function ChatLine({ message }: { message: ChatMessage }) {
   const createdAt = new Date(message.createdAt);
   return (

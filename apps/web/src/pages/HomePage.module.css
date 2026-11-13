@@ -1,4 +1,4 @@
-/* Kept to one or two short rows so the list still starts on the first screen. */
+/* 짧게 한두 줄로 둔다. 그래야 목록이 첫 화면 안에서 시작한다. */
 .intro {
   display: flex;
   flex-wrap: wrap;

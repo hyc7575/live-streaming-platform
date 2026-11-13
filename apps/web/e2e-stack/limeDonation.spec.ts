@@ -16,15 +16,15 @@ import {
   type Account,
 } from './support';
 
-// PRD §8.3 scenario 16 against the real stack: charge 10,000 lime, donate
-// 3,000 from the watch tab without leaving it, see the two buttons when the
-// balance is short, and the streamer's own donation refused with 403.
+// 실제 스택에서 PRD §8.3 시나리오 16을 확인한다: 라임 10,000을 충전하고, 시청 탭을
+// 떠나지 않고 3,000을 후원하고, 잔액이 모자랄 때 두 버튼을 보고,
+// 스트리머 자신의 후원이 403으로 거부되는지 본다.
 //
-// A Toss test payment cannot be approved headlessly (the card step needs a
-// person), so only the confirm call is stubbed. The stub does in SQL what
-// the real confirm does in its transaction: approve the order, credit the
-// balance, write the ledger row. The order, the balance, the donation and
-// the list are the real API.
+// Toss 테스트 결제는 headless로 승인할 수 없다(카드 단계에 사람이 필요하다).
+// 그래서 confirm 호출만 stub으로 대신한다. stub은 실제 confirm이 트랜잭션에서
+// 하는 일을 SQL로 한다: 주문을 승인하고, 잔액을 적립하고, 원장 행을 쓴다.
+// 주문, 잔액, 후원, 목록은
+// 실제 API다.
 
 const PG_CONTAINER = process.env.E2E_PG_CONTAINER ?? 'lsp-postgres-1';
 const PG_DB = process.env.E2E_PG_DB ?? 'lsp';
@@ -57,8 +57,8 @@ function approveCharge(orderId: string, paymentKey: string): number {
   return Number(out.trim().split('\n')[0]);
 }
 
-// Records the video's currentTime every 250 ms inside the page, so a stall
-// while another tab is in front or a request is in flight shows up.
+// 페이지 안에서 250ms마다 영상의 currentTime을 기록한다. 그래서 다른 탭이 앞에 있거나
+// 요청이 진행 중일 때 생긴 멈춤이 드러난다.
 async function startSampling(page: Page) {
   await page.getByLabel('방송 화면').evaluate((video: HTMLVideoElement) => {
     const w = window as unknown as { __samples: [number, number][] };
@@ -69,7 +69,7 @@ async function startSampling(page: Page) {
   });
 }
 
-// The longest wall-clock stretch in which currentTime did not move.
+// currentTime이 움직이지 않은 가장 긴 실제 시간 구간.
 async function longestStall(page: Page): Promise<{
   stallMs: number;
   playedS: number;
@@ -145,7 +145,7 @@ test('scenario 16: charge, then donate lime without leaving the watch tab', asyn
   const balance = form.locator('p strong').first();
   await expect(balance).toHaveText('0라임');
 
-  // 1. Charge 10,000 lime in a new tab.
+  // 1. 새 탭에서 라임 10,000을 충전한다.
   const [charge] = await Promise.all([
     viewer.waitForEvent('popup'),
     form.getByRole('button', { name: '충전하기' }).click(),
@@ -162,18 +162,18 @@ test('scenario 16: charge, then donate lime without leaving the watch tab', asyn
   ]);
   expect(ordered.status()).toBe(201);
   const { orderId } = (await ordered.json()) as { orderId: string };
-  // Toss would redirect here after approval.
+  // 승인 뒤 Toss가 여기로 리다이렉트한다.
   await charge.goto(
     `/lime/charge/success?paymentType=NORMAL&orderId=${orderId}&paymentKey=pk_e2e_${Date.now()}&amount=10000`,
   );
   await expect(
     charge.getByRole('heading', { name: '충전했습니다.' }),
   ).toBeVisible();
-  // The charge tab's message, well under the 30 s balance poll.
+  // 충전 탭의 메시지. 30초 잔액 폴링보다 훨씬 빠르다.
   await expect(balance).toHaveText('10,000라임', { timeout: 3_000 });
   await charge.close();
 
-  // 2. Donate 3,000 lime from the watch tab.
+  // 2. 시청 탭에서 라임 3,000을 후원한다.
   await viewer.bringToFront();
   await form.getByLabel('직접 입력 (라임)').fill('3000');
   await form.getByLabel(/메시지/).fill('라임으로 응원합니다');
@@ -191,7 +191,7 @@ test('scenario 16: charge, then donate lime without leaving the watch tab', asyn
   await expect(panel.locator('strong').first()).toHaveText('3,000원');
   await screenshot(viewer, 'pc-donated');
 
-  // 3. More than the balance: charge or pay by card instead.
+  // 3. 잔액보다 많으면: 대신 충전하거나 카드로 결제한다.
   await form.getByRole('button', { name: '10,000라임' }).click();
   await expect(form.getByRole('button', { name: '라임으로 후원' })).toHaveCount(
     0,
@@ -201,21 +201,21 @@ test('scenario 16: charge, then donate lime without leaving the watch tab', asyn
   await expect(form.getByRole('button', { name: '카드로 후원' })).toBeVisible();
   await screenshot(viewer, 'pc-short');
 
-  // The watch tab never navigated and the video never stopped.
+  // 시청 탭은 한 번도 이동하지 않았고 영상도 한 번도 멈추지 않았다.
   expect(navigations, 'the watch tab stayed on the page').toBe(0);
   expect(viewer.url()).toMatch(new RegExp(`/broadcasts/${id}$`));
   const played = await longestStall(viewer);
   expect(played.stallMs, JSON.stringify(played)).toBeLessThan(1_500);
   expect(played.playedS * 1000).toBeGreaterThan(played.spanMs - 2_000);
 
-  // 4. The streamer calling the API on their own broadcast gets 403.
+  // 4. 스트리머가 자기 방송에 API를 부르면 403을 받는다.
   const own = await page.request.post(`/api/broadcasts/${id}/lime-donations`, {
     data: { amount: 1000, orderId: crypto.randomUUID() },
   });
   expect(own.status()).toBe(403);
   await expect(panel.getByRole('listitem')).toHaveCount(1);
 
-  // 5. A phone: the same form inside the 더 보기 sheet.
+  // 5. 휴대폰: 더 보기 시트 안의 같은 폼.
   const phoneContext = await viewerContext(browser, {
     width: 390,
     height: 844,

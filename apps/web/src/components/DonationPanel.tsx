@@ -13,9 +13,9 @@ import { usePolledApi } from '../use-api';
 import styles from './DonationPanel.module.css';
 import { LimeDonationForm } from './LimeDonationForm';
 
-// Same cadence as comments (PRD §8.2: no realtime push).
+// 댓글과 같은 주기(PRD §8.2: 실시간 push 없음).
 const DONATION_POLL_MS = 5000;
-// How long "후원이 반영되었습니다" stays after the payment tab reports back.
+// 결제 탭이 결과를 알린 뒤 "후원이 반영되었습니다"가 남아 있는 시간.
 const DONATED_NOTICE_MS = 4000;
 
 const timeFormat = new Intl.DateTimeFormat('ko-KR', {
@@ -35,7 +35,7 @@ export function DonationPanel({
     `/broadcasts/${encodeURIComponent(broadcast.id)}/donations`,
     DONATION_POLL_MS,
   );
-  // Bumped per message so a second donation restarts the notice timer.
+  // 메시지마다 올려서, 두 번째 후원이 알림 타이머를 다시 시작하게 한다.
   const [donatedAt, setDonatedAt] = useState<number | null>(null);
 
   useEffect(
@@ -82,7 +82,7 @@ export function DonationPanel({
           </button>
         )}
       </div>
-      {/* Always mounted so screen readers announce the text when it lands. */}
+      {/* 늘 마운트해 두어, 문구가 들어올 때 스크린 리더가 읽게 한다. */}
       <div className={styles.status} role="status">
         {donatedAt !== null && (
           <p className={styles.donated}>후원이 반영되었습니다</p>

@@ -8,20 +8,20 @@ import { Prisma } from '../generated/prisma/client.js';
 
 export const SELF_FOLLOW_MESSAGE = '자기 자신은 팔로우할 수 없습니다.';
 
-// A followed streamer as the follow panel shows them. `live` is the one LIVE
-// broadcast the database allows per streamer, or null when offline.
+// 팔로우 패널에 보이는 팔로우한 스트리머. `live`는 데이터베이스가 스트리머마다
+// 허용하는 단 하나의 LIVE 방송이며, LIVE가 아니면 null이다.
 export interface FollowedStreamer {
   id: string;
   nickname: string;
   live: { broadcastId: string; title: string; startedAt: Date } | null;
 }
 
-// Enough for the test data; the list has no pagination (PRD-mypage 7.4).
+// 테스트 데이터에는 충분하다. 목록에는 페이지네이션이 없다(PRD-mypage 7.4).
 export const FOLLOWER_LIST_LIMIT = 50;
 
-// GET /me/followers. `count` covers every follower, `followers` only the
-// newest FOLLOWER_LIST_LIMIT of them. Only the streamer sees the list; the
-// public channel page shows the count alone (PRD-mypage 7.2).
+// GET /me/followers. `count`는 팔로워 전부를 세고, `followers`는 그중
+// 최신 FOLLOWER_LIST_LIMIT명만 담는다. 목록은 스트리머만 본다.
+// 공개 채널 페이지는 수만 보여 준다(PRD-mypage 7.2).
 export interface FollowerList {
   count: number;
   followers: { id: string; nickname: string; followedAt: Date }[];
@@ -39,7 +39,7 @@ export class FollowsService {
         skipDuplicates: true,
       });
     } catch (error) {
-      // The streamer was deleted between the check and the insert.
+      // 확인과 삽입 사이에 스트리머가 삭제됐다.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2003'
@@ -55,8 +55,8 @@ export class FollowsService {
     await this.prisma.follow.deleteMany({ where: { followerId, streamerId } });
   }
 
-  // Live streamers first, the latest to go live on top, then the rest by
-  // nickname. Prisma cannot order by a filtered relation, so this sorts here.
+  // LIVE 방송이 있는 스트리머가 먼저 오고 그중 가장 최근에 방송을 시작한 사람이 맨 위다. 나머지는
+  // 닉네임 순이다. Prisma는 필터한 relation으로 정렬할 수 없어 여기서 정렬한다.
   async list(followerId: string): Promise<FollowedStreamer[]> {
     const rows = await this.prisma.follow.findMany({
       where: { followerId },
@@ -79,7 +79,7 @@ export class FollowsService {
       return {
         id: streamer.id,
         nickname: streamer.nickname,
-        // A LIVE broadcast always has startedAt; admission sets both at once.
+        // LIVE 방송에는 항상 startedAt이 있다. 송출 허가가 둘을 한꺼번에 설정한다.
         live:
           live?.startedAt != null
             ? {
@@ -115,8 +115,8 @@ export class FollowsService {
     };
   }
 
-  // Unfollow runs the same checks as follow, so the API answers one
-  // (follower, streamer) pair the same way whichever verb asks.
+  // 언팔로우는 팔로우와 같은 확인을 거친다. 그래서 API는 같은
+  // (follower, streamer) 쌍에 어느 동사로 묻든 똑같이 답한다.
   private async checkTarget(
     followerId: string,
     streamerId: string,

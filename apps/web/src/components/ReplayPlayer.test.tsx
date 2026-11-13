@@ -11,7 +11,7 @@ import {
 import type { Playhead } from '../replay-chat';
 import { ReplayParts, ReplayPlayer } from './ReplayPlayer';
 
-// The player and its part picker share the part the page holds.
+// 플레이어와 파트 선택기는 페이지가 들고 있는 파트를 함께 쓴다.
 function Replay({
   files,
   onPlayhead,
@@ -71,7 +71,7 @@ it('moves on to the next part when one ends and keeps playing', () => {
   first.volume = 0.3;
   fireEvent.ended(video());
   expect(video().getAttribute('src')).toBe('/recordings/b1/1_1.mp4');
-  // Same element, so the viewer's volume and the controls stay attached.
+  // 같은 요소이므로 시청자의 볼륨과 컨트롤이 그대로 붙어 있다.
   expect(video()).toBe(first);
   expect(video().volume).toBe(0.3);
   expect(pressed()).toEqual(['2부']);
@@ -95,7 +95,7 @@ it('keeps the chosen speed into the next part', async () => {
 
   fireEvent.ended(video());
   expect(video().getAttribute('src')).toBe('/recordings/b1/1_1.mp4');
-  // jsdom skips the load a new src starts; a browser resets the rate here.
+  // jsdom은 새 src가 시작하는 로드를 건너뛴다. 브라우저는 여기서 속도를 되돌린다.
   video().playbackRate = video().defaultPlaybackRate;
   expect(video().playbackRate).toBe(2);
   expect(

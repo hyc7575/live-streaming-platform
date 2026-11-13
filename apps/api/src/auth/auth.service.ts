@@ -17,8 +17,8 @@ export interface Credentials {
 
 @Injectable()
 export class AuthService {
-  // Compared against when the email is unknown, so a miss costs the same
-  // time as a wrong password and response timing does not reveal accounts.
+  // 이메일을 모를 때 대신 비교하는 값. 그래서 없는 계정도 비밀번호가 틀린 경우와
+  // 같은 시간이 걸리고, 응답 시간으로 계정 존재가 드러나지 않는다.
   private readonly decoyHash = hashPassword('decoy-password');
 
   constructor(private readonly prisma: PrismaService) {}

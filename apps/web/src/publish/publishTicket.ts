@@ -1,8 +1,8 @@
 import { ApiError, apiFetch } from '../api';
 
-// The browser asks for a fresh ticket on every start, so its token lives
-// minutes. OBS keeps the URL and reconnects with it on its own, so its token
-// lives hours (#89).
+// 브라우저는 시작할 때마다 새 티켓을 받으므로 토큰 수명이
+// 분 단위다. OBS는 URL을 간직하고 스스로 그 URL로 다시 연결하므로 토큰 수명이
+// 시간 단위다(#89).
 export type PublishClient = 'browser' | 'obs';
 
 export type PublishTicketResult =

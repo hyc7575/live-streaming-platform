@@ -60,7 +60,7 @@ describe('donations', () => {
   const confirm = (agent: TestAgent, body: unknown) =>
     agent.post('/api/donations/confirm').send(body as object);
 
-  // Orders a donation and returns what the success page would post back.
+  // 후원을 주문하고, 성공 페이지가 다시 보낼 값을 돌려준다.
   const ordered = async (amount = 1000, message = '') => {
     const res = await order(donor.agent, { amount, message });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
@@ -209,7 +209,7 @@ describe('donations', () => {
         broadcastId,
       });
       expect(toss.calls).toEqual([payment]);
-      // toEqual treats an undefined key as absent: the list omits broadcastId.
+      // toEqual은 값이 undefined인 키를 없는 것으로 본다. 목록은 broadcastId를 빼고 보낸다.
       expect(await list()).toEqual({
         total: 5000,
         count: 1,
@@ -403,8 +403,8 @@ describe('donations', () => {
       });
     });
 
-    // #114: a donation is a record of money, so deleting the broadcast only
-    // unlinks it.
+    // #114: 후원은 돈의 기록이라, 방송을 지우면
+    // 연결만 끊는다.
     it('keeps the donations of a broadcast its streamer deletes, unlinked', async () => {
       await confirm(donor.agent, await ordered(1000));
       await ordered(2000);
@@ -441,9 +441,9 @@ describe('donations', () => {
       expect(row.status).toBe('PENDING');
     });
 
-    // Known gap, pinned so a fix shows up here: a 502 leaves the order
-    // PENDING although Toss may have taken the money, and once the
-    // broadcast is gone the retry is refused without asking Toss again.
+    // 알려진 결함. 고쳐지면 여기서 드러나도록 고정해 둔다. 502가 나면 주문은
+    // Toss가 돈을 가져갔을 수도 있는데 PENDING으로 남고, 방송이
+    // 사라진 뒤에는 재시도가 Toss에 다시 묻지 않고 거부된다.
     it('refuses the retry of a 502 confirm once the broadcast is deleted', async () => {
       const payment = await ordered(2000);
       toss.failure = new TossPaymentsError(500, 'FAILED_INTERNAL', '오류');

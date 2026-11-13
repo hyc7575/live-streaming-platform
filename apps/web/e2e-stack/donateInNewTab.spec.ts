@@ -7,9 +7,9 @@ import {
   watchUntilPlaying,
 } from './support';
 
-// Real stack for the video; the donation API is stubbed in the viewer's
-// context because a Toss test payment cannot be approved headlessly. What is
-// under test is the tab handling around it (PRD-lime 7.1·7.2).
+// 영상은 실제 스택을 쓴다. Toss 테스트 결제는 headless로 승인할 수 없어 후원 API는
+// 시청자의 context에서 stub으로 대신한다. 검증 대상은 그 주변의
+// 탭 처리다(PRD-lime 7.1·7.2).
 
 async function currentTime(viewer: Page): Promise<number> {
   return viewer
@@ -73,7 +73,7 @@ test('donating in a new tab keeps the watch tab playing and reports back', async
     new RegExp(`/broadcasts/${id}$`),
   );
 
-  // The watch tab keeps playing while the payment tab is in front.
+  // 결제 탭이 앞에 있는 동안에도 시청 탭은 계속 재생한다.
   await payment.bringToFront();
   const before = await currentTime(viewer);
   await expect
@@ -82,7 +82,7 @@ test('donating in a new tab keeps the watch tab playing and reports back', async
   await screenshot(payment, 'donate-new-tab');
 
   const readsAtConfirm = summaryReads;
-  // Toss would redirect here after approval.
+  // 승인 뒤 Toss가 여기로 리다이렉트한다.
   await payment.goto(
     `/donations/success?paymentType=NORMAL&orderId=don_e2e&paymentKey=pk_e2e&amount=5000`,
   );
@@ -90,11 +90,11 @@ test('donating in a new tab keeps the watch tab playing and reports back', async
     payment.getByRole('heading', { name: '후원했습니다.' }),
   ).toBeVisible();
 
-  // Well under the 5 s poll: the payment tab's message triggered the read.
+  // 5초 폴링보다 훨씬 빠르다. 결제 탭의 메시지가 다시 읽기를 일으켰다.
   await expect(panel.getByRole('status')).toHaveText('후원이 반영되었습니다', {
     timeout: 2_000,
   });
-  // The total; the lime form below has its own <strong> for the balance.
+  // 합계. 아래 라임 폼에는 잔액용 <strong>이 따로 있다.
   await expect(panel.locator('strong').first()).toHaveText('5,000원');
   await expect(panel.getByText('1건')).toBeVisible();
   expect(summaryReads).toBeGreaterThan(readsAtConfirm);
@@ -105,8 +105,8 @@ test('donating in a new tab keeps the watch tab playing and reports back', async
   await closed;
   expect(await currentTime(viewer)).toBeGreaterThan(before + 3);
 
-  // A tab the browser will not close (opened by hand, then redirected) goes
-  // to the broadcast instead.
+  // 브라우저가 닫지 않는 탭(손으로 연 뒤 리다이렉트된 탭)은 닫히는 대신
+  // 방송으로 이동한다.
   const typed = await viewerContext.newPage();
   await typed.goto('/');
   await typed.goto(

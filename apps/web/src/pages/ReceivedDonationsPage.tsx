@@ -10,9 +10,9 @@ import styles from './History.module.css';
 import { BroadcastLink, HistoryTime } from './HistoryParts';
 import listStyles from './ListPage.module.css';
 
-// /studio/donations: every paid donation the streamer received, across all
-// broadcasts. Donations keep their recipient, so deleting a broadcast never
-// lowers the total (PRD-mypage KR4).
+// /studio/donations: 스트리머가 모든 방송에서 받은 결제 완료 후원
+// 전부. 후원은 받는 사람을 따로 저장하므로, 방송을 지워도 합계가
+// 줄지 않는다 (PRD-mypage KR4).
 export function ReceivedDonationsPage() {
   useDocumentTitle('받은 후원');
   const received = useApi<ReceivedDonationSummary>('/me/received-donations');

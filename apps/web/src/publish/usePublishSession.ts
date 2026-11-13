@@ -11,32 +11,32 @@ import {
 } from './whipPublisher';
 
 export type PublishSessionState =
-  // `retry`: the publish was refused or never connected, so the start button
-  // offers to try again.
+  // `retry`: 송출이 거절됐거나 연결되지 않았다. 그래서 시작 버튼이
+  // 다시 시도하자고 권한다.
   | { kind: 'idle'; error: string | null; retry?: boolean }
   | { kind: 'requesting' }
   | { kind: 'connecting' }
   | { kind: 'live' }
   | { kind: 'ending' }
   | { kind: 'end-failed'; error: string }
-  // `elsewhere`: the server ended it (another tab, a delete) while this page
-  // was publishing.
+  // `elsewhere`: 이 페이지가 송출하는 동안 서버가 송출을 끝냈다
+  // (다른 탭, 삭제).
   | { kind: 'ended'; elsewhere: boolean };
 
 export interface PublishSession {
   state: PublishSessionState;
-  /** Publishes `stream`. The caller keeps owning its tracks. */
+  /** `stream`을 송출한다. 트랙은 계속 호출한 쪽이 가진다. */
   start: (stream: MediaStream) => void;
   /**
-   * Sends `track` in place of the sent track of its kind. Before the publish
-   * exists this does nothing: it sends whatever `stream` holds by then.
+   * 같은 종류로 보내던 트랙 대신 `track`을 보낸다. 송출이
+   * 생기기 전에는 아무것도 하지 않는다. 그때 `stream`에 든 트랙을 보낸다.
    */
   replaceTrack: (track: MediaStreamTrack) => void;
-  /** Stops sending `kind` until the next `replaceTrack`. */
+  /** 다음 `replaceTrack` 전까지 `kind` 트랙을 보내지 않는다. */
   releaseTrack: (kind: 'audio' | 'video') => void;
-  /** Stops the publish, then ends the broadcast on the server. */
+  /** 송출을 멈추고, 서버에서 방송을 끝낸다. */
   end: () => void;
-  /** Drops a publish that has not been ended, leaving the broadcast as it is. */
+  /** 끝내지 않은 송출을 버리고, 방송은 그대로 둔다. */
   cancel: () => void;
 }
 
@@ -49,8 +49,8 @@ function publishErrorMessage(
   if (event.status === 401) {
     return '송출이 허가되지 않았습니다. 다시 시도하세요.';
   }
-  // No answer from OME, or ICE never connected: usually a network that
-  // blocks both UDP and TURN.
+  // OME가 답하지 않았거나 ICE가 끝내 연결되지 않았다. 대개 네트워크가
+  // UDP와 TURN을 모두 막은 경우다.
   return event.status === null
     ? '송출 서버에 연결하지 못했습니다. 네트워크를 바꾸거나 다시 시도하세요.'
     : '송출 서버에 연결하지 못했습니다. 잠시 후 다시 시도하세요.';
@@ -58,8 +58,8 @@ function publishErrorMessage(
 
 const END_FAILED = '방송을 종료하지 못했습니다. 다시 시도하세요.';
 
-// A LIVE delete ends the broadcast and then removes it, so a 404 here is an
-// end too.
+// LIVE 방송을 지우면 방송을 끝낸 뒤 없앤다. 그래서 여기서 404도
+// 종료다.
 async function isEnded(broadcastId: string): Promise<boolean> {
   try {
     const b = await apiFetch<Broadcast>(`/broadcasts/${broadcastId}`);
@@ -69,8 +69,8 @@ async function isEnded(broadcastId: string): Promise<boolean> {
   }
 }
 
-// Leaving the page stops the publish but never ends the broadcast: an
-// unplanned leave is the abnormal-end path, which the server handles.
+// 페이지를 떠나면 송출은 멈추지만 방송은 끝내지 않는다. 계획 없이
+// 떠나는 것은 비정상 종료 경로이고, 서버가 처리한다.
 export function usePublishSession(broadcastId: string): PublishSession {
   const navigate = useNavigate();
   const [state, setState] = useState<PublishSessionState>({
@@ -78,8 +78,8 @@ export function usePublishSession(broadcastId: string): PublishSession {
     error: null,
   });
   const publisher = useRef<WhipPublisher | null>(null);
-  // Bumped whenever in-flight work stops mattering, so a late token or
-  // status answer never acts for an attempt nobody is waiting on.
+  // 진행 중인 작업이 의미를 잃을 때마다 값을 올린다. 그래서 늦게 온 토큰이나
+  // 상태 응답이 아무도 기다리지 않는 시도를 위해 움직이지 않는다.
   const attempt = useRef(0);
 
   const dropPublisher = useCallback(() => {
@@ -158,7 +158,7 @@ export function usePublishSession(broadcastId: string): PublishSession {
       (error: unknown) => {
         if (mine !== attempt.current) return;
         if (error instanceof ApiError && error.status === 404) {
-          // Deleted meanwhile: there is nothing left to end.
+          // 그사이 지워졌다. 끝낼 것이 남지 않았다.
           setState({ kind: 'ended', elsewhere: true });
         } else if (error instanceof ApiError && error.status === 401) {
           goToLogin();

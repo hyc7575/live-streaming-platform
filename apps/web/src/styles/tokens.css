@@ -8,8 +8,8 @@
   --color-text: #0e0e10;
   --color-text-muted: #53535f;
 
-  /* Lime fills buttons and the logo dot. On white it is too faint for text or
-     thin lines, so links, focus rings and outlines use --color-brand-strong. */
+  /* 라임색은 버튼과 로고 점을 채운다. 흰 바탕에서는 글자나 가는 선에 쓰기엔
+     너무 옅어서, 링크·포커스 링·외곽선은 --color-brand-strong을 쓴다. */
   --color-brand: #c4f04d;
   --color-brand-hover: #b2e02f;
   --color-brand-strong: #4a7a0c;
@@ -18,19 +18,19 @@
   --color-live: #e5484d;
   --color-ready: #4c8dff;
   --color-ended: #5c5c66;
-  /* Faint status fills behind a card's drawn thumbnail. */
+  /* 카드에 그린 썸네일 뒤에 까는 옅은 상태별 채움색. */
   --color-live-soft: #fde8e8;
   --color-ready-soft: #e4eeff;
   --color-ended-soft: #e6e6ea;
   --color-on-status: #ffffff;
   --color-danger: #e5484d;
   --color-video-bg: #000000;
-  /* Text and icons drawn over the video, and the gradient behind them. */
+  /* 영상 위에 그리는 글자와 아이콘, 그 뒤의 그라디언트. */
   --color-on-video: #ffffff;
   --color-player-scrim: rgba(0, 0, 0, 0.7);
-  /* Behind the 방송 준비 중 notice laid over the streamer's standby image. */
+  /* 스트리머의 기본 대기 이미지 위에 얹은 방송 준비 중 안내의 배경. */
   --color-standby-notice-band: rgba(0, 0, 0, 0.6);
-  /* Dims the page behind a confirm dialog. */
+  /* 확인 대화상자 뒤의 페이지를 어둡게 한다. */
   --color-backdrop: rgba(0, 0, 0, 0.5);
 
   --font-sans:

@@ -5,7 +5,7 @@ import styles from './PcPreflight.module.css';
 
 type LiveState = Extract<PcCaptureState, { status: 'live' }>;
 
-// Below this RMS the screen meter barely moves; a playing tab sits far above it.
+// 이 RMS 아래에서는 화면 미터가 거의 움직이지 않는다. 재생 중인 탭은 훨씬 위에 있다.
 const HEARD_LEVEL = 0.005;
 const SILENT_AFTER_MS = 3000;
 
@@ -39,7 +39,7 @@ export function BrowserNotice({ support }: { support: ScreenAudioSupport }) {
   );
 }
 
-/** Level meters and the checks a streamer should clear before going live. */
+/** 레벨 미터와, 스트리머가 방송 시작 전에 통과해야 할 점검 항목. */
 export function PcPreflight({
   capture,
   state,
@@ -47,7 +47,7 @@ export function PcPreflight({
 }: {
   capture: PcCapture;
   state: LiveState;
-  /** Absent while publishing, when starting over would cut the broadcast. */
+  /** 송출 중에는 없다. 그때 처음부터 다시 하면 방송이 끊긴다. */
   onRestart?: () => void;
 }) {
   const screenSilent = useScreenSilent(capture);

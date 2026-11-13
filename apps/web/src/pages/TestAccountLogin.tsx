@@ -8,9 +8,9 @@ const LABELS: Record<TestAccountKey, string> = {
   B: '사용자 B',
 };
 
-// The server lists only seeded accounts and none when the feature is off, so
-// an empty list or a failed request both mean "show nothing".
-// `inline` puts the label and buttons on one row, for the home intro.
+// 서버는 시드 계정만 내려주고, 기능이 꺼져 있으면 하나도 주지 않는다.
+// 그래서 빈 목록과 실패한 요청은 모두 "아무것도 보이지 않음"이다.
+// `inline`은 홈 소개에서 쓰도록 라벨과 버튼을 한 줄에 둔다.
 export function TestAccountLogin({
   disabled,
   onLogIn,

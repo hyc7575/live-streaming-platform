@@ -113,8 +113,8 @@ const FOLLOWERS: FollowerList = {
   ],
 };
 
-// Answers each `METHOD /api/path` from the table; anything else is a 404.
-// `me: 401` makes the visitor anonymous.
+// 각 `METHOD /api/path`에 표의 값으로 답하고, 나머지는 404다.
+// `me: 401`이면 방문자는 비로그인 상태다.
 function stubApi(routes: Record<string, unknown>) {
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${url}`;

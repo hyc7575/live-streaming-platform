@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import styles from './UserAvatar.module.css';
 
-// The profile image in a circle, or the nickname's first letter when there
-// is none or it fails to load. The caller sizes it. Decorative: the
-// nickname is always written beside it.
+// 원 안의 프로필 이미지. 없거나 로드에 실패하면 닉네임 첫 글자를
+// 보인다. 크기는 호출자가 정한다. 장식용이다:
+// 닉네임이 늘 옆에 적혀 있다.
 export function UserAvatar({
   nickname,
   avatarUrl,

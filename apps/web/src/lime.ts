@@ -1,6 +1,6 @@
-// Mirrors apps/api/src/lime. 1 lime = 1 won, shown as "1,000라임".
+// apps/api/src/lime과 같은 모양이다. 1 라임 = 1원이고, "1,000라임"처럼 보인다.
 
-// POST /lime/charges: what the payment widget needs.
+// POST /lime/charges: 결제 위젯에 필요한 값이다.
 export interface LimeChargeOrder {
   orderId: string;
   orderName: string;
@@ -9,8 +9,8 @@ export interface LimeChargeOrder {
   customerKey: string;
 }
 
-// POST /lime/charges/confirm. balanceAfter is the balance right after this
-// charge, so a refresh shows the same numbers.
+// POST /lime/charges/confirm. balanceAfter는 이 충전 직후의 잔액이라서
+// 새로고침해도 같은 숫자가 보인다.
 export interface ConfirmedCharge {
   orderId: string;
   amount: number;
@@ -39,15 +39,15 @@ export interface LimeBalance {
   balance: number;
 }
 
-// Mirrors DonationTarget from apps/api/src/donations/sent-donation.ts: where
-// a donation went, as its donor sees it. Both are null once the broadcast
-// has been deleted (#114).
+// apps/api/src/donations/sent-donation.ts의 DonationTarget과 같은 모양이다.
+// 후원자가 보는 후원의 행선지다. 방송이 지워지면 둘 다
+// null이다(#114).
 export interface DonationTarget {
   broadcast: { id: string; title: string } | null;
   recipient: { id: string; nickname: string } | null;
 }
 
-// GET /me/lime/ledger, newest first. `donation` is set on DONATION rows.
+// GET /me/lime/ledger, 최신순이다. DONATION 행에는 `donation`이 있다.
 export interface LimeLedgerEntry {
   id: string;
   kind: 'CHARGE' | 'DONATION';

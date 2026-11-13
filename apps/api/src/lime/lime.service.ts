@@ -35,7 +35,7 @@ export const NOT_YOUR_CHARGE_MESSAGE = '내 충전 주문만 승인할 수 있�
 export const AMOUNT_MISMATCH_MESSAGE = '결제 금액이 주문과 다릅니다.';
 export const PAYMENT_KEY_USED_MESSAGE = '이미 다른 주문에 쓰인 결제입니다.';
 
-// Must outlast the Toss request it waits on while holding the order row.
+// 주문 행을 잡은 채 기다리는 Toss 요청보다 길어야 한다.
 const CONFIRM_TRANSACTION_TIMEOUT_MS = 2 * TOSS_REQUEST_TIMEOUT_MS;
 
 export interface LimeChargeOrder {
@@ -46,8 +46,8 @@ export interface LimeChargeOrder {
   customerKey: string;
 }
 
-// balanceAfter is the balance right after this charge, read from its ledger
-// row, so a repeated confirm answers exactly what the first one did.
+// balanceAfter는 이 충전 직후 잔액이며, 충전의 원장 행에서 읽는다.
+// 그래서 반복된 확정도 첫 번째와 똑같이 답한다.
 export interface ConfirmedCharge {
   orderId: string;
   amount: number;
@@ -59,11 +59,11 @@ export interface LimeBalance {
   balance: number;
 }
 
-// Enough for the test data; the ledger has no pagination (PRD-mypage 7.4).
+// 테스트 데이터에는 충분하다. 원장에는 페이지네이션이 없다(PRD-mypage 7.4).
 export const LIME_LEDGER_LIMIT = 50;
 
-// One row of GET /me/lime/ledger. `donation` says where a DONATION row's
-// lime went and is null on a CHARGE row.
+// GET /me/lime/ledger의 행 하나. `donation`은 DONATION 행의 라임이
+// 어디로 갔는지 알려 주고, CHARGE 행에서는 null이다.
 export interface LimeLedgerEntry {
   id: string;
   kind: LimeLedgerKind;
@@ -92,9 +92,9 @@ export class LimeService {
     return { balance: user.limeBalance };
   }
 
-  // Newest first, so the first row's balanceAfter is the current balance.
-  // A ledger row has no foreign key to its donation (refId serves charges
-  // too), so the donations are read in a second query.
+  // 최신순이므로 첫 행의 balanceAfter가 현재 잔액이다.
+  // 원장 행에는 후원으로 가는 외래 키가 없다(refId는 충전도
+  // 가리킨다). 그래서 후원은 두 번째 쿼리로 읽는다.
   async ledger(userId: string): Promise<LimeLedgerEntry[]> {
     const rows = await this.prisma.limeLedger.findMany({
       where: { userId },
@@ -141,13 +141,13 @@ export class LimeService {
     };
   }
 
-  // The success page calls this on every load, so a refresh, a retry after a
-  // lost response, and several tabs racing must all credit the order once.
-  // The row lock serializes confirms of one order: whoever comes second finds
-  // it APPROVED and gets the first answer back without asking Toss again.
-  // The ledger's (kind, refId) UNIQUE backs this up in the database. The
-  // balance grows by an UPDATE that adds in SQL, so confirms of different
-  // orders never overwrite each other's credit.
+  // 성공 페이지는 로드할 때마다 이것을 부른다. 그래서 새로고침, 응답을 잃은 뒤의
+  // 재시도, 여러 탭의 경합이 모두 주문을 한 번만 적립해야 한다.
+  // 행 잠금이 한 주문의 확정을 차례로 세운다. 두 번째로 온 쪽은 주문이
+  // APPROVED인 것을 보고 Toss에 다시 묻지 않고 첫 응답을 돌려받는다.
+  // 원장의 (kind, refId) UNIQUE가 데이터베이스에서 이를 한 번 더 지킨다.
+  // 잔액은 SQL에서 더하는 UPDATE로 늘어나므로, 서로 다른 주문의 확정이
+  // 서로의 적립을 덮어쓰지 않는다.
   async confirm(
     userId: string,
     input: TossConfirmInput,
@@ -223,8 +223,8 @@ export class LimeService {
         { timeout: CONFIRM_TRANSACTION_TIMEOUT_MS },
       );
     } catch (error) {
-      // Toss said no, so the order is FAILED rather than unknown. A 5xx or a
-      // lost connection leaves it PENDING. Either way a retry may confirm it.
+      // Toss가 거절했으므로 주문은 알 수 없음이 아니라 FAILED다. 5xx나
+      // 연결 끊김은 PENDING으로 남긴다. 어느 쪽이든 재시도로 확정할 수 있다.
       if (refused) {
         await this.prisma.limeCharge.updateMany({
           where: { orderId: input.orderId, status: 'PENDING' },

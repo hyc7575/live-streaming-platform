@@ -7,7 +7,7 @@ import {
   type TossConfig,
 } from './toss-payments.js';
 
-// One Toss client for every payment: card donations and lime charges.
+// 모든 결제가 Toss 클라이언트 하나를 쓴다. 카드 후원과 라임 충전.
 @Module({
   providers: [
     {

@@ -22,8 +22,8 @@
   outline-offset: 2px;
 }
 
-/* Pinned to the bottom edge at full width; the content scrolls when it is
-   taller than the sheet may grow. */
+/* 아래 가장자리에 전체 너비로 붙는다. 시트가 커질 수 있는 높이보다
+   내용이 길면 내용이 스크롤된다. */
 .sheet {
   width: 100%;
   max-width: 100%;
@@ -47,8 +47,8 @@
   padding: var(--space-4);
 }
 
-/* The gap spaces the sheet's sections, whatever margins they bring from
-   their own place on a wide screen. */
+/* 넓은 화면의 원래 자리에서 가져온 margin이 무엇이든, gap이
+   시트 구역 사이 간격을 맞춘다. */
 .sheet .content > * {
   margin-block: 0;
 }

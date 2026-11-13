@@ -7,9 +7,9 @@ import {
   watchUntilPlaying,
 } from './support';
 
-// OBS itself cannot run here, so a bare WHIP client in a page without the
-// streamer's cookies stands in for it: it has nothing but the copied URL,
-// like OBS's server field. H.264 only, as OBS sends.
+// 여기서는 OBS를 직접 돌릴 수 없어, 스트리머 쿠키가 없는 페이지의 최소 WHIP 클라이언트가
+// 대신한다. OBS의 서버 칸처럼 복사한 URL 말고는 아무것도 없다.
+// OBS가 보내는 대로 H.264만 쓴다.
 async function whipPublish(client: Page, url: string): Promise<number> {
   return client.evaluate(async (whipUrl) => {
     const stream = await navigator.mediaDevices.getUserMedia({

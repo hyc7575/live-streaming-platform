@@ -17,11 +17,11 @@ export type CameraCaptureState =
   | { status: 'ended'; reason: CameraCaptureEndReason };
 
 export interface CameraCapture {
-  /** One camera video track plus one mic audio track. A publisher sends exactly this. */
+  /** 카메라 영상 트랙 하나와 마이크 오디오 트랙 하나다. 송출자는 정확히 이것을 보낸다. */
   readonly stream: MediaStream;
   getState: () => CameraCaptureState;
   subscribe: (listener: () => void) => () => void;
-  /** Replaces the video track in `stream`; the audio track stays the same. */
+  /** `stream`의 영상 트랙을 바꾼다. 오디오 트랙은 그대로 둔다. */
   switchCamera: () => Promise<void>;
   stop: () => void;
 }
@@ -73,7 +73,7 @@ async function getCameraTrack(facingMode: ConstrainDOMString) {
 }
 
 export async function startCameraCapture(): Promise<CameraCapture> {
-  // getUserMedia is undefined outside a secure context (e.g. http://<LAN IP> on a phone).
+  // 보안 컨텍스트 밖(예: 휴대폰의 http://<LAN IP>)에서는 getUserMedia가 undefined다.
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new CameraCaptureError('insecure');
   }
@@ -153,7 +153,7 @@ function createCameraCapture(
     const to = opposite(from);
     patchLive({ switching: true });
 
-    // Phones usually cannot open two cameras at once, so release the current one first.
+    // 휴대폰은 대개 카메라 두 개를 동시에 열지 못하므로, 지금 카메라를 먼저 놓는다.
     cameraWatch.abort();
     stream.removeTrack(camera);
     camera.stop();
