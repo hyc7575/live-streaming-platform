@@ -29,8 +29,10 @@ export interface DonationOrder {
   customerKey: string;
 }
 
+// broadcastId is null once the broadcast has been deleted: the donation
+// stays on record (#114).
 export interface ConfirmedDonation extends Donation {
-  broadcastId: string;
+  broadcastId: string | null;
 }
 
 export const DONATION_MIN_AMOUNT = 1_000;

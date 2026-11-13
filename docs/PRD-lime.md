@@ -100,6 +100,7 @@
 - `LimeCharge`: 충전 주문. `orderId @unique`, `amount`, `status`, `paymentKey @unique`. 지금의 `Donation` 주문과 같은 방식이다.
 - `LimeLedger`: 원장. `userId`, `delta`(+충전, −후원), `kind`(CHARGE·DONATION), `refId`, `balanceAfter`. `(kind, refId) @@unique`로 같은 건이 두 번 기록되지 않게 한다.
 - `Donation.method`(TOSS·LIME)를 추가한다. 라임 후원은 클라이언트가 만든 멱등 키를 `orderId`로 쓰고, 바로 `APPROVED`로 저장한다.
+- 후원은 돈의 기록이라 방송보다 오래 산다(#114). 방송을 지우면 후원 행은 남고 `Donation.broadcastId`만 비운다(`onDelete: SetNull`). 그래서 원장 `refId`는 늘 실제 후원을 가리킨다. 방송이 지워진 결제 전 카드 주문은 토스를 부르기 전에 409 `방송이 삭제되어 후원할 수 없습니다.`로 거절한다. 다만 토스 승인이 502(결과 모름)로 끝난 뒤 방송이 지워지면, 재시도도 이 409에 걸려 그 결제가 기록되지 않을 수 있다(알려진 한계). 방송 소프트 삭제는 방송 조회 전부에 필터가 필요해 고르지 않았고, 후원이 있는 방송의 삭제 금지는 방송 삭제 규칙(PRD §7.4)을 바꿔 고르지 않았다.
 
 **흐름**
 - 충전: 방송 화면 "충전하기" → 새 탭 `/lime/charge` → `POST /lime/charges`(주문 저장) → Toss → `/lime/charge/success` → `POST /lime/charges/confirm`. 서버는 저장한 주문 금액과 Toss 조회 금액을 대조한다. 한 트랜잭션에서 주문 승인, 잔액 적립, 원장 기록을 한다. 이미 승인된 주문이면 기존 결과를 돌려준다. 성공하면 B와 같이 방송 탭에 알린다.

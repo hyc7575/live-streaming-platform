@@ -23,7 +23,9 @@ interface ConfirmRequest {
 type Confirmation =
   | { status: 'confirming' }
   | { status: 'done'; donation: ConfirmedDonation }
-  | { status: 'failed'; message: string };
+  // `broadcastGone`: the confirm was refused because the broadcast was
+  // deleted (#114), so there is no broadcast to go back to.
+  | { status: 'failed'; message: string; broadcastGone?: boolean };
 
 function parseQuery(
   paymentKey: string | null,
@@ -36,6 +38,9 @@ function parseQuery(
   }
   return { paymentKey, orderId, amount };
 }
+
+// The API's code for a confirm refused because the broadcast was deleted.
+const BROADCAST_DELETED_CODE = 'BROADCAST_DELETED';
 
 function confirmErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
@@ -93,7 +98,7 @@ export function DonationSuccessPage() {
           key: requestKey,
           confirmation: { status: 'done', donation },
         });
-        announceDonation(donation.broadcastId);
+        if (donation.broadcastId) announceDonation(donation.broadcastId);
       },
       (err: unknown) => {
         if (err instanceof ApiError && err.status === 401) {
@@ -103,7 +108,13 @@ export function DonationSuccessPage() {
         }
         setResult({
           key: requestKey,
-          confirmation: { status: 'failed', message: confirmErrorMessage(err) },
+          confirmation: {
+            status: 'failed',
+            message: confirmErrorMessage(err),
+            broadcastGone:
+              err instanceof ApiError &&
+              err.serverCode === BROADCAST_DELETED_CODE,
+          },
         });
       },
     );
@@ -135,7 +146,8 @@ export function DonationSuccessPage() {
 
   if (confirmation.status === 'failed') {
     // Known only in the tab that placed the order.
-    const broadcastId = orderId ? broadcastOfOrder(orderId) : null;
+    const broadcastId =
+      orderId && !confirmation.broadcastGone ? broadcastOfOrder(orderId) : null;
     return (
       <section className={form.card}>
         <h1 className={form.title}>후원하지 못했습니다</h1>
@@ -157,7 +169,14 @@ export function DonationSuccessPage() {
         {formatWon(donation.amount)}을 후원했습니다.
         {donation.message && ` 메시지: ${donation.message}`}
       </p>
-      {backButton(donation.broadcastId)}
+      {donation.broadcastId ? (
+        backButton(donation.broadcastId)
+      ) : (
+        // The broadcast was deleted after the payment (#114).
+        <p className={form.footer}>
+          <Link to="/">방송 목록으로 가기</Link>
+        </p>
+      )}
     </section>
   );
 }

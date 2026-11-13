@@ -462,6 +462,32 @@ it('closes the payment tab on 방송으로 돌아가기', async () => {
   delete (window as { closed?: boolean }).closed;
 });
 
+// #114: the donation outlives a broadcast deleted after the payment.
+it('points to the broadcast list when the paid donation’s broadcast is gone', async () => {
+  stubApi({
+    'GET /api/auth/me': viewer,
+    [CONFIRM]: { ...donation(), broadcastId: null },
+  });
+  const heard: unknown[] = [];
+  const channel = new BroadcastChannel('donations');
+  channel.onmessage = (event: MessageEvent) => heard.push(event.data);
+  renderAt(SUCCESS_PATH);
+  expect(
+    await screen.findByRole('heading', { name: '후원했습니다.' }),
+  ).toBeDefined();
+  expect(
+    screen.queryByRole('button', { name: '방송으로 돌아가기' }),
+  ).toBeNull();
+  expect(
+    screen
+      .getByRole('link', { name: '방송 목록으로 가기' })
+      .getAttribute('href'),
+  ).toBe('/');
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  channel.close();
+  expect(heard).toEqual([]);
+});
+
 it('goes to the broadcast when the browser will not close the tab', async () => {
   stubApi({
     'GET /api/auth/me': viewer,
@@ -489,6 +515,40 @@ it('shows the API’s message when the confirm fails', async () => {
   );
   expect(
     screen.getByRole('link', { name: '방송 목록으로 가기' }),
+  ).toBeDefined();
+});
+
+// #114: the order outlived its deleted broadcast. The tab that placed it
+// still knows the broadcast, but there is nothing to go back to. Another
+// 409 keeps the button.
+it('offers no way back to a broadcast the confirm says was deleted', async () => {
+  sessionStorage.setItem(`donation-order:${ORDER.orderId}`, 'b1');
+  stubApi({
+    'GET /api/auth/me': viewer,
+    [CONFIRM]: new Reply(409, {
+      message: '방송이 삭제되어 후원할 수 없습니다.',
+      code: 'BROADCAST_DELETED',
+    }),
+  });
+  renderAt(SUCCESS_PATH);
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '방송이 삭제되어 후원할 수 없습니다.',
+  );
+  expect(
+    screen.queryByRole('button', { name: '방송으로 돌아가기' }),
+  ).toBeNull();
+  expect(
+    screen.getByRole('link', { name: '방송 목록으로 가기' }),
+  ).toBeDefined();
+  cleanup();
+
+  stubApi({
+    'GET /api/auth/me': viewer,
+    [CONFIRM]: new Reply(409, { message: '이미 다른 주문에 쓰인 결제입니다.' }),
+  });
+  renderAt(SUCCESS_PATH);
+  expect(
+    await screen.findByRole('button', { name: '방송으로 돌아가기' }),
   ).toBeDefined();
 });
 

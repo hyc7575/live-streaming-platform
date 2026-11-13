@@ -32,7 +32,7 @@ interface DonationJson {
   message: string;
   approvedAt: string;
   donor: { id: string; nickname: string };
-  broadcastId?: string;
+  broadcastId?: string | null;
 }
 
 interface DonationListJson {
@@ -403,18 +403,75 @@ describe('donations', () => {
       });
     });
 
-    it('removes the donations of a broadcast its streamer deletes', async () => {
+    // #114: a donation is a record of money, so deleting the broadcast only
+    // unlinks it.
+    it('keeps the donations of a broadcast its streamer deletes, unlinked', async () => {
       await confirm(donor.agent, await ordered(1000));
       await ordered(2000);
       const removed = await streamer.agent.delete(
         `/api/broadcasts/${broadcastId}`,
       );
       expect(removed.status).toBe(204);
-      expect(await prisma.donation.count()).toBe(0);
+      const kept = await prisma.donation.findMany({
+        orderBy: { amount: 'asc' },
+      });
+      expect(kept.map((d) => [d.amount, d.status, d.broadcastId])).toEqual([
+        [1000, 'PAID', null],
+        [2000, 'PENDING', null],
+      ]);
       expect(
         (await anonymous().get(`/api/broadcasts/${broadcastId}/donations`))
           .status,
       ).toBe(404);
+    });
+
+    it('refuses to confirm an order whose broadcast was deleted, before Toss', async () => {
+      const payment = await ordered(2000);
+      await streamer.agent.delete(`/api/broadcasts/${broadcastId}`);
+      const res = await confirm(donor.agent, payment);
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({
+        message: '방송이 삭제되어 후원할 수 없습니다.',
+        code: 'BROADCAST_DELETED',
+      });
+      expect(toss.calls).toEqual([]);
+      const row = await prisma.donation.findUniqueOrThrow({
+        where: { orderId: payment.orderId },
+      });
+      expect(row.status).toBe('PENDING');
+    });
+
+    // Known gap, pinned so a fix shows up here: a 502 leaves the order
+    // PENDING although Toss may have taken the money, and once the
+    // broadcast is gone the retry is refused without asking Toss again.
+    it('refuses the retry of a 502 confirm once the broadcast is deleted', async () => {
+      const payment = await ordered(2000);
+      toss.failure = new TossPaymentsError(500, 'FAILED_INTERNAL', '오류');
+      expect((await confirm(donor.agent, payment)).status).toBe(502);
+      await streamer.agent.delete(`/api/broadcasts/${broadcastId}`);
+      toss.failure = null;
+      const retry = await confirm(donor.agent, payment);
+      expect(retry.status).toBe(409);
+      expect(toss.calls).toHaveLength(1);
+      expect(
+        await prisma.donation.findUniqueOrThrow({
+          where: { orderId: payment.orderId },
+        }),
+      ).toMatchObject({ status: 'PENDING', broadcastId: null });
+    });
+
+    it('still answers a paid donation confirmed again after its broadcast was deleted', async () => {
+      const payment = await ordered(1000);
+      const first = await confirm(donor.agent, payment);
+      expect(first.status).toBe(200);
+      await streamer.agent.delete(`/api/broadcasts/${broadcastId}`);
+      const again = await confirm(donor.agent, payment);
+      expect(again.status).toBe(200);
+      expect(again.body).toEqual({
+        ...(first.body as DonationJson),
+        broadcastId: null,
+      });
+      expect(toss.calls).toHaveLength(1);
     });
   });
 });

@@ -23,9 +23,10 @@ export class LimeDonationsController {
   ) {}
 
   // 401 (guard) → 400 (body pipe) → a key that already donated: 200 with
-  // that donation, or 409 if it is someone else's → 404 → 403 → 409 not LIVE
-  // (target) → 409 short of lime (service). A new key keeps PRD-lime 7.3's
-  // order. 201 for a new donation.
+  // that donation, 404 if it is the caller's and its broadcast was deleted,
+  // or 409 if it is someone else's → 404 → 403 → 409 not LIVE (target) →
+  // 409 short of lime (service). A new key keeps PRD-lime 7.3's order. 201
+  // for a new donation.
   @Post('broadcasts/:id/lime-donations')
   @UseGuards(LoggedInGuard)
   async donate(

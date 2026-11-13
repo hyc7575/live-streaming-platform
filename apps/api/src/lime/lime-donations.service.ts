@@ -107,8 +107,10 @@ export class LimeDonationsService {
 
   // The donation an earlier request with this key made, when it is the same
   // donor giving the same amount in lime to the same broadcast. Any other
-  // owner of the key (another user, a card order) is a 409. Null when no
-  // donation has the key.
+  // owner of the key (another user, a card order) is a 409, whether or not
+  // its broadcast still exists. The donor's own donation whose broadcast was
+  // deleted (#114) is a 404: it is kept on record, but there is no broadcast
+  // left to answer for. Null when no donation has the key.
   //
   // The controller asks this before checking the broadcast, so a resend whose
   // first answer was lost gets that donation back even after the broadcast
@@ -124,12 +126,16 @@ export class LimeDonationsService {
       select: confirmedSelect,
     });
     if (!donation) return null;
-    const same =
+    const mine =
       donation.method === 'LIME' &&
       donation.donor.id === donorId &&
-      donation.broadcastId === broadcastId &&
       donation.amount === input.amount;
-    if (!same) throw new ConflictException(ORDER_ID_TAKEN_MESSAGE);
+    if (mine && donation.broadcastId === null) {
+      throw new NotFoundException('Broadcast not found');
+    }
+    if (!mine || donation.broadcastId !== broadcastId) {
+      throw new ConflictException(ORDER_ID_TAKEN_MESSAGE);
+    }
     return donation;
   }
 }
