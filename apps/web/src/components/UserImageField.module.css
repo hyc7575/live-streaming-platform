@@ -3,12 +3,7 @@
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  justify-items: start;
   gap: var(--space-4);
-}
-
-.layout > :first-child {
-  justify-self: stretch;
 }
 
 @media (min-width: 640px) {
@@ -18,7 +13,6 @@
   }
 }
 
-.compact,
 .compact > :first-child {
   justify-self: start;
 }

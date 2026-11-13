@@ -10,6 +10,7 @@
   width: var(--channel-avatar-size);
   height: var(--channel-avatar-size);
   font-size: var(--font-size-xl);
+  font-weight: 800;
 }
 
 .bio {
