@@ -25,6 +25,7 @@ export interface FollowerList {
 // LIVE broadcasts both map into this, so a row never asks who is looking.
 export interface FollowEntry {
   key: string;
+  streamerId: string;
   nickname: string;
   live: { broadcastId: string; title: string } | null;
 }
@@ -32,6 +33,7 @@ export interface FollowEntry {
 export function followedEntries(follows: FollowedStreamer[]): FollowEntry[] {
   return follows.map((s) => ({
     key: s.id,
+    streamerId: s.id,
     nickname: s.nickname,
     live: s.live,
   }));
@@ -40,6 +42,7 @@ export function followedEntries(follows: FollowedStreamer[]): FollowEntry[] {
 export function liveEntries(broadcasts: Broadcast[]): FollowEntry[] {
   return broadcasts.map((b) => ({
     key: b.id,
+    streamerId: b.streamer.id,
     nickname: b.streamer.nickname,
     live: { broadcastId: b.id, title: b.title },
   }));

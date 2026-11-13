@@ -70,7 +70,7 @@ export class BroadcastsController {
     @Query('status', new ParseEnumPipe(publicStatus, { optional: true }))
     status?: PublicStatus,
   ): Promise<BroadcastView[]> {
-    return this.broadcasts.listPublic(status);
+    return this.broadcasts.listPublic({ status });
   }
 
   @Get('replays')

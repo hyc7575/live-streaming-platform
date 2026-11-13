@@ -134,7 +134,12 @@ it('lists followed streamers with the live ones linking to their broadcast', asy
   const live = within(panel).getByRole('link', { name: /라임조아/ });
   expect(live.getAttribute('href')).toBe('/broadcasts/b-s1');
   expect(live.getAttribute('title')).toBe('라임조아 · 새벽 랭크');
-  expect(within(items[1]).queryByRole('link')).toBeNull();
+  // An offline streamer opens their channel page instead.
+  expect(
+    within(items[1])
+      .getByRole('link', { name: /코딩하는곰/ })
+      .getAttribute('href'),
+  ).toBe('/channels/s2');
 });
 
 it('says how to follow when the list is empty', async () => {

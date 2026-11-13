@@ -28,7 +28,11 @@
 }
 
 .streamer {
-  margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+
+.streamer:hover {
+  color: var(--color-text);
+  text-decoration: underline;
 }

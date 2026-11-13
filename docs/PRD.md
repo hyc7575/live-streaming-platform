@@ -203,6 +203,7 @@ stateDiagram-v2
 | 라임 충전·잔액 조회 (P2, `POST /api/lime/charges`, `GET /api/me/lime`) | 401 | 내 것만 | — |
 | 팔로우·언팔로우 (P2) | 401 | 허용 (멱등, 204) | 400 "자기 자신은 팔로우할 수 없습니다." |
 | 내 팔로우 목록 (P2) | 401 | 내 것만 | — |
+| 채널 페이지 조회 (`GET /api/streamers/:id`·`/api/streamers/:id/broadcasts`, PRD-mypage) | 허용 | 허용 | 허용 |
 | 라임 내역·보낸 후원·받은 후원·팔로워 조회 (`GET /api/me/lime/ledger`·`/api/me/donations`·`/api/me/received-donations`·`/api/me/followers`, PRD-mypage) | 401 | 내 것만 | — |
 
 팔로우 행의 "소유자"는 자기 자신을 팔로우하는 경우다. 없는 스트리머 id는 404, UUID 형식이 아닌 id는 400이다. 검사 순서는 401 → 400(형식) → 400(자기 자신) → 404다.
@@ -346,6 +347,7 @@ sequenceDiagram
 17. B로 로그인 → 헤더 닉네임 → "마이페이지" → "라임 내역"에 충전·후원이 시간순으로 있고, 맨 위 행의 잔액이 현재 잔액과 같다. 비로그인으로 `GET /api/me/lime/ledger` → 401 ([PRD-mypage](./PRD-mypage.md))
 18. B의 "보낸 후원"에 직접결제·라임 후원이 함께 있다. A가 그 방송을 지우면 그 행이 "삭제된 방송"과 함께 남는다
 19. A로 로그인 → 스튜디오 "후원"에 모든 방송의 합계가 있다. 방송 하나를 지워도 합계가 그대로다. "팔로워"에 B가 있다
+20. 비로그인으로 A의 방송 카드 닉네임 → `/channels/<A id>`에 팔로워 수·방송 목록이 보이고, A가 LIVE면 맨 위에 그 방송이 있다. A 본인에게는 팔로우 버튼이 없다
 
 위험 분석과 대응 근거는 [PRE-MORTEM.md](./PRE-MORTEM.md)를 따른다.
 
