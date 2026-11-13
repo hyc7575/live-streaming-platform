@@ -24,6 +24,7 @@ export const SECTIONS: readonly Section[] = [
     items: [
       { to: '/me', label: '라임 내역' },
       { to: '/me/donations', label: '보낸 후원' },
+      { to: '/me/profile', label: '프로필' },
     ],
   },
 ];

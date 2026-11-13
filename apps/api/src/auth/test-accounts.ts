@@ -23,6 +23,19 @@ export const TEST_ACCOUNTS_CONFIG = Symbol('TEST_ACCOUNTS_CONFIG');
 
 type Env = Record<string, string | undefined>;
 
+// Judges share these accounts, and the README checks them by nickname, so
+// their nicknames stay what the seed set (PRD-mypage 7.2). Compared by email,
+// the same value the seed upserts on.
+export function isTestAccount(
+  config: TestAccountsConfig,
+  email: string,
+): boolean {
+  return (
+    config.enabled &&
+    TEST_ACCOUNT_KEYS.some((key) => config.emails[key] === email)
+  );
+}
+
 function envName(key: TestAccountKey, field: string): string {
   return `TEST_ACCOUNT_${key}_${field}`;
 }

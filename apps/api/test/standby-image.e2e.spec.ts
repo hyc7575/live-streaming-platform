@@ -141,11 +141,13 @@ describe('channel standby image', () => {
         id: owner.id,
         email: owner.email,
         nickname: owner.nickname,
+        bio: '',
         standbyImageUrl: expect.stringMatching(
           new RegExp(
             `^/thumbnails/users/${owner.id}/standby\\.${ext}\\?v=\\d+$`,
           ),
         ) as string,
+        avatarUrl: null,
       });
       expect(await served(user.standbyImageUrl!)).toEqual(bytes);
       expect(await me(ownerAgent)).toEqual(user);

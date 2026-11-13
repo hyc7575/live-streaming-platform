@@ -7,16 +7,17 @@
 }
 
 .avatar {
-  display: grid;
-  flex: none;
-  place-items: center;
   width: var(--channel-avatar-size);
   height: var(--channel-avatar-size);
-  background: var(--color-brand);
-  border-radius: 50%;
-  color: var(--color-on-brand);
   font-size: var(--font-size-xl);
   font-weight: 800;
+}
+
+.bio {
+  max-width: var(--player-max-width);
+  margin: calc(-1 * var(--space-4)) 0 var(--space-8);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .identity {

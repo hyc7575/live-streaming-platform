@@ -4,6 +4,7 @@ import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import { BroadcastGrid } from '../components/BroadcastGrid';
+import { UserAvatar } from '../components/UserAvatar';
 import { FollowButton } from '../follows/FollowButton';
 import { useFollows } from '../follows/follows-context';
 import type { StreamerProfile } from '../streamers';
@@ -65,9 +66,11 @@ export function StreamerPage() {
   return (
     <section>
       <div className={styles.profile}>
-        <span className={styles.avatar} aria-hidden="true">
-          {loaded.nickname.slice(0, 1)}
-        </span>
+        <UserAvatar
+          nickname={loaded.nickname}
+          avatarUrl={loaded.avatarUrl}
+          className={styles.avatar}
+        />
         <div className={styles.identity}>
           <h1 className={styles.nickname}>{loaded.nickname}</h1>
           <p className={styles.meta}>
@@ -84,6 +87,7 @@ export function StreamerPage() {
         </div>
         {!isSelf && <FollowButton streamerId={loaded.id} />}
       </div>
+      {loaded.bio && <p className={styles.bio}>{loaded.bio}</p>}
       {broadcasts.status === 'failed' && (
         <p role="alert">방송을 불러오지 못했습니다.</p>
       )}

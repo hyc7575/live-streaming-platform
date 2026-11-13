@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth, type AuthUser } from '../auth/auth-context';
+import { UserAvatar } from '../components/UserAvatar';
 import { channelPath } from '../streamers';
 import { FollowsProvider } from '../follows/FollowsProvider';
 import styles from './AppLayout.module.css';
@@ -105,9 +106,11 @@ function UserMenu({
         aria-controls={menuId}
         onClick={() => setOpen((was) => !was)}
       >
-        <span className={styles.avatar} aria-hidden="true">
-          {user.nickname.slice(0, 1)}
-        </span>
+        <UserAvatar
+          nickname={user.nickname}
+          avatarUrl={user.avatarUrl}
+          className={styles.avatar}
+        />
         <span className={styles.nickname}>{user.nickname}</span>
         <span className={styles.caret} aria-hidden="true">
           ▾

@@ -46,17 +46,21 @@ interface ImageRule {
   invalidMessage: string;
 }
 
+const USER_IMAGE_RULE = {
+  formats: ['jpeg', 'png', 'webp'],
+  maxBytes: 2 * 1024 * 1024,
+  invalidMessage: '2MB 이하의 JPEG·PNG·WebP 이미지만 올릴 수 있습니다.',
+} as const satisfies ImageRule;
+
 export const IMAGE_RULES = {
   thumbnail: {
     formats: ['jpeg'],
     maxBytes: 512 * 1024,
     invalidMessage: '512KB 이하의 JPEG 이미지만 올릴 수 있습니다.',
   },
-  standby: {
-    formats: ['jpeg', 'png', 'webp'],
-    maxBytes: 2 * 1024 * 1024,
-    invalidMessage: '2MB 이하의 JPEG·PNG·WebP 이미지만 올릴 수 있습니다.',
-  },
+  standby: USER_IMAGE_RULE,
+  // PRD-mypage 7.2: the profile image takes the standby image's rule as is.
+  avatar: USER_IMAGE_RULE,
 } as const satisfies Record<string, ImageRule>;
 
 export type ImageKind = keyof typeof IMAGE_RULES;

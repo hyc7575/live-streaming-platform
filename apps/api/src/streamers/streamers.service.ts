@@ -4,12 +4,15 @@ import {
   type BroadcastView,
 } from '../broadcasts/broadcasts.service.js';
 import { PrismaService } from '../database/database.module.js';
+import { userImageUrl } from '../images/image-store.js';
 
 // GET /streamers/:id, what the channel page shows anyone. Followers are a
 // count only: the list is the streamer's own (PRD-mypage 7.2).
 export interface StreamerProfile {
   id: string;
   nickname: string;
+  bio: string;
+  avatarUrl: string | null;
   followerCount: number;
   // The one LIVE broadcast the database allows per streamer, if any.
   liveBroadcastId: string | null;
@@ -28,6 +31,9 @@ export class StreamersService {
       select: {
         id: true,
         nickname: true,
+        bio: true,
+        avatarExt: true,
+        avatarUpdatedAt: true,
         _count: { select: { followers: true } },
         broadcasts: {
           where: { status: 'LIVE' },
@@ -40,6 +46,13 @@ export class StreamersService {
     return {
       id: user.id,
       nickname: user.nickname,
+      bio: user.bio,
+      avatarUrl: userImageUrl(
+        user.id,
+        'avatar',
+        user.avatarExt,
+        user.avatarUpdatedAt,
+      ),
       followerCount: user._count.followers,
       liveBroadcastId: user.broadcasts[0]?.id ?? null,
     };

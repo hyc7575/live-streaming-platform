@@ -17,6 +17,7 @@ import { LimeHistoryPage } from './pages/LimeHistoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { NewBroadcastPage } from './pages/NewBroadcastPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { PublishPage } from './pages/PublishPage';
 import { ReceivedDonationsPage } from './pages/ReceivedDonationsPage';
 import { SentDonationsPage } from './pages/SentDonationsPage';
@@ -46,6 +47,7 @@ export function AppRoutes() {
           <Route path="following" element={<FollowingPage />} />
           <Route path="me" element={<LimeHistoryPage />} />
           <Route path="me/donations" element={<SentDonationsPage />} />
+          <Route path="me/profile" element={<ProfilePage />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path="studio/channel" element={<ChannelPage />} />
           <Route path="studio/donations" element={<ReceivedDonationsPage />} />

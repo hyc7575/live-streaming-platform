@@ -97,6 +97,9 @@ const MATRIX = {
   '받은 후원 조회': [401,      200,          200],
   '팔로워 조회':    [401,      200,          200],
   '채널 조회':      [200,      200,          200],
+  '프로필 수정':    [401,      200,          200],
+  '프로필 이미지 등록': [401,  200,          200],
+  '프로필 이미지 삭제': [401,  204,          204],
   '채널 방송 목록': [200,      200,          200],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
@@ -202,6 +205,16 @@ describe('authorization matrix (PRD §7.5)', () => {
     standbyImages: await prisma.user.findMany({
       orderBy: { id: 'asc' },
       select: { id: true, standbyImageExt: true, standbyImageUpdatedAt: true },
+    }),
+    profiles: await prisma.user.findMany({
+      orderBy: { id: 'asc' },
+      select: {
+        id: true,
+        nickname: true,
+        bio: true,
+        avatarExt: true,
+        avatarUpdatedAt: true,
+      },
     }),
     lime: await prisma.user.findMany({
       orderBy: { id: 'asc' },
@@ -698,12 +711,49 @@ describe('authorization matrix (PRD §7.5)', () => {
         );
       },
     },
+    '프로필 수정': {
+      send: (client) => client.patch('/api/me/profile').send({ bio: '소개' }),
+      verifyAllowed: async (res, w, actor) => {
+        const [self, peer] =
+          actor === 'owner' ? [w.owner, w.other] : [w.other, w.owner];
+        expect(res.body).toMatchObject({ id: self.id, bio: '소개' });
+        const shown = async (id: string) =>
+          (
+            (await anonymous().get(`/api/streamers/${id}`)).body as {
+              bio: string;
+            }
+          ).bio;
+        expect(await shown(self.id)).toBe('소개');
+        expect(await shown(peer.id)).toBe('');
+      },
+    },
+    '프로필 이미지 등록': {
+      send: (client) =>
+        client.put('/api/me/avatar').attach('image', PNG, 'a.png'),
+      verifyAllowed: (res, w, actor) => {
+        const self = actor === 'owner' ? w.owner : w.other;
+        expect((res.body as AuthUser).avatarUrl).toMatch(
+          new RegExp(`^/thumbnails/users/${self.id}/avatar\\.png\\?v=\\d+$`),
+        );
+      },
+    },
+    '프로필 이미지 삭제': {
+      send: (client) => client.delete('/api/me/avatar'),
+      verifyAllowed: async (_res, w, actor) => {
+        const self = actor === 'owner' ? 'owner' : 'other';
+        const avatar = async () =>
+          ((await w.as[self].get('/api/auth/me')).body as AuthUser).avatarUrl;
+        expect(await avatar()).toBeNull();
+      },
+    },
     '채널 조회': {
       send: (client, w) => client.get(`/api/streamers/${w.owner.id}`),
       verifyAllowed: (res, w) => {
         expect(res.body).toEqual({
           id: w.owner.id,
           nickname: w.owner.nickname,
+          bio: '',
+          avatarUrl: null,
           followerCount: 0,
           liveBroadcastId: w.status === 'LIVE' ? w.targetId : null,
         });
@@ -761,7 +811,13 @@ describe('authorization matrix (PRD §7.5)', () => {
     await prisma.broadcast.deleteMany();
     await prisma.follow.deleteMany();
     await prisma.user.updateMany({
-      data: { standbyImageExt: null, standbyImageUpdatedAt: null },
+      data: {
+        standbyImageExt: null,
+        standbyImageUpdatedAt: null,
+        avatarExt: null,
+        avatarUpdatedAt: null,
+        bio: '',
+      },
     });
     await prisma.limeLedger.deleteMany();
     for (const user of [world.owner, world.other]) {

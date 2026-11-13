@@ -4,7 +4,9 @@ export interface AuthUser {
   id: string;
   email: string;
   nickname: string;
+  bio: string;
   standbyImageUrl: string | null;
+  avatarUrl: string | null;
 }
 
 // `loading` lasts until GET /api/auth/me answers, so a refresh never flashes

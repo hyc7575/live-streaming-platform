@@ -1198,6 +1198,46 @@ curl -s -o /dev/null -w '%{http_code}\n' $API/streamers/00000000-0000-4000-8000-
 - `apps/api/test/authorization-matrix.e2e.spec.ts`: "채널 조회"·"채널 방송 목록" 행(모두 허용).
 - `apps/web/src/my-page.test.tsx`: 비로그인 채널 화면(프로필·LIVE 구역·나머지·로그인 링크), 본인 채널에 팔로우 버튼 없음, 없는 스트리머, 카드 닉네임과 헤더 "내 채널 보기" 링크. `apps/web/src/follows.test.tsx`: 오프라인 줄이 채널 링크.
 
+### 14. 프로필 편집 (#120)
+
+소개, 프로필 이미지, 닉네임을 바꾸고 채널 페이지에서 본다(PRD-mypage, PRD §8.3 시나리오 21).
+
+규칙:
+
+- 소개는 0~200자(앞뒤 공백 제외), 닉네임은 가입과 같은 1~20자다. 프로필 이미지는 기본 대기 이미지와 같은 규칙(JPEG·PNG·WebP, 2MB, 매직 바이트)이고 파일은 썸네일 폴더의 `users/<id>/avatar.<확장자>`다. 기본 대기 이미지와 같은 서비스(`UserImageService`)가 슬롯만 바꿔 저장하므로 원자적 쓰기와 사용자별 직렬화도 같다.
+- **테스트 계정은 닉네임을 바꿀 수 없다.** 여러 심사자가 같은 계정을 쓰고, 이 README가 "스트리머 A"·"사용자 B"라는 이름으로 화면을 확인하기 때문이다. 시드와 같은 env 이메일(`TEST_ACCOUNT_*_EMAIL`)과 비교해 판정한다. 같은 닉네임을 그대로 보내는 것은 허용해, 한 양식으로 소개만 저장할 수 있다. 소개와 프로필 이미지는 테스트 계정도 바꿀 수 있다.
+- 검사 순서는 401 → 400(본문) → 403(테스트 계정의 다른 닉네임)이다. 경로에 사용자 id가 없어 그 밖의 403은 없다.
+
+| 행동 | 비로그인 | 로그인 |
+|---|---|---|
+| 프로필 수정 `PATCH /me/profile` `{nickname?, bio?}` | 401 | 내 것만. 테스트 계정의 닉네임 변경은 403 |
+| 프로필 이미지 `PUT`·`DELETE /me/avatar` | 401 | 내 것만 |
+
+화면에서 확인:
+
+1. 시나리오 21: "스트리머 A"로 로그인 → 헤더 "스트리머 A" → "마이페이지" → 왼쪽 메뉴 "프로필". 닉네임을 바꾸고 "저장"을 누르면 "테스트 계정은 닉네임을 바꿀 수 없습니다."가 보이고 헤더 이름은 그대로다.
+2. 닉네임을 "스트리머 A"로 되돌리고 소개를 쓴 뒤 "저장" → "저장했습니다." "이미지 선택"으로 PNG를 올리면 미리보기 원과 헤더 원이 그 그림으로 바뀐다.
+3. 헤더 메뉴 "내 채널 보기"에 그 그림과 소개가 보인다.
+4. 직접 가입한 계정은 닉네임도 바뀌고 헤더가 바로 따라 바뀐다.
+
+API로 확인(2절의 `a-jar.txt`):
+
+```sh
+API=http://localhost:3000/api
+curl -s -o /dev/null -w '%{http_code}\n' -X PATCH $API/me/profile -H 'Content-Type: application/json' -d '{"bio":"x"}'                       # 401
+curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X PATCH $API/me/profile -H 'Content-Type: application/json' -d '{}'               # 400
+curl -s -b a-jar.txt -X PATCH $API/me/profile -H 'Content-Type: application/json' -d '{"nickname":"바꾼 이름"}'                         # 403 테스트 계정은 닉네임을 바꿀 수 없습니다.
+curl -s -b a-jar.txt -X PATCH $API/me/profile -H 'Content-Type: application/json' -d '{"bio":"저녁마다 방송합니다."}'                   # 200, "bio":"저녁마다 방송합니다."
+curl -s -b a-jar.txt -X PUT $API/me/avatar -F image=@avatar.png                                                                       # 200, "avatarUrl":"/thumbnails/users/…/avatar.png?v=…"
+curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X DELETE $API/me/avatar                                                         # 204
+```
+
+자동 테스트:
+
+- `apps/api/test/profile.e2e.spec.ts`: 세 경로 비로그인 401, 빈 본문·빈 닉네임·21자 닉네임·201자 소개 400, 닉네임·소개 변경이 `me`와 채널에 반영, 테스트 계정의 다른 닉네임 403(소개와 함께 보내도 아무것도 바뀌지 않음)과 같은 닉네임+소개 200, 400이 403보다 먼저, 프로필 이미지 저장·삭제가 기본 대기 이미지 파일을 건드리지 않음, 잘못된 파일 400.
+- `apps/api/test/authorization-matrix.e2e.spec.ts`: "프로필 수정"·"프로필 이미지 등록"·"프로필 이미지 삭제" 행.
+- `apps/web/src/profile-page.test.tsx`: 저장과 헤더 갱신, 테스트 계정 403 문구, 빈 닉네임은 요청 없이 거절, 프로필 이미지 올리기와 헤더 원, 채널 페이지의 소개·이미지.
+
 ## 지원 환경
 
 송출·시청 기능 이슈에서 실제로 확인한 환경만 적는다.

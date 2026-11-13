@@ -12,7 +12,7 @@ import { PrismaService } from '../database/database.module.js';
 import { Prisma, type BroadcastStatus } from '../generated/prisma/client.js';
 import {
   ImageStore,
-  standbyImageUrl,
+  userImageUrl,
   thumbnailUrl,
 } from '../images/image-store.js';
 import { OME_API, type OmeApi } from '../ome/ome-api.js';
@@ -97,8 +97,9 @@ function toView({
     })),
     streamer,
     thumbnailUrl: thumbnailUrl(row.id, thumbnailUpdatedAt),
-    standbyImageUrl: standbyImageUrl(
+    standbyImageUrl: userImageUrl(
       streamer.id,
+      'standby',
       standbyImageExt,
       standbyImageUpdatedAt,
     ),
