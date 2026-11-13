@@ -628,7 +628,7 @@ describe('authorization matrix (PRD §7.5)', () => {
         });
         expect(res.body).toEqual([
           expect.objectContaining({
-            id: own[0].id,
+            id: own[0]?.id,
             kind: 'CHARGE',
             balanceAfter: SEEDED_LIME,
             donation: null,

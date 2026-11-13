@@ -180,7 +180,7 @@ describe('my history', () => {
       }),
     ]);
     // KR5: the newest row's balance is the balance the API reports.
-    expect(entries[0].balanceAfter).toBe(await balance(viewer.agent));
+    expect(entries[0]?.balanceAfter).toBe(await balance(viewer.agent));
     expect(await ledger(other.agent)).toEqual([
       expect.objectContaining({ kind: 'CHARGE', balanceAfter: 5_000 }),
     ]);
