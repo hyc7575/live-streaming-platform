@@ -280,8 +280,8 @@ describe('lime donations', () => {
       expect(messageOf(res)).toBe(KEY_TAKEN);
     });
 
-    // A deleted broadcast takes its donations with it, so the key has
-    // nothing to return and the broadcast is simply gone.
+    // The donation outlives its deleted broadcast (#114), but there is no
+    // broadcast left to answer for, so the donor's own resend is a 404.
     it('answers 404 to a resend after the broadcast was deleted', async () => {
       await charge(donor.agent, 10_000);
       const body = attempt(3_000);
@@ -289,6 +289,26 @@ describe('lime donations', () => {
       await prisma.broadcast.delete({ where: { id: broadcastId } });
       expect((await donate(donor.agent, body)).status).toBe(404);
       expect(await balanceOf(donor.agent)).toBe(7_000);
+    });
+
+    it('refuses another user the key of a deleted broadcast’s donation with 409', async () => {
+      await charge(donor.agent, 10_000);
+      await charge(other.agent, 10_000);
+      const body = attempt(3_000);
+      expect((await donate(donor.agent, body)).status).toBe(201);
+      await prisma.broadcast.delete({ where: { id: broadcastId } });
+      const live = await prisma.broadcast.create({
+        data: {
+          streamerId: streamer.user.id,
+          title: '새 방송',
+          status: 'LIVE',
+          startedAt: new Date(),
+        },
+      });
+      const res = await donate(other.agent, body, live.id);
+      expect(res.status).toBe(409);
+      expect(messageOf(res)).toBe(KEY_TAKEN);
+      expect(await balanceOf(other.agent)).toBe(10_000);
     });
 
     // Acceptance: another user sending the same orderId is 409.

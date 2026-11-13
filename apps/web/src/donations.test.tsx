@@ -518,6 +518,40 @@ it('shows the API’s message when the confirm fails', async () => {
   ).toBeDefined();
 });
 
+// #114: the order outlived its deleted broadcast. The tab that placed it
+// still knows the broadcast, but there is nothing to go back to. Another
+// 409 keeps the button.
+it('offers no way back to a broadcast the confirm says was deleted', async () => {
+  sessionStorage.setItem(`donation-order:${ORDER.orderId}`, 'b1');
+  stubApi({
+    'GET /api/auth/me': viewer,
+    [CONFIRM]: new Reply(409, {
+      message: '방송이 삭제되어 후원할 수 없습니다.',
+      code: 'BROADCAST_DELETED',
+    }),
+  });
+  renderAt(SUCCESS_PATH);
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '방송이 삭제되어 후원할 수 없습니다.',
+  );
+  expect(
+    screen.queryByRole('button', { name: '방송으로 돌아가기' }),
+  ).toBeNull();
+  expect(
+    screen.getByRole('link', { name: '방송 목록으로 가기' }),
+  ).toBeDefined();
+  cleanup();
+
+  stubApi({
+    'GET /api/auth/me': viewer,
+    [CONFIRM]: new Reply(409, { message: '이미 다른 주문에 쓰인 결제입니다.' }),
+  });
+  renderAt(SUCCESS_PATH);
+  expect(
+    await screen.findByRole('button', { name: '방송으로 돌아가기' }),
+  ).toBeDefined();
+});
+
 it('does not confirm when the redirect lost its payment details', async () => {
   const calls = stubApi({ 'GET /api/auth/me': viewer });
   renderAt('/donations/success?orderId=x&amount=abc');

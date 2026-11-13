@@ -430,14 +430,34 @@ describe('donations', () => {
       await streamer.agent.delete(`/api/broadcasts/${broadcastId}`);
       const res = await confirm(donor.agent, payment);
       expect(res.status).toBe(409);
-      expect((res.body as { message: string }).message).toBe(
-        '방송이 삭제되어 후원할 수 없습니다.',
-      );
+      expect(res.body).toEqual({
+        message: '방송이 삭제되어 후원할 수 없습니다.',
+        code: 'BROADCAST_DELETED',
+      });
       expect(toss.calls).toEqual([]);
       const row = await prisma.donation.findUniqueOrThrow({
         where: { orderId: payment.orderId },
       });
       expect(row.status).toBe('PENDING');
+    });
+
+    // Known gap, pinned so a fix shows up here: a 502 leaves the order
+    // PENDING although Toss may have taken the money, and once the
+    // broadcast is gone the retry is refused without asking Toss again.
+    it('refuses the retry of a 502 confirm once the broadcast is deleted', async () => {
+      const payment = await ordered(2000);
+      toss.failure = new TossPaymentsError(500, 'FAILED_INTERNAL', '오류');
+      expect((await confirm(donor.agent, payment)).status).toBe(502);
+      await streamer.agent.delete(`/api/broadcasts/${broadcastId}`);
+      toss.failure = null;
+      const retry = await confirm(donor.agent, payment);
+      expect(retry.status).toBe(409);
+      expect(toss.calls).toHaveLength(1);
+      expect(
+        await prisma.donation.findUniqueOrThrow({
+          where: { orderId: payment.orderId },
+        }),
+      ).toMatchObject({ status: 'PENDING', broadcastId: null });
     });
 
     it('still answers a paid donation confirmed again after its broadcast was deleted', async () => {

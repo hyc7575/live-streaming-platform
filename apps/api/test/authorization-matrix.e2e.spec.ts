@@ -651,7 +651,8 @@ describe('authorization matrix (PRD §7.5)', () => {
   // Written directly so every status is one insert away, without driving the
   // publish flow.
   async function seed(status: BroadcastStatus): Promise<void> {
-    // Donations outlive their broadcast (#114), so they go first.
+    // Deleting a broadcast no longer removes its donations (#114), so they
+    // are cleared explicitly.
     await prisma.donation.deleteMany();
     await prisma.broadcast.deleteMany();
     await prisma.follow.deleteMany();

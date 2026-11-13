@@ -36,6 +36,9 @@ export const NOT_YOUR_ORDER_MESSAGE = '내 후원 주문만 승인할 수 있습
 export const AMOUNT_MISMATCH_MESSAGE = '결제 금액이 주문과 다릅니다.';
 export const PAYMENT_KEY_USED_MESSAGE = '이미 다른 주문에 쓰인 결제입니다.';
 export const BROADCAST_DELETED_MESSAGE = '방송이 삭제되어 후원할 수 없습니다.';
+// Sent with that 409 so the web can tell it from other conflicts without
+// matching the message.
+export const BROADCAST_DELETED_CODE = 'BROADCAST_DELETED';
 
 // Toss caps orderName at 100 characters.
 const ORDER_NAME_MAX_LENGTH = 100;
@@ -196,12 +199,20 @@ export class DonationsService {
               throw new ConflictException(PAYMENT_KEY_USED_MESSAGE);
             }
           } else if (locked.broadcastId === null) {
-            // The order outlived its deleted broadcast (#114). Refuse it
-            // before Toss approves, so no money moves for a broadcast that
-            // is gone. A delete racing this confirm waits on the row lock,
-            // so it either came first (seen here) or clears broadcastId of
-            // a donation that is already PAID and stays on record.
-            throw new ConflictException(BROADCAST_DELETED_MESSAGE);
+            // The order outlived its deleted broadcast (#114) and is refused
+            // without asking Toss. A delete racing a confirm waits on this
+            // row lock: if the confirm commits, the delete then unlinks a
+            // PAID donation that stays on record.
+            //
+            // Known gap: a confirm that ended in 502 rolled back and left the
+            // order PENDING although Toss may have taken the money. If the
+            // broadcast is deleted before the retry, the retry lands here
+            // and never asks Toss again, so that payment is not recorded.
+            // The cascade before #114 lost it the same way (404).
+            throw new ConflictException({
+              message: BROADCAST_DELETED_MESSAGE,
+              code: BROADCAST_DELETED_CODE,
+            });
           } else {
             const approvedAt = await approveTossPayment(
               toss,

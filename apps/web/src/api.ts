@@ -5,6 +5,9 @@ export class ApiError extends Error {
     // The API's own `message`, when it sent one meant for the user (a 409's
     // Korean explanation, for example).
     readonly serverMessage: string | null = null,
+    // The API's machine-readable `code`, when it sent one, so a screen can
+    // tell one 409 from another without matching the message.
+    readonly serverCode: string | null = null,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -53,10 +56,12 @@ export async function apiFetch<T>(
     if (res.status === 401 && !CREDENTIAL_PATHS.has(path)) {
       for (const listener of unauthorizedListeners) listener();
     }
+    const { message, code } = await serverErrorOf(res);
     throw new ApiError(
       res.status,
       `${init?.method ?? 'GET'} /api${path} failed with ${res.status}`,
-      await serverMessageOf(res),
+      message,
+      code,
     );
   }
   if (res.status === 204) {
@@ -65,10 +70,16 @@ export async function apiFetch<T>(
   return (await res.json()) as T;
 }
 
-async function serverMessageOf(res: Response): Promise<string | null> {
+async function serverErrorOf(
+  res: Response,
+): Promise<{ message: string | null; code: string | null }> {
   const body: unknown = await res.json().catch(() => null);
-  if (typeof body !== 'object' || body === null || !('message' in body)) {
-    return null;
+  if (typeof body !== 'object' || body === null) {
+    return { message: null, code: null };
   }
-  return typeof body.message === 'string' ? body.message : null;
+  const field = (key: string) =>
+    key in body && typeof (body as Record<string, unknown>)[key] === 'string'
+      ? ((body as Record<string, unknown>)[key] as string)
+      : null;
+  return { message: field('message'), code: field('code') };
 }
