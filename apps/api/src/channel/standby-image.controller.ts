@@ -6,13 +6,13 @@ import {
   UploadedImage,
   type ParsedImage,
 } from '../images/image-rules.js';
-import { StandbyImageService } from './standby-image.service.js';
+import { UserImageService } from './user-image.service.js';
 
 // The caller's own channel. No path names a user, so there is no 403 case.
 @Controller('me/standby-image')
 @UseGuards(LoggedInGuard)
 export class StandbyImageController {
-  constructor(private readonly standby: StandbyImageService) {}
+  constructor(private readonly images: UserImageService) {}
 
   @Put()
   @ImageUpload('standby')
@@ -20,12 +20,12 @@ export class StandbyImageController {
     @CurrentUser() user: AuthUser,
     @UploadedImage('standby') image: ParsedImage,
   ): Promise<AuthUser> {
-    return this.standby.save(user.id, image);
+    return this.images.save(user.id, 'standby', image);
   }
 
   @Delete()
   @HttpCode(204)
   remove(@CurrentUser() user: AuthUser): Promise<void> {
-    return this.standby.remove(user.id);
+    return this.images.remove(user.id, 'standby');
   }
 }

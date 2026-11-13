@@ -21,6 +21,12 @@ model User {
   // both are set: the extension names the file and the time busts caches.
   standbyImageExt       String?
   standbyImageUpdatedAt DateTime?
+  // The profile image, thumbnails/users/<id>/avatar.<ext>, stored like the
+  // standby image: both null, or both set.
+  avatarExt             String?
+  avatarUpdatedAt       DateTime?
+  // A short introduction on the channel page, 0-200 characters.
+  bio                   String    @default("")
   // Lime the user holds (1 lime = 1 won). Only a conditional UPDATE that
   // adds or subtracts in SQL changes it, in the same transaction as the
   // LimeLedger row, so the ledger's deltas always sum to it.

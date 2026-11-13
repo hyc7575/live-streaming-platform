@@ -160,15 +160,9 @@
 }
 
 .avatar {
-  display: grid;
-  place-items: center;
   width: var(--header-avatar-size);
   height: var(--header-avatar-size);
-  background: var(--color-brand);
-  border-radius: 50%;
-  color: var(--color-on-brand);
   font-size: var(--font-size-sm);
-  font-weight: 700;
 }
 
 .caret {

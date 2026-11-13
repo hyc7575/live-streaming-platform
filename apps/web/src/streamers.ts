@@ -3,6 +3,8 @@
 export interface StreamerProfile {
   id: string;
   nickname: string;
+  bio: string;
+  avatarUrl: string | null;
   followerCount: number;
   liveBroadcastId: string | null;
 }

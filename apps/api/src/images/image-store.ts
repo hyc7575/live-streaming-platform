@@ -19,14 +19,18 @@ export function thumbnailsDirFromEnv(
   return resolve(env.THUMBNAILS_DIR || DEFAULT_DIR);
 }
 
+// One image per user per slot: users/<id>/<slot>.<ext>. The standby image
+// shows on the streamer's READY broadcasts, the avatar on their channel.
+export const USER_IMAGE_SLOTS = ['standby', 'avatar'] as const;
+export type UserImageSlot = (typeof USER_IMAGE_SLOTS)[number];
+
 // The folder layout, shared by the writes and the URLs the static server
 // answers. Broadcast ids are uuids, so no broadcast folder is named `users`.
-const STANDBY_NAME = 'standby';
 const thumbnailPath = (broadcastId: string) => [broadcastId, 'live.jpg'];
-const standbyFolder = (userId: string) => ['users', userId];
-const standbyPath = (userId: string, ext: string) => [
-  ...standbyFolder(userId),
-  `${STANDBY_NAME}.${ext}`,
+const userFolder = (userId: string) => ['users', userId];
+const userImagePath = (userId: string, slot: UserImageSlot, ext: string) => [
+  ...userFolder(userId),
+  `${slot}.${ext}`,
 ];
 
 function publicUrl(path: string[], updatedAt: Date): string {
@@ -40,13 +44,14 @@ export function thumbnailUrl(
   return updatedAt ? publicUrl(thumbnailPath(broadcastId), updatedAt) : null;
 }
 
-export function standbyImageUrl(
+export function userImageUrl(
   userId: string,
+  slot: UserImageSlot,
   ext: string | null,
   updatedAt: Date | null,
 ): string | null {
   return ext && updatedAt
-    ? publicUrl(standbyPath(userId, ext), updatedAt)
+    ? publicUrl(userImagePath(userId, slot, ext), updatedAt)
     : null;
 }
 
@@ -64,28 +69,33 @@ export class ImageStore {
     await rm(join(this.dir, broadcastId), { recursive: true, force: true });
   }
 
-  async writeStandby(
+  async writeUserImage(
     userId: string,
+    slot: UserImageSlot,
     format: ImageFormat,
     bytes: Uint8Array,
   ): Promise<string> {
     const { ext } = IMAGE_FORMATS[format];
-    await this.write(standbyPath(userId, ext), bytes);
+    await this.write(userImagePath(userId, slot, ext), bytes);
     return ext;
   }
 
-  // Removes every standby file but the one with extension `keep`, or all of
-  // them when `keep` is null.
-  async pruneStandby(userId: string, keep: string | null): Promise<void> {
-    const folder = join(this.dir, ...standbyFolder(userId));
+  // Removes every file of `slot` but the one with extension `keep`, or all
+  // of them when `keep` is null. Other slots' files are left alone.
+  async pruneUserImage(
+    userId: string,
+    slot: UserImageSlot,
+    keep: string | null,
+  ): Promise<void> {
+    const folder = join(this.dir, ...userFolder(userId));
     const names = await readdir(folder).catch((error: unknown) => {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
       throw error;
     });
-    const kept = keep && `${STANDBY_NAME}.${keep}`;
+    const kept = keep && `${slot}.${keep}`;
     await Promise.all(
       names
-        .filter((n) => n.startsWith(`${STANDBY_NAME}.`) && n !== kept)
+        .filter((n) => n.startsWith(`${slot}.`) && n !== kept)
         .map((n) => rm(join(folder, n), { force: true })),
     );
   }

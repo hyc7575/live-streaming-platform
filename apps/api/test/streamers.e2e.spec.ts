@@ -88,6 +88,8 @@ describe('streamer channel', () => {
     expect(await profile(streamer.user.id)).toEqual({
       id: streamer.user.id,
       nickname: '불씨',
+      bio: '',
+      avatarUrl: null,
       followerCount: 0,
       liveBroadcastId: null,
     });
@@ -103,6 +105,8 @@ describe('streamer channel', () => {
     expect(shown).toEqual({
       id: streamer.user.id,
       nickname: '불씨',
+      bio: '',
+      avatarUrl: null,
       followerCount: 1,
       liveBroadcastId: live,
     });

@@ -27,7 +27,7 @@ import {
       useFactory: () => testAccountsConfigFromEnv(process.env),
     },
   ],
-  exports: [LoggedInGuard, SESSION_STORE],
+  exports: [LoggedInGuard, SESSION_STORE, TEST_ACCOUNTS_CONFIG],
 })
 export class AuthModule implements OnModuleDestroy {
   constructor(@Inject(SESSION_STORE) private readonly store: SessionStore) {}

@@ -266,7 +266,7 @@ it('shows the streamer’s followers with the studio menu', async () => {
 
 it.each([
   ['/studio', '스튜디오', ['내 방송', '내 채널', '후원', '팔로워']],
-  ['/me/donations', '마이페이지', ['라임 내역', '보낸 후원']],
+  ['/me/donations', '마이페이지', ['라임 내역', '보낸 후원', '프로필']],
 ])(
   'shows the area menu instead of the follow panel on %s',
   async (path, area, labels) => {
