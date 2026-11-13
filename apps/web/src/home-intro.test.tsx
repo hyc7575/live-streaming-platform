@@ -98,7 +98,10 @@ it('shows the tagline and test accounts to a logged-out visitor, and stays home 
   expect(await screen.findByRole('button', { name: '사용자 B' })).toBeDefined();
   fireEvent.click(screen.getByRole('button', { name: '스트리머 A' }));
 
-  expect(await screen.findByRole('button', { name: '로그아웃' })).toBeDefined();
+  // The header's menu button, not the test account button of the same name.
+  expect(
+    await screen.findByRole('button', { name: '스트리머 A', expanded: false }),
+  ).toBeDefined();
   expect(calls).toContainEqual({
     url: '/api/auth/test-login',
     body: { account: 'A' },
@@ -130,9 +133,12 @@ it('offers no test accounts when logged in or when the login state is unknown', 
   for (const me of [streamerA, 500]) {
     stubApi({ me });
     renderAt('/');
-    await screen.findByRole('button', {
-      name: me === 500 ? '다시 시도' : '로그아웃',
-    });
+    await screen.findByRole(
+      'button',
+      me === 500
+        ? { name: '다시 시도' }
+        : { name: '스트리머 A', expanded: false },
+    );
     // Give the test-accounts request time to answer before checking.
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(screen.getByText(TAGLINE)).toBeDefined();

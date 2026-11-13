@@ -1,3 +1,5 @@
+import { formatLime, type DonationTarget } from './lime';
+
 // Mirrors the donation views from apps/api/src/donations. Only PAID
 // donations are ever shown, so approvedAt is always set.
 // TOSS is paid by card through Toss, LIME from the donor's lime balance.
@@ -18,6 +20,22 @@ export interface DonationSummary {
   total: number;
   count: number;
   donations: Donation[];
+}
+
+// GET /me/donations: what the caller sent, to whom rather than from whom.
+export type SentDonation = Omit<Donation, 'donor'> & DonationTarget;
+
+export interface SentDonationSummary {
+  total: number;
+  count: number;
+  donations: SentDonation[];
+}
+
+// 1 lime = 1 won, so the unit alone tells the method apart in a list.
+export function formatDonationAmount(
+  d: Pick<Donation, 'method' | 'amount'>,
+): string {
+  return d.method === 'LIME' ? formatLime(d.amount) : formatWon(d.amount);
 }
 
 // POST /broadcasts/:id/donations: what the payment widget needs.

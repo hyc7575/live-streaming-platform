@@ -1,13 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router';
-import { useAuth } from '../auth/auth-context';
+import { useAuth, type AuthUser } from '../auth/auth-context';
 import { FollowsProvider } from '../follows/FollowsProvider';
 import styles from './AppLayout.module.css';
 import { FollowPanel } from './FollowPanel';
 
 function AccountMenu() {
   const { state, logOut, recheck } = useAuth();
-  const navigate = useNavigate();
 
   if (state.status === 'loading') return null;
 
@@ -39,21 +38,90 @@ function AccountMenu() {
     );
   }
 
+  return <UserMenu user={state.user} onLogOut={logOut} />;
+}
+
+// The nickname opens a small menu (PRD-mypage 7.3). A disclosure, not an
+// ARIA menu: Tab moves through its two items like any links. Escape, a click
+// outside and focus leaving it all close it; Escape returns focus to the
+// nickname.
+function UserMenu({
+  user,
+  onLogOut,
+}: {
+  user: AuthUser;
+  onLogOut: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const navigate = useNavigate();
+  const menuId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
   async function handleLogOut() {
-    await logOut();
+    setOpen(false);
+    await onLogOut();
     void navigate('/');
   }
 
   return (
-    <div className={styles.account}>
-      <span className={styles.nickname}>{state.user.nickname}</span>
+    <div
+      ref={rootRef}
+      className={styles.account}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+    >
       <button
+        ref={buttonRef}
         type="button"
-        className={styles.logoutButton}
-        onClick={() => void handleLogOut()}
+        className={styles.menuButton}
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => setOpen((was) => !was)}
       >
-        로그아웃
+        <span className={styles.avatar} aria-hidden="true">
+          {user.nickname.slice(0, 1)}
+        </span>
+        <span className={styles.nickname}>{user.nickname}</span>
+        <span className={styles.caret} aria-hidden="true">
+          ▾
+        </span>
       </button>
+      <div id={menuId} className={styles.menu} hidden={!open}>
+        <Link
+          to="/me"
+          className={styles.menuItem}
+          onClick={() => setOpen(false)}
+        >
+          마이페이지
+        </Link>
+        <button
+          type="button"
+          className={styles.menuItem}
+          onClick={() => void handleLogOut()}
+        >
+          로그아웃
+        </button>
+      </div>
     </div>
   );
 }

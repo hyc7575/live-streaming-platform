@@ -83,8 +83,9 @@ it('logs in as the clicked account and goes to the broadcast list', async () => 
   expect(
     await screen.findByRole('heading', { name: '방송 목록' }),
   ).toBeDefined();
-  expect(screen.getByText('사용자 B')).toBeDefined();
-  expect(screen.getByRole('button', { name: '로그아웃' })).toBeDefined();
+  expect(
+    screen.getByRole('button', { name: '사용자 B', expanded: false }),
+  ).toBeDefined();
   expect(calls).toContainEqual({
     url: '/api/auth/test-login',
     body: { account: 'B' },

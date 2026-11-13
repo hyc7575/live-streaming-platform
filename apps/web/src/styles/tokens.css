@@ -55,6 +55,9 @@
   --radius-lg: 12px;
 
   --header-height: 56px;
+  --header-avatar-size: 28px;
+  --header-menu-width: 160px;
+  --shadow-menu: 0 4px 16px rgba(0, 0, 0, 0.12);
   --content-max-width: 1440px;
   --form-card-width: 400px;
   --list-search-max-width: 400px;

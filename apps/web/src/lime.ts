@@ -38,3 +38,21 @@ export function formatLime(amount: number): string {
 export interface LimeBalance {
   balance: number;
 }
+
+// Mirrors DonationTarget from apps/api/src/donations/sent-donation.ts: where
+// a donation went, as its donor sees it. Both are null once the broadcast
+// has been deleted (#114).
+export interface DonationTarget {
+  broadcast: { id: string; title: string } | null;
+  recipient: { id: string; nickname: string } | null;
+}
+
+// GET /me/lime/ledger, newest first. `donation` is set on DONATION rows.
+export interface LimeLedgerEntry {
+  id: string;
+  kind: 'CHARGE' | 'DONATION';
+  delta: number;
+  balanceAfter: number;
+  createdAt: string;
+  donation: DonationTarget | null;
+}

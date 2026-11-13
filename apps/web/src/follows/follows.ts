@@ -14,6 +14,13 @@ export interface FollowedStreamer {
   live: { broadcastId: string; title: string; startedAt: string } | null;
 }
 
+// GET /me/followers: the caller's own followers, newest first. `count`
+// covers them all, `followers` only the newest 50.
+export interface FollowerList {
+  count: number;
+  followers: { id: string; nickname: string; followedAt: string }[];
+}
+
 // One row of a follow list. The logged-in list and the anonymous list of
 // LIVE broadcasts both map into this, so a row never asks who is looking.
 export interface FollowEntry {

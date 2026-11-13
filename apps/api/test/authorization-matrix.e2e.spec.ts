@@ -92,6 +92,9 @@ const MATRIX = {
   '내 팔로우 목록': [401,      200,          '—'],
   '대기 이미지 등록': [401,    200,          200],
   '대기 이미지 삭제': [401,    204,          204],
+  '라임 내역 조회': [401,      200,          200],
+  '보낸 후원 조회': [401,      200,          200],
+  '팔로워 조회':    [401,      200,          200],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
 // deleted. An ENDED broadcast never goes LIVE again, so it gets no publish
@@ -108,7 +111,10 @@ const MATRIX = {
 // owner column is the owner following themselves, and "내 팔로우 목록" has no
 // such cell: it is only ever the caller's own list. The standby image is
 // the caller's own channel, so 'other' and the owner each act on their own
-// and the broadcast's status does not matter.
+// and the broadcast's status does not matter. The PRD's one row "라임
+// 내역·보낸 후원·팔로워 조회" is three rows here, and like the standby image
+// each caller reads only their own: the other user donated to the owner and
+// the owner follows the other user, so each list differs by caller.
 
 type Action = keyof typeof MATRIX;
 
@@ -610,6 +616,63 @@ describe('authorization matrix (PRD §7.5)', () => {
         expect(await standbyUrl(w, self)).toBeNull();
         const target = await anonymous().get(`/api/broadcasts/${w.targetId}`);
         expect((target.body as BroadcastView).standbyImageUrl).toBeNull();
+      },
+    },
+    '라임 내역 조회': {
+      send: (client) => client.get('/api/me/lime/ledger'),
+      verifyAllowed: async (res, w, actor) => {
+        const self = actor === 'owner' ? w.owner : w.other;
+        const own = await prisma.limeLedger.findMany({
+          where: { userId: self.id },
+          select: { id: true },
+        });
+        expect(res.body).toEqual([
+          expect.objectContaining({
+            id: own[0].id,
+            kind: 'CHARGE',
+            balanceAfter: SEEDED_LIME,
+            donation: null,
+          }),
+        ]);
+      },
+    },
+    '보낸 후원 조회': {
+      send: (client) => client.get('/api/me/donations'),
+      verifyAllowed: (res, w, actor) => {
+        expect(res.body).toEqual(
+          actor === 'owner'
+            ? { total: 0, count: 0, donations: [] }
+            : {
+                total: PAID_AMOUNT,
+                count: 1,
+                donations: [
+                  expect.objectContaining({
+                    amount: PAID_AMOUNT,
+                    broadcast: { id: w.targetId, title: '원래 제목' },
+                    recipient: { id: w.owner.id, nickname: w.owner.nickname },
+                  }),
+                ],
+              },
+        );
+      },
+    },
+    '팔로워 조회': {
+      send: (client) => client.get('/api/me/followers'),
+      verifyAllowed: (res, w, actor) => {
+        expect(res.body).toEqual(
+          actor === 'owner'
+            ? { count: 0, followers: [] }
+            : {
+                count: 1,
+                followers: [
+                  {
+                    id: w.owner.id,
+                    nickname: w.owner.nickname,
+                    followedAt: expect.any(String) as string,
+                  },
+                ],
+              },
+        );
       },
     },
     '내 방송 조회': {
