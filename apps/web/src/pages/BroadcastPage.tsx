@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
@@ -14,6 +14,7 @@ import { ReplayParts, ReplayPlayer } from '../components/ReplayPlayer';
 import { StatusBadge } from '../components/StatusBadge';
 import { FollowButton } from '../follows/FollowButton';
 import { partStarts, type Playhead } from '../replay-chat';
+import { channelPath } from '../streamers';
 import type { Loadable } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
 import { useWideScreen } from '../use-wide-screen';
@@ -200,7 +201,11 @@ export function BroadcastPage() {
     </>
   );
   const follow = !isOwner && <FollowButton streamerId={b.streamer.id} />;
-  const streamer = <p className={styles.streamer}>{b.streamer.nickname}</p>;
+  const streamer = (
+    <p className={styles.streamer}>
+      <Link to={channelPath(b.streamer.id)}>{b.streamer.nickname}</Link>
+    </p>
+  );
   const description = b.description && (
     <p className={styles.description}>{b.description}</p>
   );

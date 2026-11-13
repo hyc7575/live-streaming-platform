@@ -21,6 +21,7 @@ import { PublishPage } from './pages/PublishPage';
 import { ReceivedDonationsPage } from './pages/ReceivedDonationsPage';
 import { SentDonationsPage } from './pages/SentDonationsPage';
 import { SignupPage } from './pages/SignupPage';
+import { StreamerPage } from './pages/StreamerPage';
 import { StudioPage } from './pages/StudioPage';
 
 export function AppRoutes() {
@@ -31,6 +32,7 @@ export function AppRoutes() {
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
         <Route path="broadcasts/:id" element={<BroadcastPage />} />
+        <Route path="channels/:id" element={<StreamerPage />} />
         <Route path="donations/fail" element={<DonationFailPage />} />
         <Route path="lime/charge/fail" element={<LimeChargeFailPage />} />
         <Route element={<RequireAuth />}>

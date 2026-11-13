@@ -147,15 +147,22 @@ export class BroadcastsService {
     );
   }
 
-  async listPublic(status?: PublicStatus): Promise<BroadcastView[]> {
+  // The public list, or one streamer's part of it for their channel page:
+  // both follow the same status rules.
+  async listPublic({
+    status,
+    streamerId,
+  }: { status?: PublicStatus; streamerId?: string } = {}): Promise<
+    BroadcastView[]
+  > {
     const listedSince = new Date(this.clock.now().getTime() - READY_LISTED_MS);
     const groups = await Promise.all(
       (status ? [status] : PUBLIC_STATUSES).map((s) =>
         this.prisma.broadcast.findMany({
           where:
             s === 'READY'
-              ? { status: s, createdAt: { gt: listedSince } }
-              : { status: s },
+              ? { streamerId, status: s, createdAt: { gt: listedSince } }
+              : { streamerId, status: s },
           orderBy: [
             { startedAt: { sort: 'desc', nulls: 'last' } },
             { createdAt: 'desc' },

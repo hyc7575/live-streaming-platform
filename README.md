@@ -1159,6 +1159,45 @@ curl -s -b b-jar.txt $API/me/received-donations   # {"total":0,"count":0,"donati
 - `apps/api/test/authorization-matrix.e2e.spec.ts`: "받은 후원 조회" 행.
 - `apps/web/src/my-page.test.tsx`: 받은 후원 합계·단위·"삭제된 방송", 스튜디오 메뉴 "후원".
 
+### 13. 스트리머 채널 페이지 (#119)
+
+방송 하나를 보다가 그 스트리머의 다른 방송을 한 화면에서 본다(PRD-mypage, PRD §8.3 시나리오 20). 로그인하지 않아도 된다.
+
+규칙:
+
+- 방송 카드·시청 화면의 스트리머 닉네임, 팔로우 패널의 오프라인 스트리머, 헤더 메뉴 "내 채널 보기"가 `/channels/<스트리머 id>`로 간다. 팔로우 패널의 LIVE 스트리머는 지금처럼 그 방송으로 간다.
+- `GET /api/streamers/:id`는 닉네임·팔로워 수·LIVE 방송 id를 준다. 팔로워 목록과 이메일은 주지 않는다.
+- `GET /api/streamers/:id/broadcasts`는 공개 목록(`GET /api/broadcasts`)과 같은 상태 범위다. LIVE, 만든 지 24시간 안의 방송 준비 중, 방송 종료 순이다. 같은 함수(`listPublic`)에 스트리머 조건만 더해 두 목록이 어긋나지 않는다.
+- id 형식이 틀리면 400, 없는 스트리머면 404다.
+
+| 행동 | 비로그인 | 로그인 |
+|---|---|---|
+| 채널 `GET /streamers/:id`, `GET /streamers/:id/broadcasts` | 허용 | 허용 |
+
+화면에서 확인:
+
+1. 시나리오 20: 로그아웃 상태로 방송 목록에서 A의 방송 카드 아래 "스트리머 A"를 누른다. `/channels/<A id>`에 "스트리머 A", "팔로워 N명", "방송" 구역의 카드들이 보이고, 카드에는 스트리머 이름이 없다. "로그인하고 팔로우"가 있다.
+2. A가 송출 중이면 프로필 줄에 "LIVE 보러 가기"가 있고, 맨 위 "지금 방송 중" 구역에 그 방송이 있다.
+3. B로 로그인해 "팔로우"를 누르면 팔로워 수가 바로 1 늘어난다. 팔로우 패널의 A가 오프라인이면 그 줄을 눌러도 이 화면으로 온다.
+4. A로 로그인 → 헤더 "스트리머 A" → "내 채널 보기". 팔로우 버튼이 없다.
+5. 주소를 `/channels/없는-id`로 바꾸면 "스트리머를 찾을 수 없습니다"가 보인다.
+
+API로 확인:
+
+```sh
+API=http://localhost:3000/api
+curl -s $API/streamers/<A id>              # {"id":"…","nickname":"스트리머 A","followerCount":1,"liveBroadcastId":null}
+curl -s $API/streamers/<A id>/broadcasts   # 공개 목록 중 A의 방송
+curl -s -o /dev/null -w '%{http_code}\n' $API/streamers/x                                      # 400
+curl -s -o /dev/null -w '%{http_code}\n' $API/streamers/00000000-0000-4000-8000-000000000000   # 404
+```
+
+자동 테스트:
+
+- `apps/api/test/streamers.e2e.spec.ts`: 400·404, 프로필의 팔로워 수와 LIVE 방송, 팔로워·이메일이 응답에 없음, 이 스트리머의 방송만 공개 목록과 같은 상태 범위와 순서로, 24시간 지난 방송 준비 중 제외.
+- `apps/api/test/authorization-matrix.e2e.spec.ts`: "채널 조회"·"채널 방송 목록" 행(모두 허용).
+- `apps/web/src/my-page.test.tsx`: 비로그인 채널 화면(프로필·LIVE 구역·나머지·로그인 링크), 본인 채널에 팔로우 버튼 없음, 없는 스트리머, 카드 닉네임과 헤더 "내 채널 보기" 링크. `apps/web/src/follows.test.tsx`: 오프라인 줄이 채널 링크.
+
 ## 지원 환경
 
 송출·시청 기능 이슈에서 실제로 확인한 환경만 적는다.

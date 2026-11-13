@@ -96,6 +96,8 @@ const MATRIX = {
   '보낸 후원 조회': [401,      200,          200],
   '받은 후원 조회': [401,      200,          200],
   '팔로워 조회':    [401,      200,          200],
+  '채널 조회':      [200,      200,          200],
+  '채널 방송 목록': [200,      200,          200],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
 // deleted. An ENDED broadcast never goes LIVE again, so it gets no publish
@@ -694,6 +696,24 @@ describe('authorization matrix (PRD §7.5)', () => {
                 ],
               },
         );
+      },
+    },
+    '채널 조회': {
+      send: (client, w) => client.get(`/api/streamers/${w.owner.id}`),
+      verifyAllowed: (res, w) => {
+        expect(res.body).toEqual({
+          id: w.owner.id,
+          nickname: w.owner.nickname,
+          followerCount: 0,
+          liveBroadcastId: w.status === 'LIVE' ? w.targetId : null,
+        });
+      },
+    },
+    '채널 방송 목록': {
+      send: (client, w) =>
+        client.get(`/api/streamers/${w.owner.id}/broadcasts`),
+      verifyAllowed: (res, w) => {
+        expect(ids(res.body)).toEqual([w.targetId]);
       },
     },
     '내 방송 조회': {

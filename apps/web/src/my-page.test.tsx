@@ -326,3 +326,89 @@ it('totals what the streamer received, keeping donations of deleted broadcasts',
     'page',
   );
 });
+
+const PROFILE = {
+  id: 's1',
+  nickname: '불씨',
+  followerCount: 3,
+  liveBroadcastId: 'b2',
+};
+
+const channelBroadcast = (
+  id: string,
+  title: string,
+  status: 'LIVE' | 'ENDED',
+) => ({
+  id,
+  title,
+  description: '',
+  status,
+  streamer: { id: 's1', nickname: '불씨' },
+  startedAt: '2026-11-13T04:00:00.000Z',
+  endedAt: status === 'ENDED' ? '2026-11-13T05:00:00.000Z' : null,
+  disconnectedAt: null,
+  createdAt: '2026-11-13T03:00:00.000Z',
+  recordingFiles: [],
+  recordingParts: [],
+  thumbnailUrl: null,
+  standbyImageUrl: null,
+});
+
+it('shows a channel to anyone: profile, LIVE first, then the rest, with a login link to follow', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts?status=LIVE': [],
+    'GET /api/streamers/s1': PROFILE,
+    'GET /api/streamers/s1/broadcasts': [
+      channelBroadcast('b2', '지금 방송', 'LIVE'),
+      channelBroadcast('b1', '지난 방송', 'ENDED'),
+    ],
+  });
+  renderAt('/channels/s1');
+  expect(await screen.findByRole('heading', { name: '불씨' })).toBeDefined();
+  expect(screen.getByText('팔로워 3명')).toBeDefined();
+  expect(
+    screen.getByRole('link', { name: 'LIVE 보러 가기' }).getAttribute('href'),
+  ).toBe('/broadcasts/b2');
+  const live = await screen.findByRole('region', { name: '지금 방송 중' });
+  expect(within(live).getByText('지금 방송')).toBeDefined();
+  const rest = screen.getByRole('region', { name: '방송' });
+  expect(within(rest).getByText('지난 방송')).toBeDefined();
+  expect(within(rest).queryByText('지금 방송')).toBeNull();
+  expect(screen.getByRole('link', { name: '로그인하고 팔로우' })).toBeDefined();
+});
+
+it('hides the follow button on the streamer’s own channel', async () => {
+  stubApi({
+    ...loggedIn,
+    'GET /api/auth/me': { ...me, id: 's1', nickname: '불씨' },
+    'GET /api/streamers/s1': { ...PROFILE, liveBroadcastId: null },
+    'GET /api/streamers/s1/broadcasts': [],
+  });
+  renderAt('/channels/s1');
+  expect(await screen.findByText('아직 공개된 방송이 없습니다.')).toBeDefined();
+  expect(screen.queryByRole('button', { name: '팔로우' })).toBeNull();
+  expect(screen.queryByRole('link', { name: '로그인하고 팔로우' })).toBeNull();
+});
+
+it('says so for an unknown streamer', async () => {
+  stubApi({ ...loggedIn, 'GET /api/streamers/zz': 404 });
+  renderAt('/channels/zz');
+  expect(
+    await screen.findByRole('heading', { name: '스트리머를 찾을 수 없습니다' }),
+  ).toBeDefined();
+});
+
+it('links nicknames to channels from cards and the header menu', async () => {
+  stubApi({
+    ...loggedIn,
+    'GET /api/broadcasts': [channelBroadcast('b1', '지난 방송', 'ENDED')],
+  });
+  renderAt('/');
+  const card = await screen.findByRole('link', { name: '불씨' });
+  expect(card.getAttribute('href')).toBe('/channels/s1');
+  fireEvent.click(screen.getByRole('button', { name: '구경꾼' }));
+  expect(
+    screen.getByRole('link', { name: '내 채널 보기' }).getAttribute('href'),
+  ).toBe('/channels/u1');
+});

@@ -152,7 +152,11 @@ test('a follow from the watch page shows in the panel, goes offline, and leaves 
     .getByRole('listitem')
     .filter({ hasText: streamer.nickname });
   await expect(offline).toContainText('오프라인', { timeout: 40_000 });
-  await expect(offline.getByRole('link')).toHaveCount(0);
+  // An offline streamer opens their channel page, no longer their broadcast.
+  await expect(offline.getByRole('link')).toHaveAttribute(
+    'href',
+    `/channels/${streamer.id}`,
+  );
 
   await viewer.getByRole('button', { name: '팔로잉' }).click();
   await expect(viewer.getByRole('button', { name: '팔로우' })).toBeVisible();

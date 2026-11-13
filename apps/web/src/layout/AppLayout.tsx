@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth, type AuthUser } from '../auth/auth-context';
+import { channelPath } from '../streamers';
 import { FollowsProvider } from '../follows/FollowsProvider';
 import styles from './AppLayout.module.css';
 import { FollowPanel } from './FollowPanel';
@@ -44,7 +45,7 @@ function AccountMenu() {
 }
 
 // The nickname opens a small menu (PRD-mypage 7.3). A disclosure, not an
-// ARIA menu: Tab moves through its two items like any links. Escape, a click
+// ARIA menu: Tab moves through its items like any links. Escape, a click
 // outside and focus moving to something outside all close it; Escape
 // returns focus to the nickname. Safari and macOS Firefox do not focus a
 // clicked link, so a click on an item blurs with no relatedTarget; closing
@@ -119,6 +120,13 @@ function UserMenu({
           onClick={() => setOpen(false)}
         >
           마이페이지
+        </Link>
+        <Link
+          to={channelPath(user.id)}
+          className={styles.menuItem}
+          onClick={() => setOpen(false)}
+        >
+          내 채널 보기
         </Link>
         <button
           type="button"

@@ -116,6 +116,11 @@
   color: var(--color-text-muted);
 }
 
+.streamer a:hover {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
 .description {
   margin: var(--space-4) 0 0;
   white-space: pre-wrap;

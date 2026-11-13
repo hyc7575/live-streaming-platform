@@ -34,7 +34,11 @@ export function StudioPage() {
             아직 만든 방송이 없습니다. 방송을 만들어 보세요.
           </p>
         ) : (
-          <BroadcastGrid broadcasts={broadcasts.data} linkTo={cardPath} />
+          <BroadcastGrid
+            broadcasts={broadcasts.data}
+            linkTo={cardPath}
+            showStreamer={false}
+          />
         ))}
     </section>
   );

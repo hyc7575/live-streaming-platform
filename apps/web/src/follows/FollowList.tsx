@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { channelPath } from '../streamers';
 import type { FollowEntry } from './follows';
 import styles from './FollowList.module.css';
 
@@ -17,7 +18,7 @@ function Item({ entry }: { entry: FollowEntry }) {
       </span>
     </>
   );
-  // An offline streamer has nowhere to go: there is no streamer page.
+  // A LIVE streamer opens their broadcast, an offline one their channel.
   return (
     <li>
       {entry.live ? (
@@ -29,12 +30,13 @@ function Item({ entry }: { entry: FollowEntry }) {
           {body}
         </Link>
       ) : (
-        <span
+        <Link
+          to={channelPath(entry.streamerId)}
           className={`${styles.item} ${styles.offline}`}
           title={entry.nickname}
         >
           {body}
-        </span>
+        </Link>
       )}
     </li>
   );
