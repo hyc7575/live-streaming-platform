@@ -19,7 +19,7 @@ export function BroadcastGrid({
   broadcasts: Broadcast[];
   // Where each card goes. Defaults to the watch page, as on the public list.
   linkTo?: (b: Broadcast) => string;
-  // Off on a channel page, where every card is the same streamer's.
+  // Off where every card is the same streamer's: a channel page, the studio.
   showStreamer?: boolean;
 }) {
   return (
