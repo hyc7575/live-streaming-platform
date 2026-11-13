@@ -79,6 +79,7 @@ function broadcast(overrides: Partial<Broadcast> = {}): Broadcast {
 function donation(overrides: Partial<Donation> = {}): Donation {
   return {
     id: 'd1',
+    method: 'TOSS',
     amount: 5000,
     message: '',
     approvedAt: '2026-11-10T01:00:00.000Z',
@@ -104,6 +105,7 @@ class Reply {
 }
 
 // Answers each `METHOD /api/path` from the table; anything else is a 404.
+// An entry may be a function of the request, to fail or hold a call.
 // `bodies` keeps what each call sent, keyed the same way.
 function stubApi(routes: Record<string, unknown>) {
   const calls: string[] = [];
@@ -116,6 +118,9 @@ function stubApi(routes: Record<string, unknown>) {
       return Promise.resolve(new Response(null, { status: 404 }));
     }
     const answer = routes[key];
+    if (typeof answer === 'function') {
+      return (answer as (init?: RequestInit) => Promise<Response>)(init);
+    }
     if (typeof answer === 'number') {
       return Promise.resolve(new Response(null, { status: answer }));
     }
@@ -525,4 +530,363 @@ it('shows Toss’s message when the payment failed', async () => {
   expect(
     screen.getByRole('link', { name: '방송 목록으로 가기' }),
   ).toBeDefined();
+});
+
+// Lime donations from the watch page (PRD-lime 7.3, #110).
+
+const LIME = 'GET /api/me/lime';
+const LIME_POST = 'POST /api/broadcasts/b1/lime-donations';
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+const limeDonation = (amount: number, message = ''): ConfirmedDonation => ({
+  ...donation({ id: 'lime1', method: 'LIME', amount, message }),
+  broadcastId: 'b1',
+});
+
+async function limeForm() {
+  const panel = await donationPanel();
+  return within(panel).findByRole('form', { name: '라임으로 후원' });
+}
+
+function sentKeys(calls: { body?: BodyInit | null }[]): string[] {
+  return calls.map(
+    (init) => (JSON.parse(init.body as string) as { orderId: string }).orderId,
+  );
+}
+
+it('donates lime from the balance and shows it without leaving the page', async () => {
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+    [LIME_POST]: new Reply(201, limeDonation(3_000, '응원')),
+  };
+  const calls = stubApi(routes);
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  expect(
+    await within(form).findByText('10,000라임', { selector: 'strong' }),
+  ).toBeDefined();
+  fireEvent.change(within(form).getByLabelText('직접 입력 (라임)'), {
+    target: { value: '3000' },
+  });
+  fireEvent.change(within(form).getByLabelText(/메시지/), {
+    target: { value: '  응원  ' },
+  });
+
+  routes[DONATIONS] = summary({
+    total: 3_000,
+    count: 1,
+    donations: [limeDonation(3_000, '응원')],
+  });
+  routes[LIME] = { balance: 7_000 };
+  fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
+
+  const panel = await donationPanel();
+  expect(
+    await within(panel).findByText('7,000라임', { selector: 'strong' }),
+  ).toBeDefined();
+  const item = await within(panel).findByRole('listitem');
+  expect(within(item).getByText('3,000라임')).toBeDefined();
+  expect(within(item).getByText('응원')).toBeDefined();
+  expect(
+    within(panel).getByText('3,000원', { selector: 'strong' }),
+  ).toBeDefined();
+  expect(within(panel).getByRole('status').textContent).toBe(
+    '후원이 반영되었습니다',
+  );
+  expect(calls.bodies[LIME_POST]).toEqual({
+    amount: 3_000,
+    message: '응원',
+    orderId: expect.stringMatching(UUID) as string,
+  });
+  expect(within(form).getByLabelText<HTMLInputElement>(/메시지/).value).toBe(
+    '',
+  );
+  // Still the watch page.
+  expect(
+    screen.getByRole('heading', { level: 1, name: '저녁 방송' }),
+  ).toBeDefined();
+});
+
+it('offers 충전하기 and 카드로 후원 in new tabs when the balance is short', async () => {
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 2_000 },
+  });
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  await within(form).findByText('2,000라임', { selector: 'strong' });
+  fireEvent.click(within(form).getByRole('button', { name: '5,000라임' }));
+  expect(
+    within(form).queryByRole('button', { name: '라임으로 후원' }),
+  ).toBeNull();
+  expect(within(form).getByText('라임이 3,000라임 부족합니다.')).toBeDefined();
+
+  fireEvent.click(within(form).getByRole('button', { name: '충전하기' }));
+  expect(open).toHaveBeenLastCalledWith('/lime/charge', '_blank');
+  fireEvent.click(within(form).getByRole('button', { name: '카드로 후원' }));
+  expect(open).toHaveBeenLastCalledWith('/broadcasts/b1/donate', '_blank');
+
+  fireEvent.click(within(form).getByRole('button', { name: '1,000라임' }));
+  expect(
+    within(form).getByRole('button', { name: '라임으로 후원' }),
+  ).toBeDefined();
+  expect(within(form).queryByRole('button', { name: '충전하기' })).toBeNull();
+});
+
+it('re-reads the balance as soon as a charge tab reports a top-up', async () => {
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 0 },
+  };
+  stubApi(routes);
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  await within(form).findByText('0라임', { selector: 'strong' });
+  expect(within(form).getByRole('button', { name: '충전하기' })).toBeDefined();
+
+  routes[LIME] = { balance: 10_000 };
+  const charge = new BroadcastChannel('donations');
+  charge.postMessage({ type: 'charged' });
+  charge.close();
+  // Well inside the 30 s poll, so only the message can have caused it.
+  expect(
+    await within(form).findByText('10,000라임', { selector: 'strong' }),
+  ).toBeDefined();
+  expect(
+    within(form).getByRole('button', { name: '라임으로 후원' }),
+  ).toBeDefined();
+});
+
+it('resends a lost attempt with its key and gives the next donation a new one', async () => {
+  const sent: RequestInit[] = [];
+  const answers = [
+    () => Promise.reject(new TypeError('Failed to fetch')),
+    () => Promise.resolve(Response.json(limeDonation(1_000), { status: 201 })),
+    () => Promise.resolve(Response.json(limeDonation(1_000), { status: 201 })),
+  ];
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+    [LIME_POST]: (init: RequestInit) => {
+      sent.push(init);
+      return answers[sent.length - 1]();
+    },
+  });
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  await within(form).findByText('10,000라임', { selector: 'strong' });
+  const donate = () =>
+    fireEvent.click(
+      within(form).getByRole('button', { name: '라임으로 후원' }),
+    );
+
+  donate();
+  expect((await within(form).findByRole('alert')).textContent).toBe(
+    '후원 결과를 확인하지 못했습니다. 금액과 메시지를 그대로 두고 다시 누르면 두 번 후원되지 않습니다.',
+  );
+  donate();
+  await waitFor(() => expect(sent).toHaveLength(2));
+  await waitFor(() => expect(within(form).queryByRole('alert')).toBeNull());
+  donate();
+  await waitFor(() => expect(sent).toHaveLength(3));
+  const [lost, resent, next] = sentKeys(sent);
+  expect(lost).toMatch(UUID);
+  expect(resent).toBe(lost);
+  expect(next).not.toBe(lost);
+});
+
+// The donation went through but its answer was lost. The form must not
+// claim it failed, must re-read what changed, and must still let the same
+// key be resent although the re-read balance is now short.
+it('re-reads after a lost answer and keeps the resend open when the balance fell short', async () => {
+  const sent: RequestInit[] = [];
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 5_000 },
+  };
+  routes[LIME_POST] = (init: RequestInit) => {
+    sent.push(init);
+    if (sent.length === 1) {
+      // Committed on the server, then the connection dropped.
+      routes[LIME] = { balance: 0 };
+      routes[DONATIONS] = summary({
+        total: 5_000,
+        count: 1,
+        donations: [donation({ id: 'lime1', method: 'LIME', amount: 5_000 })],
+      });
+      return Promise.reject(new TypeError('Failed to fetch'));
+    }
+    return Promise.resolve(Response.json(limeDonation(5_000), { status: 200 }));
+  };
+  stubApi(routes);
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  await within(form).findByText('5,000라임', { selector: 'strong' });
+  fireEvent.click(within(form).getByRole('button', { name: '5,000라임' }));
+  fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
+
+  expect((await within(form).findByRole('alert')).textContent).toBe(
+    '후원 결과를 확인하지 못했습니다. 금액과 메시지를 그대로 두고 다시 누르면 두 번 후원되지 않습니다.',
+  );
+  // Re-read at once, well inside both polls.
+  await within(form).findByText('0라임', { selector: 'strong' });
+  const panel = await donationPanel();
+  expect(
+    await within(panel).findByText('5,000원', { selector: 'strong' }),
+  ).toBeDefined();
+  // 0 lime is short of 5,000, but this attempt may be resent.
+  expect(within(form).queryByRole('button', { name: '충전하기' })).toBeNull();
+  fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
+  await waitFor(() => expect(sent).toHaveLength(2));
+  const [lost, resent] = sentKeys(sent);
+  expect(resent).toBe(lost);
+  await waitFor(() => expect(within(form).queryByRole('alert')).toBeNull());
+  // Settled: another amount is a new attempt, and now it is short.
+  fireEvent.click(within(form).getByRole('button', { name: '1,000라임' }));
+  expect(
+    await within(form).findByRole('button', { name: '충전하기' }),
+  ).toBeDefined();
+});
+
+it('gives a new key once the attempt changes after a lost response', async () => {
+  const sent: RequestInit[] = [];
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+    [LIME_POST]: (init: RequestInit) => {
+      sent.push(init);
+      return Promise.reject(new TypeError('Failed to fetch'));
+    },
+  });
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  await within(form).findByText('10,000라임', { selector: 'strong' });
+  fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
+  await within(form).findByRole('alert');
+  fireEvent.click(within(form).getByRole('button', { name: '5,000라임' }));
+  fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
+  await waitFor(() => expect(sent).toHaveLength(2));
+  const [first, second] = sentKeys(sent);
+  expect(second).not.toBe(first);
+});
+
+it('disables the button while the donation is in flight', async () => {
+  let answer: (res: Response) => void = () => {};
+  let posts = 0;
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+    [LIME_POST]: () => {
+      posts += 1;
+      return new Promise<Response>((resolve) => {
+        answer = resolve;
+      });
+    },
+  });
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  await within(form).findByText('10,000라임', { selector: 'strong' });
+  fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
+  const busy = await within(form).findByRole('button', {
+    name: '후원하는 중…',
+  });
+  expect((busy as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(busy);
+  fireEvent.submit(form);
+  expect(posts).toBe(1);
+  answer(Response.json(limeDonation(1_000), { status: 201 }));
+  const ready = await within(form).findByRole('button', {
+    name: '라임으로 후원',
+  });
+  expect((ready as HTMLButtonElement).disabled).toBe(false);
+});
+
+it('shows the API’s message when the server refuses the donation', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+    [LIME_POST]: new Reply(409, { message: '라임이 부족합니다.' }),
+  });
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  await within(form).findByText('10,000라임', { selector: 'strong' });
+  const balanceReads = calls.filter((c) => c === LIME).length;
+  fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
+  expect((await within(form).findByRole('alert')).textContent).toBe(
+    '라임이 부족합니다.',
+  );
+  // The balance moved under us, so it is read again.
+  await waitFor(() =>
+    expect(calls.filter((c) => c === LIME).length).toBeGreaterThan(
+      balanceReads,
+    ),
+  );
+});
+
+it('rejects amounts outside 1,000라임 to 100,000라임 without sending', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 1_000_000 },
+  });
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  await within(form).findByText('1,000,000라임', { selector: 'strong' });
+  for (const bad of ['999', '100001', '1500.5', '']) {
+    fireEvent.change(within(form).getByLabelText('직접 입력 (라임)'), {
+      target: { value: bad },
+    });
+    fireEvent.click(
+      within(form).getByRole('button', { name: '라임으로 후원' }),
+    );
+    expect((await within(form).findByRole('alert')).textContent).toBe(
+      '1,000라임부터 100,000라임까지 후원할 수 있습니다.',
+    );
+  }
+  expect(calls).not.toContain(LIME_POST);
+});
+
+it('shows the lime form only to a logged-in viewer of a LIVE broadcast', async () => {
+  const cases: [typeof viewer | number, Broadcast][] = [
+    [streamer, broadcast()],
+    [viewer, broadcast({ status: 'ENDED' })],
+    [viewer, broadcast({ status: 'READY' })],
+    [401, broadcast()],
+  ];
+  for (const [me, b] of cases) {
+    const calls = stubApi({
+      'GET /api/auth/me': me,
+      'GET /api/broadcasts/b1': b,
+      [DONATIONS]: summary(),
+      [LIME]: { balance: 10_000 },
+    });
+    renderAt('/broadcasts/b1');
+    const panel = await donationPanel();
+    await within(panel).findByText('아직 후원이 없습니다.');
+    expect(
+      within(panel).queryByRole('form', { name: '라임으로 후원' }),
+    ).toBeNull();
+    expect(calls).not.toContain(LIME);
+    cleanup();
+  }
 });

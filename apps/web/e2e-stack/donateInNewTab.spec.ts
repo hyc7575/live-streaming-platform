@@ -94,7 +94,8 @@ test('donating in a new tab keeps the watch tab playing and reports back', async
   await expect(panel.getByRole('status')).toHaveText('후원이 반영되었습니다', {
     timeout: 2_000,
   });
-  await expect(panel.locator('strong')).toHaveText('5,000원');
+  // The total; the lime form below has its own <strong> for the balance.
+  await expect(panel.locator('strong').first()).toHaveText('5,000원');
   await expect(panel.getByText('1건')).toBeVisible();
   expect(summaryReads).toBeGreaterThan(readsAtConfirm);
   await screenshot(viewer, 'donate-reported-back');

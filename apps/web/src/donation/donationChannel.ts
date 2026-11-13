@@ -56,6 +56,22 @@ export function onDonation(
   return () => channel.close();
 }
 
+// Calls `onCharged` whenever a charge tab reports a top-up; returns the
+// unsubscribe.
+export function onCharge(onCharged: () => void): () => void {
+  const channel = openChannel();
+  if (!channel) return () => {};
+  channel.onmessage = (event: MessageEvent<Partial<ChargedMessage>>) => {
+    if (event.data?.type === 'charged') onCharged();
+  };
+  return () => channel.close();
+}
+
+export function openChargeTab(): void {
+  // No `noopener`, for the same reason as the donate tab below.
+  window.open('/lime/charge', '_blank');
+}
+
 export function openDonateTab(broadcastId: string): void {
   // No `noopener`: only a script-opened window may close itself later.
   window.open(

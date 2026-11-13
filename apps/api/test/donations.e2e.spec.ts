@@ -27,6 +27,7 @@ import {
 
 interface DonationJson {
   id: string;
+  method: 'TOSS' | 'LIME';
   amount: number;
   message: string;
   approvedAt: string;
@@ -200,6 +201,7 @@ describe('donations', () => {
       const confirmed = res.body as DonationJson;
       expect(confirmed).toEqual({
         id: expect.any(String) as string,
+        method: 'TOSS',
         amount: 5000,
         message: '화이팅',
         approvedAt: expect.any(String) as string,

@@ -44,16 +44,24 @@ export async function signUp(
   return { id: user.id, nickname, email, password };
 }
 
-export async function signUpAndLogIn(
+// Logs an existing account in, for instance in a second browser context.
+export async function logIn(
   request: APIRequestContext,
-  nickname?: string,
-): Promise<Account> {
-  const account = await signUp(request, nickname);
+  account: Pick<Account, 'email' | 'password'>,
+): Promise<void> {
   const login = await request.post('/api/auth/login', {
     headers: { 'X-Forwarded-For': clientIp() },
     data: { email: account.email, password: account.password },
   });
   expect(login.status(), await login.text()).toBe(200);
+}
+
+export async function signUpAndLogIn(
+  request: APIRequestContext,
+  nickname?: string,
+): Promise<Account> {
+  const account = await signUp(request, nickname);
+  await logIn(request, account);
   return account;
 }
 

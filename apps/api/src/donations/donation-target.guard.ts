@@ -15,6 +15,10 @@ export const SELF_DONATION_MESSAGE = '내 방송에는 후원할 수 없습니�
 // the broadcast is LIVE and the caller is not its streamer. List it after
 // LoggedInGuard. Like BroadcastOwnerGuard it runs before the body pipe, so a
 // streamer donating to themselves gets 403 whatever the body says.
+//
+// A lime donation checks its body first (PRD-lime 7.3: 401 → 400 → 404 →
+// 403 → 409), so its handler calls `check` after the pipe instead of
+// listing the guard.
 @Injectable()
 export class DonationTargetGuard implements CanActivate {
   constructor(private readonly broadcasts: BroadcastsService) {}
@@ -25,15 +29,18 @@ export class DonationTargetGuard implements CanActivate {
       throw new Error('DonationTargetGuard must run after LoggedInGuard');
     }
     const { id } = req.params;
-    const broadcast = await this.broadcasts.get(
-      typeof id === 'string' ? id : '',
-    );
-    if (broadcast.streamer.id === req.user.id) {
+    await this.check(typeof id === 'string' ? id : '', req.user.id);
+    return true;
+  }
+
+  // 404 for a missing broadcast, 403 for the streamer's own, 409 unless LIVE.
+  async check(broadcastId: string, donorId: string): Promise<void> {
+    const broadcast = await this.broadcasts.get(broadcastId);
+    if (broadcast.streamer.id === donorId) {
       throw new ForbiddenException(SELF_DONATION_MESSAGE);
     }
     if (broadcast.status !== 'LIVE') {
       throw new ConflictException(DONATION_NOT_LIVE_MESSAGE);
     }
-    return true;
   }
 }

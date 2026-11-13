@@ -1,7 +1,11 @@
 // Mirrors the donation views from apps/api/src/donations. Only PAID
 // donations are ever shown, so approvedAt is always set.
+// TOSS is paid by card through Toss, LIME from the donor's lime balance.
+export type DonationMethod = 'TOSS' | 'LIME';
+
 export interface Donation {
   id: string;
+  method: DonationMethod;
   amount: number;
   message: string;
   approvedAt: string;

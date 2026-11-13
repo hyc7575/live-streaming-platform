@@ -3,15 +3,22 @@ import { Link } from 'react-router';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import { onDonation, openDonateTab } from '../donation/donationChannel';
-import { formatWon, type DonationSummary } from '../donations';
+import { formatWon, type Donation, type DonationSummary } from '../donations';
+import { formatLime } from '../lime';
 import type { LoginPageState } from '../pages/LoginPage';
 import { usePolledApi } from '../use-api';
 import styles from './DonationPanel.module.css';
+import { LimeDonationForm } from './LimeDonationForm';
 
 // Same cadence as comments (PRD §8.2: no realtime push).
 const DONATION_POLL_MS = 5000;
 // How long "후원이 반영되었습니다" stays after the payment tab reports back.
 const DONATED_NOTICE_MS = 4000;
+
+// 1 lime = 1 won, so the unit alone tells the method apart in the list.
+function formatAmount(d: Pick<Donation, 'method' | 'amount'>): string {
+  return d.method === 'LIME' ? formatLime(d.amount) : formatWon(d.amount);
+}
 
 const timeFormat = new Intl.DateTimeFormat('ko-KR', {
   month: 'numeric',
@@ -83,6 +90,16 @@ export function DonationPanel({
           <p className={styles.donated}>후원이 반영되었습니다</p>
         )}
       </div>
+      {canDonate && (
+        <LimeDonationForm
+          broadcastId={broadcast.id}
+          onDonated={() => {
+            reload();
+            setDonatedAt(Date.now());
+          }}
+          onUnsettled={reload}
+        />
+      )}
       {live && state.status === 'anonymous' && (
         <Link to="/login" state={loginState} className={styles.login}>
           로그인하고 후원해 보세요
@@ -100,7 +117,7 @@ export function DonationPanel({
             <li key={d.id} className={styles.item}>
               <div className={styles.meta}>
                 <span className={styles.donor}>{d.donor.nickname}</span>
-                <span className={styles.amount}>{formatWon(d.amount)}</span>
+                <span className={styles.amount}>{formatAmount(d)}</span>
                 <time dateTime={d.approvedAt} className={styles.time}>
                   {timeFormat.format(new Date(d.approvedAt))}
                 </time>
