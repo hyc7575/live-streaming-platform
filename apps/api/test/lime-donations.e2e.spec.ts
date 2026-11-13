@@ -36,7 +36,7 @@ interface DonationJson {
   message: string;
   approvedAt: string;
   donor: { id: string; nickname: string };
-  broadcastId?: string;
+  broadcastId?: string | null;
 }
 
 interface DonationListJson {
@@ -445,15 +445,33 @@ describe('lime donations', () => {
       expect(messageOf(short)).toBe(INSUFFICIENT);
     });
 
-    it('removes lime donations with the broadcast but keeps the ledger whole', async () => {
+    // #114: the donation is the only record of where the lime went, so
+    // deleting the broadcast unlinks it instead of deleting it. afterEach
+    // checks that its ledger row still resolves.
+    it('keeps lime donations of a deleted broadcast, unlinked', async () => {
       await charge(donor.agent, 10_000);
-      expect((await donate(donor.agent, attempt(3_000))).status).toBe(201);
+      const donated = await donate(donor.agent, attempt(3_000));
+      expect(donated.status).toBe(201);
       const removed = await streamer.agent.delete(
         `/api/broadcasts/${broadcastId}`,
       );
       expect(removed.status).toBe(204);
-      expect(await prisma.donation.count()).toBe(0);
+      expect(
+        await prisma.donation.findUniqueOrThrow({
+          where: { id: (donated.body as DonationJson).id },
+        }),
+      ).toMatchObject({
+        broadcastId: null,
+        method: 'LIME',
+        status: 'PAID',
+        amount: 3_000,
+        donorId: donor.user.id,
+      });
       expect(await balanceOf(donor.agent)).toBe(7_000);
+      expect(
+        (await anonymous().get(`/api/broadcasts/${broadcastId}/donations`))
+          .status,
+      ).toBe(404);
     });
   });
 });

@@ -137,12 +137,18 @@ enum DonationMethod {
 // An order becomes a donation when Toss approves it, and only PAID rows count
 // toward a broadcast's total. A PENDING row is an order the donor has not paid
 // for yet, or whose confirm failed and may still be retried.
+//
+// A donation is a record of money, so it outlives the broadcast (#114):
+// deleting the broadcast only clears broadcastId. A lime donation's
+// LimeLedger row keeps pointing at it, and a PENDING card order whose
+// broadcast is gone can no longer be confirmed.
 model Donation {
   id          String         @id @default(uuid()) @db.Uuid
   // Sent to Toss as its orderId, which allows 6-64 of [A-Za-z0-9-_=].
   orderId     String         @unique
-  broadcastId String         @db.Uuid
-  broadcast   Broadcast      @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  // Null once the broadcast has been deleted.
+  broadcastId String?        @db.Uuid
+  broadcast   Broadcast?     @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
   donorId     String         @db.Uuid
   donor       User           @relation(fields: [donorId], references: [id], onDelete: Cascade)
   amount      Int

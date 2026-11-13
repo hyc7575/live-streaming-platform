@@ -93,7 +93,7 @@ export function DonationSuccessPage() {
           key: requestKey,
           confirmation: { status: 'done', donation },
         });
-        announceDonation(donation.broadcastId);
+        if (donation.broadcastId) announceDonation(donation.broadcastId);
       },
       (err: unknown) => {
         if (err instanceof ApiError && err.status === 401) {
@@ -157,7 +157,14 @@ export function DonationSuccessPage() {
         {formatWon(donation.amount)}을 후원했습니다.
         {donation.message && ` 메시지: ${donation.message}`}
       </p>
-      {backButton(donation.broadcastId)}
+      {donation.broadcastId ? (
+        backButton(donation.broadcastId)
+      ) : (
+        // The broadcast was deleted after the payment (#114).
+        <p className={form.footer}>
+          <Link to="/">방송 목록으로 가기</Link>
+        </p>
+      )}
     </section>
   );
 }

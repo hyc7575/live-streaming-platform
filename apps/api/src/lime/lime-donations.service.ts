@@ -124,6 +124,10 @@ export class LimeDonationsService {
       select: confirmedSelect,
     });
     if (!donation) return null;
+    // Its broadcast was deleted, which the resend's own path names too.
+    if (donation.broadcastId === null) {
+      throw new NotFoundException('Broadcast not found');
+    }
     const same =
       donation.method === 'LIME' &&
       donation.donor.id === donorId &&

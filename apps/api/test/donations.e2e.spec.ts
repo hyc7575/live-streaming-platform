@@ -32,7 +32,7 @@ interface DonationJson {
   message: string;
   approvedAt: string;
   donor: { id: string; nickname: string };
-  broadcastId?: string;
+  broadcastId?: string | null;
 }
 
 interface DonationListJson {
@@ -403,18 +403,55 @@ describe('donations', () => {
       });
     });
 
-    it('removes the donations of a broadcast its streamer deletes', async () => {
+    // #114: a donation is a record of money, so deleting the broadcast only
+    // unlinks it.
+    it('keeps the donations of a broadcast its streamer deletes, unlinked', async () => {
       await confirm(donor.agent, await ordered(1000));
       await ordered(2000);
       const removed = await streamer.agent.delete(
         `/api/broadcasts/${broadcastId}`,
       );
       expect(removed.status).toBe(204);
-      expect(await prisma.donation.count()).toBe(0);
+      const kept = await prisma.donation.findMany({
+        orderBy: { amount: 'asc' },
+      });
+      expect(kept.map((d) => [d.amount, d.status, d.broadcastId])).toEqual([
+        [1000, 'PAID', null],
+        [2000, 'PENDING', null],
+      ]);
       expect(
         (await anonymous().get(`/api/broadcasts/${broadcastId}/donations`))
           .status,
       ).toBe(404);
+    });
+
+    it('refuses to confirm an order whose broadcast was deleted, before Toss', async () => {
+      const payment = await ordered(2000);
+      await streamer.agent.delete(`/api/broadcasts/${broadcastId}`);
+      const res = await confirm(donor.agent, payment);
+      expect(res.status).toBe(409);
+      expect((res.body as { message: string }).message).toBe(
+        '방송이 삭제되어 후원할 수 없습니다.',
+      );
+      expect(toss.calls).toEqual([]);
+      const row = await prisma.donation.findUniqueOrThrow({
+        where: { orderId: payment.orderId },
+      });
+      expect(row.status).toBe('PENDING');
+    });
+
+    it('still answers a paid donation confirmed again after its broadcast was deleted', async () => {
+      const payment = await ordered(1000);
+      const first = await confirm(donor.agent, payment);
+      expect(first.status).toBe(200);
+      await streamer.agent.delete(`/api/broadcasts/${broadcastId}`);
+      const again = await confirm(donor.agent, payment);
+      expect(again.status).toBe(200);
+      expect(again.body).toEqual({
+        ...(first.body as DonationJson),
+        broadcastId: null,
+      });
+      expect(toss.calls).toHaveLength(1);
     });
   });
 });

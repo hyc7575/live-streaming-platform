@@ -35,6 +35,7 @@ export const ORDER_NOT_FOUND_MESSAGE = '후원 주문을 찾을 수 없습니다
 export const NOT_YOUR_ORDER_MESSAGE = '내 후원 주문만 승인할 수 있습니다.';
 export const AMOUNT_MISMATCH_MESSAGE = '결제 금액이 주문과 다릅니다.';
 export const PAYMENT_KEY_USED_MESSAGE = '이미 다른 주문에 쓰인 결제입니다.';
+export const BROADCAST_DELETED_MESSAGE = '방송이 삭제되어 후원할 수 없습니다.';
 
 // Toss caps orderName at 100 characters.
 const ORDER_NAME_MAX_LENGTH = 100;
@@ -179,9 +180,14 @@ export class DonationsService {
       return await this.prisma.$transaction(
         async (tx) => {
           const [locked] = await tx.$queryRaw<
-            { id: string; status: string; paymentKey: string | null }[]
+            {
+              id: string;
+              status: string;
+              paymentKey: string | null;
+              broadcastId: string | null;
+            }[]
           >(Prisma.sql`
-            SELECT id, status::text, "paymentKey" FROM "Donation"
+            SELECT id, status::text, "paymentKey", "broadcastId" FROM "Donation"
             WHERE "orderId" = ${input.orderId}
             FOR UPDATE`);
           if (!locked) throw new NotFoundException(ORDER_NOT_FOUND_MESSAGE);
@@ -189,6 +195,13 @@ export class DonationsService {
             if (locked.paymentKey !== input.paymentKey) {
               throw new ConflictException(PAYMENT_KEY_USED_MESSAGE);
             }
+          } else if (locked.broadcastId === null) {
+            // The order outlived its deleted broadcast (#114). Refuse it
+            // before Toss approves, so no money moves for a broadcast that
+            // is gone. A delete racing this confirm waits on the row lock,
+            // so it either came first (seen here) or clears broadcastId of
+            // a donation that is already PAID and stays on record.
+            throw new ConflictException(BROADCAST_DELETED_MESSAGE);
           } else {
             const approvedAt = await approveTossPayment(
               toss,
