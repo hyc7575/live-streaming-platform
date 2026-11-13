@@ -265,3 +265,17 @@ it('keeps the follow panel on watching pages', async () => {
   expect(await screen.findByText('팔로우한 스트리머')).toBeDefined();
   expect(screen.queryByRole('navigation', { name: '스튜디오' })).toBeNull();
 });
+
+it('keeps the menu open when a click blurs it without moving focus, as Safari does', async () => {
+  stubApi(loggedIn);
+  renderAt('/');
+  const button = await screen.findByRole('button', {
+    name: '구경꾼',
+    expanded: false,
+  });
+  fireEvent.click(button);
+  fireEvent.blur(button, { relatedTarget: null });
+  expect(button.getAttribute('aria-expanded')).toBe('true');
+  fireEvent.blur(button, { relatedTarget: document.body });
+  expect(button.getAttribute('aria-expanded')).toBe('false');
+});

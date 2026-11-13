@@ -45,8 +45,11 @@ function AccountMenu() {
 
 // The nickname opens a small menu (PRD-mypage 7.3). A disclosure, not an
 // ARIA menu: Tab moves through its two items like any links. Escape, a click
-// outside and focus leaving it all close it; Escape returns focus to the
-// nickname.
+// outside and focus moving to something outside all close it; Escape
+// returns focus to the nickname. Safari and macOS Firefox do not focus a
+// clicked link, so a click on an item blurs with no relatedTarget; closing
+// then would hide the item before the click lands, so only a known outside
+// target closes the menu and the pointerdown listener handles clicks.
 function UserMenu({
   user,
   onLogOut,
@@ -89,7 +92,8 @@ function UserMenu({
       ref={rootRef}
       className={styles.account}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        const next = event.relatedTarget;
+        if (next && !event.currentTarget.contains(next)) setOpen(false);
       }}
     >
       <button

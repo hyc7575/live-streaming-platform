@@ -151,8 +151,6 @@ export class DonationsService {
     };
   }
 
-  // DonationTargetGuard has already checked the broadcast is someone else's
-  // and LIVE.
   // PENDING orders are left out: they were never paid, and a lime donation
   // is PAID from the start.
   async sentBy(donorId: string): Promise<SentDonationList> {
@@ -180,6 +178,8 @@ export class DonationsService {
     };
   }
 
+  // DonationTargetGuard has already checked the broadcast is someone else's
+  // and LIVE.
   async createOrder(
     broadcastId: string,
     donorId: string,
