@@ -9,7 +9,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
-import type { SentDonationSummary } from './donations';
+import type { ReceivedDonationSummary, SentDonationSummary } from './donations';
 import type { FollowerList } from './follows/follows';
 import type { LimeLedgerEntry } from './lime';
 
@@ -80,6 +80,31 @@ const SENT: SentDonationSummary = {
   ],
 };
 
+const RECEIVED: ReceivedDonationSummary = {
+  total: 6000,
+  count: 2,
+  donations: [
+    {
+      id: 'r2',
+      method: 'LIME',
+      amount: 3000,
+      message: '응원해요',
+      approvedAt: '2026-11-13T05:00:00.000Z',
+      donor: { id: 'u1', nickname: '구경꾼' },
+      broadcast: null,
+    },
+    {
+      id: 'r1',
+      method: 'TOSS',
+      amount: 3000,
+      message: '',
+      approvedAt: '2026-11-13T04:00:00.000Z',
+      donor: { id: 'f2', nickname: '다른사람' },
+      broadcast: { id: 'b1', title: '저녁 방송' },
+    },
+  ],
+};
+
 const FOLLOWERS: FollowerList = {
   count: 2,
   followers: [
@@ -122,6 +147,7 @@ const loggedIn = {
   'GET /api/me/lime': { balance: 5000 },
   'GET /api/me/lime/ledger': LEDGER,
   'GET /api/me/donations': SENT,
+  'GET /api/me/received-donations': RECEIVED,
   'GET /api/me/followers': FOLLOWERS,
   'POST /api/auth/logout': 204,
 };
@@ -239,7 +265,7 @@ it('shows the streamer’s followers with the studio menu', async () => {
 });
 
 it.each([
-  ['/studio', '스튜디오', ['내 방송', '내 채널', '팔로워']],
+  ['/studio', '스튜디오', ['내 방송', '내 채널', '후원', '팔로워']],
   ['/me/donations', '마이페이지', ['라임 내역', '보낸 후원']],
 ])(
   'shows the area menu instead of the follow panel on %s',
@@ -278,4 +304,25 @@ it('keeps the menu open when a click blurs it without moving focus, as Safari do
   expect(button.getAttribute('aria-expanded')).toBe('true');
   fireEvent.blur(button, { relatedTarget: document.body });
   expect(button.getAttribute('aria-expanded')).toBe('false');
+});
+
+it('totals what the streamer received, keeping donations of deleted broadcasts', async () => {
+  stubApi(loggedIn);
+  renderAt('/studio/donations');
+  expect(
+    await screen.findByRole('heading', { name: '받은 후원' }),
+  ).toBeDefined();
+  expect(await screen.findByText('6,000원')).toBeDefined();
+  expect(screen.getByText('2건')).toBeDefined();
+  const rows = within(
+    within(screen.getByRole('main')).getByRole('list'),
+  ).getAllByRole('listitem');
+  expect(rows[0]?.textContent).toMatch(
+    /^구경꾼삭제된 방송응원해요.*3,000라임$/,
+  );
+  expect(rows[1]?.textContent).toMatch(/^다른사람저녁 방송.*3,000원$/);
+  const tabs = screen.getByRole('navigation', { name: '스튜디오' });
+  expect(within(tabs).getByRole('link', { name: '후원' }).ariaCurrent).toBe(
+    'page',
+  );
 });

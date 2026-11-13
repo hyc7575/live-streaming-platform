@@ -19,6 +19,7 @@ import {
   type CreateDonationInput,
   type DonationList,
   type DonationOrder,
+  type ReceivedDonationList,
   type SentDonationList,
 } from './donations.service.js';
 
@@ -43,6 +44,12 @@ export class DonationsController {
   @UseGuards(LoggedInGuard)
   sent(@CurrentUser() user: AuthUser): Promise<SentDonationList> {
     return this.donations.sentBy(user.id);
+  }
+
+  @Get('me/received-donations')
+  @UseGuards(LoggedInGuard)
+  received(@CurrentUser() user: AuthUser): Promise<ReceivedDonationList> {
+    return this.donations.receivedBy(user.id);
   }
 
   @Post('broadcasts/:id/donations')

@@ -48,7 +48,7 @@ export class LimeDonationsService {
   // the debit included. Only then, outside it, is the earlier donation
   // looked up, because an aborted transaction cannot run more queries.
   async donate(
-    broadcastId: string,
+    { broadcastId, recipientId }: { broadcastId: string; recipientId: string },
     donorId: string,
     input: LimeDonationInput,
   ): Promise<LimeDonationResult> {
@@ -65,6 +65,7 @@ export class LimeDonationsService {
           data: {
             orderId: input.orderId,
             broadcastId,
+            recipientId,
             donorId,
             amount: input.amount,
             message: input.message,

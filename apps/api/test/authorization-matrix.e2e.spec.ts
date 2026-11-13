@@ -94,6 +94,7 @@ const MATRIX = {
   '대기 이미지 삭제': [401,    204,          204],
   '라임 내역 조회': [401,      200,          200],
   '보낸 후원 조회': [401,      200,          200],
+  '받은 후원 조회': [401,      200,          200],
   '팔로워 조회':    [401,      200,          200],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
@@ -112,8 +113,8 @@ const MATRIX = {
 // such cell: it is only ever the caller's own list. The standby image is
 // the caller's own channel, so 'other' and the owner each act on their own
 // and the broadcast's status does not matter. The PRD's one row "라임
-// 내역·보낸 후원·팔로워 조회" is three rows here, and like the standby image
-// each caller reads only their own: the other user donated to the owner and
+// 내역·보낸·받은 후원·팔로워 조회" is four rows here, and like the standby
+// image each caller reads only their own: the other user donated to the owner and
 // the owner follows the other user, so each list differs by caller.
 
 type Action = keyof typeof MATRIX;
@@ -656,6 +657,26 @@ describe('authorization matrix (PRD §7.5)', () => {
         );
       },
     },
+    '받은 후원 조회': {
+      send: (client) => client.get('/api/me/received-donations'),
+      verifyAllowed: (res, w, actor) => {
+        expect(res.body).toEqual(
+          actor === 'other'
+            ? { total: 0, count: 0, donations: [] }
+            : {
+                total: PAID_AMOUNT,
+                count: 1,
+                donations: [
+                  expect.objectContaining({
+                    amount: PAID_AMOUNT,
+                    donor: { id: w.other.id, nickname: w.other.nickname },
+                    broadcast: { id: w.targetId, title: '원래 제목' },
+                  }),
+                ],
+              },
+        );
+      },
+    },
     '팔로워 조회': {
       send: (client) => client.get('/api/me/followers'),
       verifyAllowed: (res, w, actor) => {
@@ -780,6 +801,7 @@ describe('authorization matrix (PRD §7.5)', () => {
       data: {
         orderId: 'don_matrix_paid',
         broadcastId: target.id,
+        recipientId: world.owner.id,
         donorId: world.other.id,
         amount: PAID_AMOUNT,
         status: 'PAID',
@@ -791,6 +813,7 @@ describe('authorization matrix (PRD §7.5)', () => {
       data: {
         orderId: 'don_matrix_pending',
         broadcastId: target.id,
+        recipientId: world.owner.id,
         donorId: world.other.id,
         amount: 2000,
       },

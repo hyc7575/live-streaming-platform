@@ -14,6 +14,7 @@ export const SECTIONS: readonly Section[] = [
     items: [
       { to: '/studio', label: '내 방송' },
       { to: '/studio/channel', label: '내 채널' },
+      { to: '/studio/donations', label: '후원' },
       { to: '/studio/followers', label: '팔로워' },
     ],
   },

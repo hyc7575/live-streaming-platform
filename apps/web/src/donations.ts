@@ -22,6 +22,15 @@ export interface DonationSummary {
   donations: Donation[];
 }
 
+// GET /me/received-donations: what the streamer received, on which broadcast.
+export type ReceivedDonation = Donation & Pick<DonationTarget, 'broadcast'>;
+
+export interface ReceivedDonationSummary {
+  total: number;
+  count: number;
+  donations: ReceivedDonation[];
+}
+
 // GET /me/donations: what the caller sent, to whom rather than from whom.
 export type SentDonation = Omit<Donation, 'donor'> & DonationTarget;
 

@@ -26,14 +26,15 @@ model User {
   // LimeLedger row, so the ledger's deltas always sum to it.
   limeBalance           Int       @default(0)
 
-  broadcasts   Broadcast[]
-  comments     Comment[]
-  chatMessages ChatMessage[]
-  donations    Donation[]
-  following    Follow[]      @relation("Follower")
-  followers    Follow[]      @relation("Followed")
-  limeCharges  LimeCharge[]
-  limeLedger   LimeLedger[]
+  broadcasts        Broadcast[]
+  comments          Comment[]
+  chatMessages      ChatMessage[]
+  donations         Donation[]    @relation("DonationDonor")
+  receivedDonations Donation[]    @relation("DonationRecipient")
+  following         Follow[]      @relation("Follower")
+  followers         Follow[]      @relation("Followed")
+  limeCharges       LimeCharge[]
+  limeLedger        LimeLedger[]
 }
 
 enum BroadcastStatus {
@@ -150,7 +151,12 @@ model Donation {
   broadcastId String?        @db.Uuid
   broadcast   Broadcast?     @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
   donorId     String         @db.Uuid
-  donor       User           @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  donor       User           @relation("DonationDonor", fields: [donorId], references: [id], onDelete: Cascade)
+  // The streamer the donation went to, copied from the broadcast when it is
+  // made so it survives the broadcast's deletion. Null only on donations
+  // whose broadcast was deleted before this column existed.
+  recipientId String?        @db.Uuid
+  recipient   User?          @relation("DonationRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
   amount      Int
   message     String         @default("")
   status      DonationStatus @default(PENDING)
@@ -160,6 +166,8 @@ model Donation {
   createdAt   DateTime       @default(now())
 
   @@index([broadcastId, status, approvedAt])
+  @@index([recipientId, status, approvedAt])
+  @@index([donorId, status, approvedAt])
 }
 
 // FAILED means Toss refused the last confirm. Like a PENDING order, it may

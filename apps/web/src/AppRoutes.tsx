@@ -18,6 +18,7 @@ import { LoginPage } from './pages/LoginPage';
 import { NewBroadcastPage } from './pages/NewBroadcastPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { PublishPage } from './pages/PublishPage';
+import { ReceivedDonationsPage } from './pages/ReceivedDonationsPage';
 import { SentDonationsPage } from './pages/SentDonationsPage';
 import { SignupPage } from './pages/SignupPage';
 import { StudioPage } from './pages/StudioPage';
@@ -45,6 +46,7 @@ export function AppRoutes() {
           <Route path="me/donations" element={<SentDonationsPage />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path="studio/channel" element={<ChannelPage />} />
+          <Route path="studio/donations" element={<ReceivedDonationsPage />} />
           <Route path="studio/followers" element={<FollowersPage />} />
           <Route path="studio/new" element={<NewBroadcastPage />} />
           <Route path="studio/broadcasts/:id" element={<PublishPage />} />

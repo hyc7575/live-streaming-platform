@@ -50,6 +50,14 @@ interface SentListJson {
   donations: SentDonationJson[];
 }
 
+interface ReceivedListJson {
+  total: number;
+  count: number;
+  donations: (Omit<SentDonationJson, 'recipient'> & {
+    donor: { id: string; nickname: string };
+  })[];
+}
+
 interface FollowerListJson {
   count: number;
   followers: { id: string; nickname: string; followedAt: string }[];
@@ -76,6 +84,8 @@ describe('my history', () => {
     getOk<LedgerEntryJson[]>(agent, '/api/me/lime/ledger');
   const sent = (agent: TestAgent) =>
     getOk<SentListJson>(agent, '/api/me/donations');
+  const received = (agent: TestAgent) =>
+    getOk<ReceivedListJson>(agent, '/api/me/received-donations');
   const followers = (agent: TestAgent) =>
     getOk<FollowerListJson>(agent, '/api/me/followers');
   const balance = async (agent: TestAgent) =>
@@ -148,12 +158,14 @@ describe('my history', () => {
     await app.close();
   });
 
-  it.each(['/api/me/lime/ledger', '/api/me/donations', '/api/me/followers'])(
-    'refuses %s without a login',
-    async (path) => {
-      expect((await anonymous().get(path)).status).toBe(401);
-    },
-  );
+  it.each([
+    '/api/me/lime/ledger',
+    '/api/me/donations',
+    '/api/me/received-donations',
+    '/api/me/followers',
+  ])('refuses %s without a login', async (path) => {
+    expect((await anonymous().get(path)).status).toBe(401);
+  });
 
   it('lists the ledger newest first, ending at the current balance', async () => {
     const broadcastId = await goLive(streamer.user.id, '라임 방송');
@@ -222,7 +234,8 @@ describe('my history', () => {
     });
   });
 
-  // #114: deleting the broadcast keeps the donation and its ledger row.
+  // #114: deleting the broadcast keeps the donation and its ledger row, and
+  // the donation still names its streamer.
   it('keeps a donation whose broadcast was deleted, without the broadcast', async () => {
     const broadcastId = await goLive(streamer.user.id, '지울 방송');
     await charge(viewer.agent, 10_000);
@@ -236,14 +249,87 @@ describe('my history', () => {
 
     const list = await sent(viewer.agent);
     expect(list).toMatchObject({ total: 4_000, count: 2 });
+    const recipient = { id: streamer.user.id, nickname: '불씨' };
     for (const donation of list.donations) {
-      expect(donation).toMatchObject({ broadcast: null, recipient: null });
+      expect(donation).toMatchObject({ broadcast: null, recipient });
     }
     const [donation] = await ledger(viewer.agent);
     expect(donation).toMatchObject({
       kind: 'DONATION',
-      donation: { broadcast: null, recipient: null },
+      donation: { broadcast: null, recipient },
     });
+  });
+
+  it('totals what a streamer received across broadcasts, only their own', async () => {
+    const first = await goLive(streamer.user.id, '첫 방송');
+    await charge(viewer.agent, 10_000);
+    await donateLime(viewer.agent, first, 2_000);
+    await donateCard(other.agent, first, 5_000);
+    await donateCard(other.agent, first, 1_000, false);
+    await prisma.broadcast.update({
+      where: { id: first },
+      data: { status: 'ENDED', endedAt: new Date() },
+    });
+    const second = await goLive(streamer.user.id, '둘째 방송');
+    await donateCard(viewer.agent, second, 3_000);
+    const elsewhere = await goLive(other.user.id, '다른 방송');
+    await donateLime(viewer.agent, elsewhere, 4_000);
+
+    const list = await received(streamer.agent);
+    expect(list).toMatchObject({ total: 10_000, count: 3 });
+    expect(list.donations).toEqual([
+      expect.objectContaining({
+        method: 'TOSS',
+        amount: 3_000,
+        donor: { id: viewer.user.id, nickname: '구경꾼' },
+        broadcast: { id: second, title: '둘째 방송' },
+      }),
+      expect.objectContaining({
+        method: 'TOSS',
+        amount: 5_000,
+        donor: { id: other.user.id, nickname: '다른사람' },
+        broadcast: { id: first, title: '첫 방송' },
+      }),
+      expect.objectContaining({
+        method: 'LIME',
+        amount: 2_000,
+        donor: { id: viewer.user.id, nickname: '구경꾼' },
+        broadcast: { id: first, title: '첫 방송' },
+      }),
+    ]);
+    expect(await received(other.agent)).toMatchObject({
+      total: 4_000,
+      count: 1,
+    });
+    expect(await received(viewer.agent)).toEqual({
+      total: 0,
+      count: 0,
+      donations: [],
+    });
+  });
+
+  // PRD-mypage KR4: the total is the same before and after the deletion.
+  it('keeps a streamer’s received total when a broadcast is deleted', async () => {
+    const broadcastId = await goLive(streamer.user.id, '지울 방송');
+    await charge(viewer.agent, 10_000);
+    await donateLime(viewer.agent, broadcastId, 3_000);
+    await donateCard(other.agent, broadcastId, 2_000);
+    const before = await received(streamer.agent);
+    expect(before).toMatchObject({ total: 5_000, count: 2 });
+
+    const deleted = await streamer.agent.delete(
+      `/api/broadcasts/${broadcastId}`,
+    );
+    expect(deleted.status, JSON.stringify(deleted.body)).toBe(204);
+
+    const after = await received(streamer.agent);
+    expect(after).toMatchObject({ total: 5_000, count: 2 });
+    expect(after.donations.map((d) => d.id)).toEqual(
+      before.donations.map((d) => d.id),
+    );
+    for (const donation of after.donations) {
+      expect(donation.broadcast).toBeNull();
+    }
   });
 
   it('lists only the caller’s own followers, newest first', async () => {
