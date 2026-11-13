@@ -244,6 +244,15 @@
 
 .body {
   display: flex;
+  flex-direction: column;
+}
+
+/* Below 1024px the left column is hidden or, for the studio and my page,
+   a row of tabs above the page. */
+@media (min-width: 1024px) {
+  .body {
+    flex-direction: row;
+  }
 }
 
 /* The left panel shows the follow list from 1024px up. */
@@ -255,6 +264,9 @@
 
 .main {
   flex: 1;
+  /* The body is a column below 1024px, where auto margins would otherwise
+     shrink the page to its content instead of stretching it. */
+  width: 100%;
   min-width: 0;
   max-width: var(--content-max-width);
   margin: 0 auto;

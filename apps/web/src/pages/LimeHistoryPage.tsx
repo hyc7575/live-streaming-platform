@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { MyPageTabs } from '../components/MyPageTabs';
 import { onCharge, openChargeTab } from '../donation/donationChannel';
 import { formatLime, type LimeBalance, type LimeLedgerEntry } from '../lime';
 import { HISTORY_LIMIT } from '../history';
@@ -72,7 +71,6 @@ export function LimeHistoryPage() {
 
   return (
     <section>
-      <MyPageTabs />
       <div className={listStyles.heading}>
         <h1 className={listStyles.title}>라임 내역</h1>
       </div>

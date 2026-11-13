@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { type AuthUser, useAuth } from '../auth/auth-context';
 import { ThumbnailPicture } from '../components/BroadcastThumbnail';
-import { StudioTabs } from '../components/StudioTabs';
 import { useDocumentTitle } from '../use-document-title';
 import type { LoginPageState } from './LoginPage';
 import styles from './ChannelPage.module.css';
@@ -83,7 +82,6 @@ export function ChannelPage() {
 
   return (
     <section>
-      <StudioTabs />
       <h1 className={styles.title}>기본 대기 이미지</h1>
       <div className={styles.layout}>
         <div className={styles.preview} aria-busy={busy === 'upload'}>

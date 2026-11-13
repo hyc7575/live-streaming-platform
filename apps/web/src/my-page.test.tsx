@@ -177,7 +177,9 @@ it('shows the balance above the ledger, newest first', async () => {
     within(tabs).getByRole('link', { name: '라임 내역' }).ariaCurrent,
   ).toBe('page');
 
-  const rows = within(await screen.findByRole('list')).getAllByRole('listitem');
+  const rows = within(
+    within(screen.getByRole('main')).getByRole('list'),
+  ).getAllByRole('listitem');
   expect(rows.map((row) => row.textContent)).toEqual([
     expect.stringMatching(/^후원삭제된 방송.*−2,000라임잔액 5,000라임$/),
     expect.stringMatching(
@@ -203,7 +205,9 @@ it('lists sent donations in their own units under a total in won', async () => {
   ).toBeDefined();
   expect(await screen.findByText('4,000원')).toBeDefined();
   expect(screen.getByText('2건')).toBeDefined();
-  const rows = within(screen.getByRole('list')).getAllByRole('listitem');
+  const rows = within(
+    within(screen.getByRole('main')).getByRole('list'),
+  ).getAllByRole('listitem');
   expect(rows[0].textContent).toMatch(/^삭제된 방송잘 보고 있어요.*1,000원$/);
   expect(rows[1].textContent).toMatch(/^불씨에게 · 저녁 방송.*3,000라임$/);
 });
@@ -217,7 +221,7 @@ it('says so when nothing was sent', async () => {
   expect(await screen.findByText('아직 보낸 후원이 없습니다.')).toBeDefined();
 });
 
-it('shows the streamer’s followers under the studio tabs', async () => {
+it('shows the streamer’s followers with the studio menu', async () => {
   stubApi(loggedIn);
   renderAt('/studio/followers');
   expect(await screen.findByText('2명')).toBeDefined();
@@ -225,9 +229,39 @@ it('shows the streamer’s followers under the studio tabs', async () => {
   expect(within(tabs).getByRole('link', { name: '팔로워' }).ariaCurrent).toBe(
     'page',
   );
-  const rows = within(screen.getByRole('list')).getAllByRole('listitem');
+  const rows = within(
+    within(screen.getByRole('main')).getByRole('list'),
+  ).getAllByRole('listitem');
   expect(rows.map((row) => row.textContent)).toEqual([
     expect.stringMatching(/^다다른사람.*팔로우$/),
     expect.stringMatching(/^구구경꾼.*팔로우$/),
   ]);
+});
+
+it.each([
+  ['/studio', '스튜디오', ['내 방송', '내 채널', '팔로워']],
+  ['/me/donations', '마이페이지', ['라임 내역', '보낸 후원']],
+])(
+  'shows the area menu instead of the follow panel on %s',
+  async (path, area, labels) => {
+    stubApi({ ...loggedIn, 'GET /api/me/broadcasts': [] });
+    renderAt(path);
+    const nav = await screen.findByRole('navigation', { name: area });
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(labels);
+    expect(
+      within(nav).getByRole('link', { current: 'page' }).getAttribute('href'),
+    ).toBe(path);
+    expect(screen.queryByText('팔로우한 스트리머')).toBeNull();
+  },
+);
+
+it('keeps the follow panel on watching pages', async () => {
+  stubApi(loggedIn);
+  renderAt('/');
+  expect(await screen.findByText('팔로우한 스트리머')).toBeDefined();
+  expect(screen.queryByRole('navigation', { name: '스튜디오' })).toBeNull();
 });

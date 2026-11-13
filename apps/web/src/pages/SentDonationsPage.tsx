@@ -1,4 +1,3 @@
-import { MyPageTabs } from '../components/MyPageTabs';
 import {
   formatDonationAmount,
   formatWon,
@@ -19,7 +18,6 @@ export function SentDonationsPage() {
 
   return (
     <section>
-      <MyPageTabs />
       <div className={listStyles.heading}>
         <h1 className={listStyles.title}>보낸 후원</h1>
       </div>

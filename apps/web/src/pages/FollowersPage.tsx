@@ -1,4 +1,3 @@
-import { StudioTabs } from '../components/StudioTabs';
 import type { FollowerList } from '../follows/follows';
 import { HISTORY_LIMIT } from '../history';
 import { useApi } from '../use-api';
@@ -15,7 +14,6 @@ export function FollowersPage() {
 
   return (
     <section>
-      <StudioTabs />
       <div className={listStyles.heading}>
         <h1 className={listStyles.title}>팔로워</h1>
       </div>

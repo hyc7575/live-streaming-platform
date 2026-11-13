@@ -1,9 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth, type AuthUser } from '../auth/auth-context';
 import { FollowsProvider } from '../follows/FollowsProvider';
 import styles from './AppLayout.module.css';
 import { FollowPanel } from './FollowPanel';
+import { SectionNav } from './SectionNav';
+import { sectionOf } from './sections';
 
 function AccountMenu() {
   const { state, logOut, recheck } = useAuth();
@@ -154,8 +156,11 @@ function Logo() {
   );
 }
 
+// Watching pages keep the follow panel on the left; the studio and my page
+// are the user's own workspace and show their menu there instead.
 export function AppLayout() {
   const loggedIn = useAuth().state.status === 'authenticated';
+  const section = sectionOf(useLocation().pathname);
   return (
     <FollowsProvider>
       <div className={styles.shell}>
@@ -182,7 +187,7 @@ export function AppLayout() {
           <AccountMenu />
         </header>
         <div className={styles.body}>
-          <FollowPanel />
+          {section ? <SectionNav section={section} /> : <FollowPanel />}
           <main className={styles.main}>
             <Outlet />
           </main>
