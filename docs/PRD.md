@@ -142,7 +142,8 @@ flowchart LR
 - `User`(팔로워) N : M `User`(스트리머)를 `Follow`(`followerId`, `streamerId` 복합 기본 키)로 잇는다. 어느 쪽 사용자가 지워져도 팔로우가 함께 지워진다. "지금 LIVE"는 따로 저장하지 않고 그 스트리머의 `LIVE` 방송으로 읽는다.
 - 채널 설정(기본 대기 이미지)은 `User`의 `standbyImageExt`(`jpg`·`png`·`webp`)와 `standbyImageUpdatedAt`에 둔다. 파일은 썸네일 폴더의 `users/<사용자 id>/standby.<확장자>`이고, 방송을 지워도 남는다. 방송은 송출할 때마다 새로 만들므로 방송 단위로 두면 매번 다시 올려야 한다(#63).
 - `Broadcast` 1 : N `ChatMessage`(`authorId`, 본문, `createdAt`, 인덱스 `(broadcastId, createdAt)`)는 방송 전·중 채팅, 1 : N `Comment`(`authorId`, 본문, `createdAt`, `updatedAt`)는 방송 후 댓글이다. 채팅은 고치지 않아 `updatedAt`이 없다. 방송이나 작성자를 지우면 둘 다 함께 지워진다. #91 마이그레이션이 그 전의 `Comment` 중 방송 종료(`endedAt`) 전에 쓴 행과 아직 끝나지 않은 방송의 행을 같은 id로 `ChatMessage`에 옮겼다.
-- `Channel`(스트림 키)은 두지 않는다. OBS는 방송별 WHIP URL로 송출하므로 스트림 키가 필요 없다(#89, 8.2). 도네이션의 후원 대상 스트리머는 `Broadcast.streamerId`로 충분하다 (공모 원문의 "방송자"와 같은 뜻).
+- `Channel`(스트림 키)은 두지 않는다. OBS는 방송별 WHIP URL로 송출하므로 스트림 키가 필요 없다(#89, 8.2).
+- 도네이션의 후원 대상 스트리머(공모 원문의 "방송자")는 `Donation.recipientId`에 둔다. 후원을 만들 때 `Broadcast.streamerId`를 복사한다. 방송을 지우면 `broadcastId`만 비고(#114) 받은 사람은 남아, 스트리머의 받은 후원 합계가 줄지 않는다(#118, PRD-mypage 7.1). 처음에는 `Broadcast.streamerId`로 충분하다고 보았으나 #114 이후 방송을 지우면 받은 사람을 잃게 되어 바꿨다.
 - 라임: `User.limeBalance`(현재 잔액, 조건부 UPDATE로만 바꾼다), `LimeCharge`(충전 주문, `orderId`·`paymentKey` UNIQUE), `LimeLedger`(원장, `(kind, refId)` UNIQUE, `balanceAfter`). `Donation.method`(TOSS·LIME)로 두 후원 수단을 한 내역·합계에 담는다.
 - 상세 스키마는 착수 시 설계 문서로 분리한다.
 
@@ -202,7 +203,7 @@ stateDiagram-v2
 | 라임 충전·잔액 조회 (P2, `POST /api/lime/charges`, `GET /api/me/lime`) | 401 | 내 것만 | — |
 | 팔로우·언팔로우 (P2) | 401 | 허용 (멱등, 204) | 400 "자기 자신은 팔로우할 수 없습니다." |
 | 내 팔로우 목록 (P2) | 401 | 내 것만 | — |
-| 라임 내역·보낸 후원·팔로워 조회 (`GET /api/me/lime/ledger`·`/api/me/donations`·`/api/me/followers`, PRD-mypage) | 401 | 내 것만 | — |
+| 라임 내역·보낸 후원·받은 후원·팔로워 조회 (`GET /api/me/lime/ledger`·`/api/me/donations`·`/api/me/received-donations`·`/api/me/followers`, PRD-mypage) | 401 | 내 것만 | — |
 
 팔로우 행의 "소유자"는 자기 자신을 팔로우하는 경우다. 없는 스트리머 id는 404, UUID 형식이 아닌 id는 400이다. 검사 순서는 401 → 400(형식) → 400(자기 자신) → 404다.
 
@@ -344,6 +345,7 @@ sequenceDiagram
 16. B가 10,000라임 충전 → 시청 탭에서 3,000라임 후원 → 페이지 이동 없이 내역에 나타나고 잔액 7,000. 잔액보다 큰 금액을 고르면 "충전하기"와 "카드로 후원"이 보임. A가 자기 방송에 라임 후원 API를 직접 호출하면 403
 17. B로 로그인 → 헤더 닉네임 → "마이페이지" → "라임 내역"에 충전·후원이 시간순으로 있고, 맨 위 행의 잔액이 현재 잔액과 같다. 비로그인으로 `GET /api/me/lime/ledger` → 401 ([PRD-mypage](./PRD-mypage.md))
 18. B의 "보낸 후원"에 직접결제·라임 후원이 함께 있다. A가 그 방송을 지우면 그 행이 "삭제된 방송"과 함께 남는다
+19. A로 로그인 → 스튜디오 "후원"에 모든 방송의 합계가 있다. 방송 하나를 지워도 합계가 그대로다. "팔로워"에 B가 있다
 
 위험 분석과 대응 근거는 [PRE-MORTEM.md](./PRE-MORTEM.md)를 따른다.
 

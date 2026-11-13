@@ -22,7 +22,6 @@ import {
 } from '../donations/toss-payments.js';
 import {
   donationTargetSelect,
-  toDonationTarget,
   type DonationTarget,
 } from '../donations/sent-donation.js';
 import { Prisma, type LimeLedgerKind } from '../generated/prisma/client.js';
@@ -118,7 +117,7 @@ export class LimeService {
       select: { id: true, ...donationTargetSelect },
     });
     const targets = new Map(
-      donations.map((d) => [d.id, toDonationTarget(d)] as const),
+      donations.map(({ id, ...target }) => [id, target] as const),
     );
     return rows.map(({ refId, ...row }) => ({
       ...row,

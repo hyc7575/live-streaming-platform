@@ -12,11 +12,7 @@ import {
 import { BroadcastsService } from '../broadcasts/broadcasts.service.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma } from '../generated/prisma/client.js';
-import {
-  donationTargetSelect,
-  toDonationTarget,
-  type DonationTarget,
-} from './sent-donation.js';
+import { donationTargetSelect, type DonationTarget } from './sent-donation.js';
 import { approveTossPayment } from './toss-approval.js';
 import {
   TOSS_CONFIG,
@@ -103,6 +99,25 @@ const sentSelect = {
   ...donationTargetSelect,
 } as const satisfies Prisma.DonationSelect;
 
+// A donation the caller received: who sent it and on which broadcast, which
+// is null once deleted. Read by recipient, so deleting a broadcast never
+// shrinks the streamer's total (PRD-mypage KR4).
+const receivedSelect = {
+  ...donationSelect,
+  broadcast: { select: { id: true, title: true } },
+} as const satisfies Prisma.DonationSelect;
+
+export type ReceivedDonation = Prisma.DonationGetPayload<{
+  select: typeof receivedSelect;
+}>;
+
+// GET /me/received-donations, summed like DonationList.
+export interface ReceivedDonationList {
+  total: number;
+  count: number;
+  donations: ReceivedDonation[];
+}
+
 export interface DonationOrder {
   orderId: string;
   orderName: string;
@@ -171,10 +186,29 @@ export class DonationsService {
     return {
       total: aggregate._sum.amount ?? 0,
       count: aggregate._count,
-      donations: rows.map(({ broadcast, ...donation }) => ({
-        ...donation,
-        ...toDonationTarget({ broadcast }),
-      })),
+      donations: rows,
+    };
+  }
+
+  async receivedBy(recipientId: string): Promise<ReceivedDonationList> {
+    const where = { recipientId, status: 'PAID' } as const;
+    const [aggregate, donations] = await Promise.all([
+      this.prisma.donation.aggregate({
+        where,
+        _sum: { amount: true },
+        _count: true,
+      }),
+      this.prisma.donation.findMany({
+        where,
+        orderBy: [{ approvedAt: 'desc' }, { id: 'desc' }],
+        take: DONATION_LIST_LIMIT,
+        select: receivedSelect,
+      }),
+    ]);
+    return {
+      total: aggregate._sum.amount ?? 0,
+      count: aggregate._count,
+      donations,
     };
   }
 
@@ -190,7 +224,13 @@ export class DonationsService {
     const orderId = `don_${randomUUID().replaceAll('-', '')}`;
     try {
       await this.prisma.donation.create({
-        data: { orderId, broadcastId, donorId, ...input },
+        data: {
+          orderId,
+          broadcastId,
+          recipientId: broadcast.streamer.id,
+          donorId,
+          ...input,
+        },
       });
     } catch (error) {
       // The broadcast was deleted between the check and the insert.

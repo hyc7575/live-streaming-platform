@@ -44,9 +44,9 @@ export class LimeDonationsController {
       res.status(200);
       return earlier;
     }
-    await this.target.check(broadcastId, user.id);
+    const recipientId = await this.target.check(broadcastId, user.id);
     const { donation, created } = await this.limeDonations.donate(
-      broadcastId,
+      { broadcastId, recipientId },
       user.id,
       input,
     );

@@ -34,7 +34,8 @@ export class DonationTargetGuard implements CanActivate {
   }
 
   // 404 for a missing broadcast, 403 for the streamer's own, 409 unless LIVE.
-  async check(broadcastId: string, donorId: string): Promise<void> {
+  // Returns the streamer, whom the donation names as its recipient.
+  async check(broadcastId: string, donorId: string): Promise<string> {
     const broadcast = await this.broadcasts.get(broadcastId);
     if (broadcast.streamer.id === donorId) {
       throw new ForbiddenException(SELF_DONATION_MESSAGE);
@@ -42,5 +43,6 @@ export class DonationTargetGuard implements CanActivate {
     if (broadcast.status !== 'LIVE') {
       throw new ConflictException(DONATION_NOT_LIVE_MESSAGE);
     }
+    return broadcast.streamer.id;
   }
 }
