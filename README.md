@@ -8,7 +8,7 @@
 - 테스트 계정: 홈이나 로그인 화면의 "테스트 계정으로 로그인"에서 "스트리머 A" 또는 "사용자 B"를 누른다. 비밀번호를 입력하지 않는다.
 - 권장 환경: PC Chrome + 휴대폰 1대. Edge, Windows, 휴대폰 브라우저 앱(Android Chrome, iOS Safari)은 미검증이다. 확인한 환경은 [지원 환경](#지원-환경)에 있다.
 
-확인 순서 (약 10분). 각 줄 끝의 링크가 자세한 절차다.
+확인 순서 (필수 1~8 약 10분, 선택 9 약 5분). 각 줄 끝의 링크가 자세한 절차다.
 
 1. **PC 송출**: PC에서 "스트리머 A" → "방송 만들기" → 제목 입력 → "만들기"를 누르면 송출 화면이 열린다. 다른 탭에서 소리 나는 영상을 재생해 둔다. "화면 공유" → 공유 창의 "Chrome 탭"에서 그 탭을 고르고 "탭 오디오와 함께 공유"를 켠다 → "방송 시작" → "송출 중입니다. 시청자가 방송을 볼 수 있습니다."가 보인다. [PC 화면 송출](#pc-화면-송출-13)
 2. **휴대폰 시청**: 휴대폰에서 로그인하지 않고 서비스 주소 → "LIVE" 탭 → 방송 카드를 누른다. "방송을 불러오는 중입니다"가 잠시 보인 뒤 화면, 탭 소리, 마이크 소리가 함께 나온다. 소리가 꺼져 있으면 "소리 켜기"를 누른다. [송출에서 시청까지](#3-송출에서-시청까지-10)
@@ -18,6 +18,11 @@
 6. **댓글 작성·수정·삭제**: "사용자 B"로 방송 목록의 "방송 종료" 탭 → "끝난 방송 예시: 댓글을 남겨 보세요"를 연다. "댓글" 탭에서 댓글을 쓰고, 내 댓글의 "수정"·"삭제"를 누른다. 방송 중에는 같은 자리가 채팅이다. [채팅과 댓글](#6-채팅과-댓글-18-91)
 7. **모바일 송출**: 휴대폰에서 "스트리머 A" → "방송 만들기" → "만들기" → "카메라 켜기" → 카메라·마이크 허용 → "방송 시작". PC에서 그 방송을 열어 본다. 휴대폰에서 "후면 카메라로 전환"을 누르면 PC 화면도 바뀐다. "방송 종료" → "종료하기"로 끝낸다. [모바일 송출](#모바일-송출-15)
 8. **내 내역**: "사용자 B" → 헤더 오른쪽 닉네임 → "마이페이지"에서 라임 충전·후원 내역과 "보낸 후원"을 본다. "스트리머 A"는 "내 방송" → 왼쪽 메뉴 "팔로워"에서 자기 팔로워를 본다. 로그인하지 않고 `/api/me/donations`를 열면 401이다. [마이페이지와 팔로워](#11-마이페이지와-팔로워-117)
+9. **선택 기능**: PC에서 "스트리머 A" → "방송 만들기" → 카테고리 "게임" → 게임 칸에 "롤"을 넣고 "리그 오브 레전드"를 고른다 → "만들기" → 1번처럼 "방송 시작".
+   - 검색·채널: 헤더 검색창에 "리그"를 넣고 Enter를 누른다. 제목에 "리그"가 없어도 결과 화면의 "방송"에 방금 방송이 있다. 카드 아래 "스트리머 A"를 누르면 채널 페이지가 열린다. [게임 타이틀](#16-게임-타이틀-133), [서버 검색과 결과 화면](#17-서버-검색과-결과-화면-138)
+   - 카테고리: 홈의 카테고리 칩 "게임"을 누르면 게임 방송만 남고, 카드에 "게임 · 리그 오브 레전드" 배지가 있다. [방송 카테고리](#15-방송-카테고리-132)
+   - 후원: 시크릿 창의 "사용자 B"로 그 방송을 연다. "충전하기"로 새 탭에서 라임을 충전하고 시청 탭으로 돌아와 "라임으로 후원"을 누른다. 영상이 멈추지 않고 후원 목록에 "N라임"이 보인다. 그 뒤 8번의 "마이페이지"에 충전과 후원이 남는다. 토스 테스트 결제지만 카드사 인증 화면은 실제와 같다. 돈은 나가지 않는다. [새 탭 후원과 라임 후원](#10-새-탭-후원과-라임-후원-108-109-110)
+   - OBS: OBS가 있으면 송출 화면의 "OBS로 송출" 탭에서 송출 URL을 받아 OBS로도 송출할 수 있다. [추가 송출 방법: OBS](#추가-송출-방법-obs-89)
 
 송출 중에 다른 화면으로 가려 하면 "송출 중입니다. 이 화면을 떠나면 방송이 끊깁니다."가 뜬다. "머무르기"를 누른다. "송출 서버에 연결하지 못했습니다."가 뜨면 네트워크를 바꾸고 "다시 시도"를 누른다.
 
@@ -33,8 +38,9 @@
 |---|---|
 | `apps/api` | NestJS API (TypeScript strict). 모든 경로는 `/api` 아래에 있다 |
 | `apps/web` | React + Vite 웹 앱 (TypeScript strict). UI 지침은 `apps/web/CLAUDE.md` |
-| `compose.yaml` | 로컬 개발용 PostgreSQL, OvenMediaEngine |
-| `docs/` | PRD, pre-mortem, 작업 목록 |
+| `compose.yaml` | 로컬 개발용 PostgreSQL, OvenMediaEngine, 녹화·썸네일 정적 서버 |
+| `deploy/` | 운영 서버 compose(Caddy, API, OME, PostgreSQL, 백업). 절차는 [docs/OPERATIONS.md](docs/OPERATIONS.md) |
+| `docs/` | PRD와 기능별 PRD, pre-mortem, 작업 목록, 결정 기록(`docs/adr/`), 운영 문서. 용어는 루트의 `GLOSSARY.md` |
 
 ## 기능 확인
 
@@ -165,12 +171,7 @@ pnpm --filter @lsp/web e2e --headed   # 탭 소리 레벨까지 확인한다
 5. 송출 화면의 "시청 화면 열기"를 누른다. 새 탭에 시청 화면이 열리고, 검은 플레이어 자리에 "방송 준비 중입니다."가 보인다. 주소를 복사해 시크릿 창에서 열어도 같다.
 6. "방송 목록"으로 간다. 방금 만든 방송이 LIVE 카드 뒤, 방송 종료 카드 앞에 "방송 준비 중" 배지로 보인다.
 
-LIVE·ENDED 방송은 송출 기능이 생기기 전까지 DB에서 직접 만든다.
-
-```sh
-docker compose exec postgres psql -U lsp -d lsp -c \
-  "UPDATE \"Broadcast\" SET status='LIVE', \"startedAt\"=now() WHERE title='<제목>'"
-```
+LIVE 방송은 [3절](#3-송출에서-시청까지-10)대로 송출해서, 방송 종료 방송은 [4절](#4-방송-종료-11)대로 종료해서 만든다. 시드(`db:seed`)도 끝난 방송 예시 하나를 만든다.
 
 API로 확인 (0절 마지막 명령이 `jar.txt`의 세션을 로그아웃으로 지웠으므로, 같은 계정으로 다시 로그인해 쿠키를 새로 받는다):
 
@@ -372,11 +373,11 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/auth/test-login \
 ### 2. 방송 수정·삭제와 인가 매트릭스
 
 인수 시나리오 2-1: A가 자기 방송(READY 또는 ENDED)의 제목을 수정 → 목록·상세에 반영 → 삭제 → 목록에서 사라짐.
-인수 시나리오 4: 사용자 B가 A의 방송 수정·삭제 시도 → 403. UI에서는 버튼이 보이지 않고, API를 직접 불러도 거절된다. 종료 시도는 종료 기능(#11)이 생길 때 추가한다.
+인수 시나리오 4: 사용자 B가 A의 방송 수정·삭제 시도 → 403. UI에서는 버튼이 보이지 않고, API를 직접 불러도 거절된다. 종료 시도도 403이다.
 
 수정·삭제는 `로그인 확인 → 소유자 확인` 순서로 거른다(`LoggedInGuard` → `BroadcastOwnerGuard`). 비로그인은 방송을 찾기 전에 401, 로그인한 사용자가 없는 방송을 부르면 404, 남의 방송은 403이다. 소유자 확인이 본문 검증보다 먼저라서, 타인은 본문이 틀려도 400이 아니라 403을 받는다.
 
-인가 매트릭스 (PRD §7.5 중 지금 있는 행). 자동 테스트는 `apps/api/test/authorization-matrix.e2e.spec.ts`(실제 PostgreSQL)이고, 이 표를 같은 모양의 테이블(`MATRIX`)로 들고 있다.
+인가 매트릭스 (PRD §7.5 중 방송 행). 채팅·댓글·팔로우·후원·라임·이미지 행은 PRD §7.5와 각 기능 절에 있다. 자동 테스트는 `apps/api/test/authorization-matrix.e2e.spec.ts`(실제 PostgreSQL)이고, 이 표를 같은 모양의 테이블(`MATRIX`)로 들고 있다.
 
 | 행위 | API | 비로그인 | 로그인(타인) | 소유자 |
 |---|---|---|---|---|
@@ -384,28 +385,28 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/auth/test-login \
 | 방송 상세 조회 | `GET /api/broadcasts/:id` | 200 | 200 | 200 |
 | 방송 생성 | `POST /api/broadcasts` | 401 | 201 | — |
 | 방송 수정 | `PATCH /api/broadcasts/:id` | 401 | 403 | 200 |
-| 방송 삭제 | `DELETE /api/broadcasts/:id` | 401 | 403 | 204 (LIVE면 409) |
+| 방송 삭제 | `DELETE /api/broadcasts/:id` | 401 | 403 | 204 (LIVE면 종료한 뒤 삭제) |
 | 내 방송 조회 | `GET /api/me/broadcasts` | 401 | 200 (자기 것만) | 200 |
 | 송출 토큰 발급 | `POST /api/broadcasts/:id/publish-token` | 401 | 403 | 201 (ENDED면 409) |
 
-- 표의 칸마다 대상 방송이 `READY`·`LIVE`·`ENDED`일 때를 모두 돌린다(20칸 × 3 = 60건).
+- 표의 칸마다 대상 방송이 `READY`·`LIVE`·`ENDED`일 때를 모두 돌린다.
 - 거절된 칸(401·403·409)은 요청 뒤 `Broadcast` 테이블 전체가 요청 전과 같은지 확인한다.
-- 허용된 칸은 효과를 API로 다시 읽어 확인한다. 수정 뒤 상세·내 방송·공개 목록에 새 제목이 보이고(`READY`는 원래 공개 목록에 없다), 본문에 함께 보낸 `status`는 무시된다. 삭제 뒤 상세는 404이고 내 방송과 공개 목록에서 사라진다.
+- 허용된 칸은 효과를 API로 다시 읽어 확인한다. 수정 뒤 상세·내 방송·공개 목록에 새 제목이 보이고(만든 지 24시간 안의 `READY`도 공개 목록에 있다), 본문에 함께 보낸 `status`는 무시된다. 삭제 뒤 상세는 404이고 내 방송과 공개 목록에서 사라진다.
 - 순서 확인: 없는 방송과 형식이 틀린 id에 비로그인 401, 로그인 404. 틀린 본문에 비로그인 401, 타인 403, 소유자 400. 로그아웃한 소유자는 401.
-- 아직 없는 행(종료, Webhook의 유예 중 재접속, 스트림 키, 댓글, 후원)은 `it.todo`로 남겨 테스트 출력에 todo로 보인다.
+- 아직 없는 행은 스트림 키(P3) 하나다. `it.todo`로 남겨 테스트 출력에 todo로 보인다.
 
 수정 규칙(`apps/api/test/broadcasts.e2e.spec.ts`): 보낸 필드만 바꾸고 생성과 같은 검증(제목 1~100자, 설명 2000자 이하, 앞뒤 공백 제거)을 한다. 빈 본문과 모르는 필드만 있는 본문은 400이다. `LIVE` 방송도 제목·설명은 고칠 수 있다.
 
-LIVE 방송 삭제: PRD §7.4는 "서버가 먼저 종료 처리한 뒤 삭제"다. 종료 처리(미디어 서버의 송출 연결 끊기)는 #11에서 생기므로, 그 전까지 `LIVE` 삭제는 409 `방송을 종료한 뒤 삭제하세요.`로 거절한다.
+LIVE 방송 삭제: PRD §7.4대로 서버가 먼저 4절의 종료(`ENDED` 저장 → 송출 연결 끊기)를 한 뒤 지운다.
 
 화면에서 확인 (위 절의 테스트 계정 "스트리머 A"·"사용자 B"를 쓴다. B는 다른 브라우저나 시크릿 창에서 로그인한다. 직접 가입한 두 계정으로 해도 같다):
 
 1. "스트리머 A"로 로그인해 방송을 만든다. 송출 화면의 "시청 화면 열기"로 상세를 연다(새 탭). 설명 아래에 "수정"과 "삭제"가 보인다.
 2. "수정"을 누른다. 제목과 설명이 채워진 "방송 수정" 화면이 열린다. 제목을 바꾸고 "저장"을 누른다. 상세로 돌아오고 새 제목이 보인다. "내 방송" 카드도 새 제목이다.
-3. 위 절의 `psql` 명령으로 이 방송을 `ENDED`로 바꾼다(`status='ENDED', "startedAt"=now(), "endedAt"=now()`). "방송 목록"에 새 제목으로 보인다.
+3. 3절대로 이 방송을 송출하고 4절대로 종료한다. "방송 목록"의 "방송 종료"에 새 제목으로 보인다.
 4. "사용자 B" 창에서 같은 상세 주소를 연다. "수정"과 "삭제"가 보이지 않는다. 로그아웃 상태에서도 보이지 않는다. B가 `/studio/broadcasts/<id>/edit`을 직접 열면 "권한이 없습니다"가 보인다.
 5. A 창에서 "삭제" → "삭제하기"를 누른다. "내 방송"으로 가고 카드가 없다. "방송 목록"에서도 사라졌다.
-6. `LIVE`로 바꾼 방송의 상세에서는 "삭제" 대신 "송출 중인 방송은 종료한 뒤 삭제할 수 있습니다."가 보인다.
+6. `LIVE` 방송의 "삭제"를 누르면 확인 문구가 "송출 중인 방송입니다. 삭제하면 방송을 종료하고 되돌릴 수 없습니다."다. "삭제하기"를 누르면 방송이 끝나고 지워진다.
 
 API로 확인 (테스트 계정 A·B로 쿠키를 새로 받는다. 앞 절에서 로그아웃한 `jar.txt`는 세션이 지워져 쓸 수 없다):
 
@@ -1440,6 +1441,9 @@ curl -fsS https://lime-live.duckdns.org/api/health
 | [OvenLiveKit-Web](https://github.com/AirenSoft/OvenLiveKit-Web) (`ovenlivekit`) | 브라우저 WHIP 송출 | MIT |
 | [hls.js](https://github.com/video-dev/hls.js) | LL-HLS 재생 | Apache-2.0 |
 | [Playwright](https://playwright.dev) | 웹 e2e 테스트 (개발용, `apps/web/e2e`) | Apache-2.0 |
+| [TossPayments SDK](https://github.com/tosspayments/browser-sdk) (`@tosspayments/tosspayments-sdk`) | 후원·라임 충전 결제위젯 | MIT |
+| [Pretendard](https://github.com/orioncactus/pretendard) (`pretendard`) | 웹 글꼴 | OFL-1.1 |
+| [Wikidata](https://www.wikidata.org) (데이터) | 게임 목록 스냅샷 `apps/api/data/games.json` | CC0 |
 
 ## 개발
 
@@ -1494,12 +1498,23 @@ pnpm format      # Prettier로 고친다
 
 앱 하나만 돌리려면 `pnpm --filter @lsp/api test`처럼 쓴다.
 
-**API 테스트는 실제 PostgreSQL이 필요하다.** `.env`의 `DATABASE_URL`로 접속하고, 테스트마다 모든 테이블을 비운다(`TRUNCATE`). 개발 데이터가 지워지니 필요하면 테스트용 DB를 따로 둔다. 순서:
+**API 테스트는 실제 PostgreSQL이 필요하다.** `.env`의 `DATABASE_URL`로 접속하고, 테스트마다 모든 테이블을 비운다(`TRUNCATE`). 개발 데이터가 지워지니 테스트용 DB를 따로 둔다. API·Prisma CLI는 `.env`를 읽을 때 이미 있는 환경변수를 덮지 않으므로, 명령 앞에 `DATABASE_URL`을 붙이면 그 DB를 쓴다.
 
 ```sh
 docker compose up -d --wait postgres
+docker compose exec postgres createdb -U lsp lsp_test   # 처음 한 번
+export DATABASE_URL=postgresql://lsp:lsp@localhost:5432/lsp_test
 pnpm --filter @lsp/api db:migrate
 pnpm test
+```
+
+여러 worktree에서 API 테스트를 동시에 돌리면 같은 DB를 서로 비운다. worktree마다 DB 이름을 다르게 둔다.
+
+다른 브랜치를 받아 `apps/api/prisma/schema.prisma`가 바뀌었으면, 마이그레이션을 적용하고 Prisma 클라이언트를 다시 만든 뒤 API를 다시 띄운다. 클라이언트가 옛 스키마로 남으면 새 컬럼을 읽는 요청이 500으로 실패한다.
+
+```sh
+pnpm --filter @lsp/api db:migrate
+pnpm --filter @lsp/api exec prisma generate
 ```
 
 CI도 같은 순서로 GitHub Actions의 Postgres 서비스에 마이그레이션을 적용한 뒤 테스트를 돌린다. 테스트 파일은 DB를 같이 쓰므로 하나씩 차례로 돈다(`apps/api/vitest.config.ts`의 `fileParallelism: false`).
@@ -1531,6 +1546,13 @@ CI도 같은 순서로 GitHub Actions의 Postgres 서비스에 마이그레이�
 | `OME_API_ACCESS_TOKEN` | 없음 (필수) | OME 관리 API 토큰. API가 방송을 종료할 때 이 토큰으로 송출 연결을 끊는다. compose의 OME도 같은 값을 읽고, 비어 있으면 `docker compose`가 시작하지 않는다 |
 | `OME_API_PORT` | `8081` | OME 관리 API의 호스트 포트. `127.0.0.1`에만 열린다 |
 | `OME_API_URL` | `http://127.0.0.1:${OME_API_PORT}` | API가 부르는 OME 관리 API 주소 |
+| `RECORDINGS_DIR` | 저장소 루트의 `recordings/` | 녹화 파일 폴더. OME가 쓰고 API가 용량을 재고 지운다. 바꾸려면 절대 경로를 넣는다 |
+| `RECORDINGS_MAX_GB` | `10` | 녹화 저장 용량 상한(GB). 넘으면 오래 전에 끝난 방송의 녹화부터 지운다 |
+| `RECORDINGS_HTTP_PORT` | `8090` | 개발용 녹화 정적 서버의 호스트 포트(127.0.0.1에만 열린다). Vite가 `/recordings`를 여기로 넘긴다 |
+| `THUMBNAILS_DIR` | 저장소 루트의 `thumbnails/` | 캡처 썸네일과 기본 대기 이미지 폴더. 바꾸려면 절대 경로를 넣는다 |
+| `THUMBNAILS_HTTP_PORT` | `8091` | 개발용 썸네일 정적 서버의 호스트 포트(127.0.0.1에만 열린다). Vite가 `/thumbnails`를 여기로 넘긴다 |
+| `TOSS_CLIENT_KEY` / `TOSS_SECRET_KEY` | 없음 (비우면 후원·충전만 503) | 토스 결제위젯 테스트 키(`test_gck_…`/`test_gsk_…`). 시크릿 키는 API만 읽는다. [8절](#8-도네이션-20) |
+| `WEB_HTTPS_CERT` / `WEB_HTTPS_KEY` | 없음 | 같은 Wi-Fi 휴대폰 확인용 웹 https 인증서(`scripts/lan-https.sh`가 만든다). e2e를 돌릴 때는 비운다 |
 
 #### 여러 worktree에서 동시에 띄우기
 
