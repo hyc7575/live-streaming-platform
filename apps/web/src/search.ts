@@ -19,3 +19,12 @@ export const SEARCH_QUERY_MAX_LENGTH = 50;
 export function searchPath(query: string): string {
   return `/search?q=${encodeURIComponent(query)}`;
 }
+
+/**
+ * 주소나 입력칸의 글자를 결과 화면이 찾는 검색어로 바꾼다. 앞뒤 공백을 빼고
+ * SEARCH_QUERY_MAX_LENGTH자로 자른다(API는 넘으면 400이다). 비면 ''.
+ * 결과 화면, 헤더 검색, 홈의 예전 `?q=` 이동이 같은 규칙을 쓴다.
+ */
+export function normalizeSearchQuery(raw: string | null): string {
+  return (raw ?? '').trim().slice(0, SEARCH_QUERY_MAX_LENGTH);
+}

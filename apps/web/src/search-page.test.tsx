@@ -4,7 +4,11 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
 import type { Broadcast } from './broadcasts';
-import { SEARCH_BROADCAST_LIMIT, type SearchResult } from './search';
+import {
+  SEARCH_BROADCAST_LIMIT,
+  SEARCH_QUERY_MAX_LENGTH,
+  type SearchResult,
+} from './search';
 
 afterEach(() => {
   cleanup();
@@ -157,6 +161,25 @@ it('asks for a query without calling the API when there is none', async () => {
 
   expect(await screen.findByText('검색어를 입력하세요.')).toBeTruthy();
   expect(calls.some((c) => c.startsWith('GET /api/search'))).toBe(false);
+});
+
+it('searches the trimmed query cut to the length the API accepts', async () => {
+  const long = '가'.repeat(SEARCH_QUERY_MAX_LENGTH + 10);
+  const cut = '가'.repeat(SEARCH_QUERY_MAX_LENGTH);
+  const calls = stubApi({
+    [`GET /api/search?q=${encodeURIComponent(cut)}`]: EMPTY,
+  });
+  renderAt(`/search?q=${encodeURIComponent(`  ${long}  `)}`);
+
+  expect(
+    await screen.findByRole('heading', {
+      level: 1,
+      name: `'${cut}' 검색 결과`,
+    }),
+  ).toBeTruthy();
+  expect(calls.filter((c) => c.startsWith('GET /api/search'))).toEqual([
+    `GET /api/search?q=${encodeURIComponent(cut)}`,
+  ]);
 });
 
 it('says so when the search limit is hit', async () => {
