@@ -28,7 +28,12 @@ export function GameCombobox({
   const listId = `${id}-list`;
   // 사용자가 마지막으로 친 글자. 목록에서 고른 뒤에는 null이라 다시 찾지 않는다.
   const [query, setQuery] = useState<string | null>(null);
-  const [hits, setHits] = useState<GameHit[]>([]);
+  // 어느 검색어의 응답인지 함께 둔다. 검색어가 바뀌면 이전 후보는 바로 사라지고,
+  // 새 응답이 올 때까지 직접 입력만 남는다.
+  const [result, setResult] = useState<{ needle: string; hits: GameHit[] }>({
+    needle: '',
+    hits: [],
+  });
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const needle = query?.trim() ?? '';
@@ -41,13 +46,13 @@ export function GameCombobox({
       apiFetch<GameHit[]>(`/games?q=${encodeURIComponent(needle)}`).then(
         (found) => {
           if (stale) return;
-          setHits(found);
+          setResult({ needle, hits: found });
           setActive(-1);
         },
         // 검색이 안 돼도 직접 입력은 늘 된다.
         () => {
           if (stale) return;
-          setHits([]);
+          setResult({ needle, hits: [] });
           setActive(-1);
         },
       );
@@ -58,6 +63,7 @@ export function GameCombobox({
     };
   }, [needle]);
 
+  const hits = result.needle === needle ? result.hits : [];
   const options: Option[] =
     open && needle
       ? [

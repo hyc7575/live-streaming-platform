@@ -1,10 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { PrismaService } from '../database/database.module.js';
+import { GAME_QID_PATTERN } from './game-qid.js';
 import { gameSearchText } from './search-text.js';
-
-// Wikidata 항목 id. 방송 본문의 gameQid도 이 형식이다.
-export const GAME_QID_PATTERN = /^Q[1-9]\d*$/;
 
 const gameRecord = z.object({
   qid: z.string().regex(GAME_QID_PATTERN),
@@ -32,6 +30,17 @@ export async function seedGamesFile(
   const games = await readGamesFile(path);
   await seedGames(prisma, games);
   return games.length;
+}
+
+// db:seed와 컨테이너 시작 시드가 함께 쓴다.
+export async function seedGamesFileAndLog(
+  prisma: PrismaService,
+): Promise<void> {
+  const startedAt = performance.now();
+  const count = await seedGamesFile(prisma);
+  console.log(
+    `Games: ${count} in ${Math.round(performance.now() - startedAt)}ms`,
+  );
 }
 
 // 표를 파일 내용으로 통째로 바꾼다. 그래서 파일에 없는 게임은 사라지고, 같은

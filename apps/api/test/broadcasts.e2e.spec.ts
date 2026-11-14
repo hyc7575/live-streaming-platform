@@ -539,6 +539,55 @@ describe('broadcasts', () => {
       expect(res.body).toMatchObject({ category: 'GAME', game: LOL_GAME });
     });
 
+    // 웹 수정 폼은 게임을 건드리지 않아도 저장된 gameQid를 다시 보낸다. 저장된
+    // qid와 같으면 그 방송의 스냅샷이라 목록에서 빠졌거나 이름이 바뀌어도 그대로 둔다.
+    it('keeps a game dropped from the list when its qid comes back with a new title', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seedGameBroadcast(user);
+      await prisma.game.deleteMany();
+
+      const res = await agent.patch(`/api/broadcasts/${id}`).send({
+        title: '새 제목',
+        category: 'GAME',
+        gameQid: 'Q223341',
+        gameName: '리그 오브 레전드',
+      });
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(res.body).toMatchObject({ title: '새 제목', game: LOL_GAME });
+    });
+
+    it('keeps the stored name when the same qid comes back after the list renamed it', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seedGameBroadcast(user);
+      await prisma.game.update({
+        where: { qid: 'Q223341' },
+        data: { nameKo: '리그 오브 레전드 (2009)' },
+      });
+
+      const res = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ gameQid: 'Q223341' });
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect((res.body as BroadcastView).game).toEqual(LOL_GAME);
+    });
+
+    it('still rejects a different qid missing from the list with 400 and changes nothing', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seedGameBroadcast(user);
+      await prisma.game.deleteMany();
+      const before = await prisma.broadcast.findUniqueOrThrow({
+        where: { id },
+      });
+
+      const res = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ title: '새 제목', gameQid: 'Q999999' });
+      expect(res.status).toBe(400);
+      expect(
+        await prisma.broadcast.findUniqueOrThrow({ where: { id } }),
+      ).toEqual(before);
+    });
+
     it('switches a listed game to a typed-in one', async () => {
       const { user, agent } = await signUpAndLogIn(app);
       const id = await seedGameBroadcast(user);

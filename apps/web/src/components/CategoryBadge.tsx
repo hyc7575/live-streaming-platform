@@ -14,14 +14,14 @@ export function CategoryBadge({
   className?: string;
 }) {
   if (category === 'ETC') return null;
-  const label =
-    category === 'GAME' && game
-      ? `${CATEGORY_LABEL.GAME} · ${game.name}`
-      : CATEGORY_LABEL[category];
+  const gameName = category === 'GAME' ? game?.name : undefined;
+  const label = gameName
+    ? `${CATEGORY_LABEL.GAME} · ${gameName}`
+    : CATEGORY_LABEL[category];
   return (
     <span
       className={`${styles.badge} ${className}`}
-      title={game ? label : undefined}
+      title={gameName ? label : undefined}
     >
       {label}
     </span>

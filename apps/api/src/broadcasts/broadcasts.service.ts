@@ -21,15 +21,18 @@ import {
   thumbnailUrl,
 } from '../images/image-store.js';
 import { OME_API, type OmeApi } from '../ome/ome-api.js';
-
-// 목록에서 고른 게임이거나 직접 입력한 이름. 본문의 gameQid·gameName을
-// 컨트롤러가 이 모양으로 접는다. null은 게임을 비우고, undefined는 그대로 둔다.
-export type GameChoice = { qid: string } | { name: string };
+import {
+  NO_GAME,
+  resolveGameUpdate,
+  type GameChoice,
+  type GameColumns,
+  type GameUpdate,
+} from './game-update.js';
 
 export interface CreateBroadcastInput {
   title: string;
   description: string;
-  category?: BroadcastCategory | undefined;
+  category: BroadcastCategory;
   game?: GameChoice | null | undefined;
 }
 
@@ -153,8 +156,6 @@ export const READY_LISTED_MS = 24 * 60 * 60 * 1000;
 
 const uuid = z.uuid();
 
-const NO_GAME = { gameQid: null, gameName: null };
-
 @Injectable()
 export class BroadcastsService {
   private readonly logger = new Logger(BroadcastsService.name);
@@ -170,30 +171,37 @@ export class BroadcastsService {
     streamerId: string,
     { game, ...fields }: CreateBroadcastInput,
   ): Promise<BroadcastView> {
+    const columns = await this.gameColumns(
+      resolveGameUpdate(fields.category, game),
+    );
     return toView(
       await this.prisma.broadcast.create({
-        data: {
-          ...fields,
-          ...(game ? await this.gameColumns(game) : {}),
-          streamerId,
-        },
+        data: { ...fields, ...columns, streamerId },
         select: broadcastSelect,
       }),
     );
   }
 
   // 목록 게임의 이름은 클라이언트가 보낸 값이 아니라 그때의 Game.nameKo다.
-  private async gameColumns(
-    game: GameChoice | null,
-  ): Promise<{ gameQid: string | null; gameName: string | null }> {
-    if (game === null) return NO_GAME;
-    if ('name' in game) return { gameQid: null, gameName: game.name };
-    const listed = await this.prisma.game.findUnique({
-      where: { qid: game.qid },
-      select: { nameKo: true },
-    });
-    if (!listed) throw new BadRequestException(UNKNOWN_GAME_MESSAGE);
-    return { gameQid: game.qid, gameName: listed.nameKo };
+  private async gameColumns(update: GameUpdate): Promise<Partial<GameColumns>> {
+    switch (update.kind) {
+      case 'reject':
+        throw new BadRequestException(GAME_NEEDS_GAME_CATEGORY_MESSAGE);
+      case 'keep':
+        return {};
+      case 'clear':
+        return NO_GAME;
+      case 'typed':
+        return { gameQid: null, gameName: update.name };
+      case 'listed': {
+        const listed = await this.prisma.game.findUnique({
+          where: { qid: update.qid },
+          select: { nameKo: true },
+        });
+        if (!listed) throw new BadRequestException(UNKNOWN_GAME_MESSAGE);
+        return { gameQid: update.qid, gameName: listed.nameKo };
+      }
+    }
   }
 
   // 공개 목록, 또는 채널 페이지용으로 그중 한 스트리머의 몫.
@@ -268,40 +276,52 @@ export class BroadcastsService {
   }
 
   // 제목·설명·카테고리·게임은 status 생애주기에 속하지 않는다. 그래서 LIVE를
-  // 포함한 모든 status에서 수정을 받는다. 카테고리를 GAME이 아닌 것으로 바꾸면
-  // 게임을 비운다.
+  // 포함한 모든 status에서 수정을 받는다. 저장된 방송을 따로 읽지 않고 UPDATE의
+  // 조건으로 확인해서, 그사이 다른 요청이 카테고리나 게임을 바꿔도 CHECK
+  // 위반(500)이 아니라 400이 된다.
   async update(
     id: string,
     { game, ...fields }: UpdateBroadcastInput,
   ): Promise<BroadcastView> {
-    const columns: { gameQid?: string | null; gameName?: string | null } =
-      fields.category !== undefined && fields.category !== 'GAME'
-        ? NO_GAME
-        : game === undefined
-          ? {}
-          : await this.gameColumns(game);
-    // 본문에 카테고리 없이 게임을 붙이면 저장된 카테고리가 GAME이어야 한다.
-    // 따로 읽지 않고 같은 UPDATE의 조건으로 확인해서, 그사이 다른 요청이
-    // 카테고리를 바꿔도 CHECK 위반(500)이 아니라 400이 된다.
-    const needsGameCategory =
-      fields.category === undefined && columns.gameName != null;
+    const update = resolveGameUpdate(fields.category, game);
+    // 수정 폼은 게임을 건드리지 않아도 저장된 qid를 다시 보낸다. 같은 qid면 그
+    // 방송의 스냅샷이라 목록에서 빠졌거나 이름이 바뀌었어도 그대로 둔다.
+    // gameQid가 있는 행은 CHECK 때문에 카테고리도 GAME이다.
+    if (update.kind === 'listed') {
+      const kept = await this.updateRow({ id, gameQid: update.qid }, fields);
+      if (kept) return toView(kept);
+    }
+    const storedCategoryMustBeGame =
+      (update.kind === 'listed' || update.kind === 'typed') &&
+      update.storedCategoryMustBeGame;
+    const row = await this.updateRow(
+      storedCategoryMustBeGame ? { id, category: 'GAME' } : { id },
+      { ...fields, ...(await this.gameColumns(update)) },
+    );
+    if (row) return toView(row);
+    if (
+      storedCategoryMustBeGame &&
+      (await this.prisma.broadcast.count({ where: { id } })) > 0
+    ) {
+      throw new BadRequestException(GAME_NEEDS_GAME_CATEGORY_MESSAGE);
+    }
+    throw new NotFoundException('Broadcast not found');
+  }
+
+  // 조건에 맞는 방송이 없으면 null이다.
+  private async updateRow(
+    where: Prisma.BroadcastWhereUniqueInput,
+    data: Prisma.BroadcastUpdateInput,
+  ): Promise<BroadcastRow | null> {
     try {
-      return toView(
-        await this.prisma.broadcast.update({
-          where: needsGameCategory ? { id, category: 'GAME' } : { id },
-          data: { ...fields, ...columns },
-          select: broadcastSelect,
-        }),
-      );
+      return await this.prisma.broadcast.update({
+        where,
+        data,
+        select: broadcastSelect,
+      });
     } catch (error) {
-      if (!isRecordNotFound(error)) throw error;
-      if (
-        needsGameCategory &&
-        (await this.prisma.broadcast.count({ where: { id } })) > 0
-      ) {
-        throw new BadRequestException(GAME_NEEDS_GAME_CATEGORY_MESSAGE);
-      }
-      throw new NotFoundException('Broadcast not found');
+      if (isRecordNotFound(error)) return null;
+      throw error;
     }
   }
 

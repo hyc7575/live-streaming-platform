@@ -352,3 +352,42 @@ it('finds a broadcast on the home search by its game title', async () => {
   expect(screen.getByRole('link', { name: /오늘도 랭크/ })).toBeDefined();
   expect(screen.queryByText('저녁 라디오')).toBeNull();
 });
+
+it('drops the previous candidates as soon as the search text changes', async () => {
+  const calls = await openCreateFormWithGame({
+    [gamesPath('롤')]: [LOL_HIT],
+    // 새 검색어의 응답은 오지 않는다.
+    [gamesPath('배그')]: () => new Promise<Response>(() => {}),
+  });
+  const box = gameBox();
+  fireEvent.change(box, { target: { value: '롤' } });
+  await screen.findByRole('option', { name: /^리그 오브 레전드/ });
+  fireEvent.keyDown(box, { key: 'ArrowDown' });
+
+  fireEvent.change(box, { target: { value: '배그' } });
+  expect(optionTexts()).toEqual(["'배그' 직접 입력"]);
+  expect(box.hasAttribute('aria-activedescendant')).toBe(false);
+  fireEvent.keyDown(box, { key: 'ArrowDown' });
+  expect(box.getAttribute('aria-activedescendant')).toBe(
+    screen.getByRole('option').id,
+  );
+  fireEvent.keyDown(box, { key: 'Enter' });
+  expect(box.value).toBe('배그');
+  expect(await submitCreate(calls)).toMatchObject({
+    category: 'GAME',
+    gameQid: null,
+    gameName: '배그',
+  });
+});
+
+it('puts no tooltip on a non-game badge even if a game came along', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts': [
+      broadcast({ id: 'b1', title: '수다', category: 'TALK', game: LOL }),
+    ],
+  });
+  renderAt('/');
+  const card = await screen.findByRole('link', { name: /수다/ });
+  expect(within(card).getByText('소통').hasAttribute('title')).toBe(false);
+});
