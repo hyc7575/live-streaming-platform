@@ -1,28 +1,14 @@
 name: CI
 
 on:
+  # PR 브랜치는 pull_request로 검사한다. push까지 받으면 커밋 하나에 두 번 돈다.
   push:
+    branches: [main]
   pull_request:
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: lsp
-          POSTGRES_PASSWORD: lsp
-          POSTGRES_DB: lsp
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U lsp -d lsp"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    env:
-      DATABASE_URL: postgresql://lsp:lsp@localhost:5432/lsp
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -34,8 +20,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm build
-      - run: pnpm --filter @lsp/api db:migrate
-      - run: pnpm test
+      # API 테스트는 api-test.yml이 apps/api가 바뀔 때만 돌린다.
+      - run: pnpm --filter @lsp/web test
 
   capture-e2e:
     runs-on: ubuntu-latest

@@ -1,0 +1,52 @@
+name: API test
+
+# API 테스트는 apps/api 코드와 DB만 검사한다. web이나 문서만 바꾼 PR에서는
+# 결과가 바뀌지 않으므로 돌리지 않는다(#125).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.nvmrc'
+      - '.github/workflows/api-test.yml'
+  pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.nvmrc'
+      - '.github/workflows/api-test.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: lsp
+          POSTGRES_PASSWORD: lsp
+          POSTGRES_DB: lsp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lsp -d lsp"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://lsp:lsp@localhost:5432/lsp
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @lsp/api db:migrate
+      - run: pnpm --filter @lsp/api test
