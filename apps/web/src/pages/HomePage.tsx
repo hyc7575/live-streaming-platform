@@ -13,6 +13,7 @@ import { BroadcastGrid } from '../components/BroadcastGrid';
 import chips from '../components/CategoryChips.module.css';
 import { usePolledApi } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
+import { useRevealCurrent } from '../use-reveal-current';
 import home from './HomePage.module.css';
 import styles from './ListPage.module.css';
 import { TestAccountLogin } from './TestAccountLogin';
@@ -109,6 +110,10 @@ export function HomePage() {
   const category = parseCategory(params.get('category'));
   const query = params.get('q') ?? '';
   const searchRef = useRef<HTMLInputElement>(null);
+  const statusRowRef = useRef<HTMLElement>(null);
+  const categoryRowRef = useRef<HTMLElement>(null);
+  useRevealCurrent(statusRowRef, filter);
+  useRevealCurrent(categoryRowRef, category);
 
   function setQuery(value: string) {
     setParams(
@@ -187,7 +192,7 @@ export function HomePage() {
           />
         </label>
       </div>
-      <nav className={styles.filters} aria-label="방송 상태">
+      <nav ref={statusRowRef} className={styles.filters} aria-label="방송 상태">
         {FILTERS.map((f) => (
           <Link
             key={f.label}
@@ -199,7 +204,11 @@ export function HomePage() {
           </Link>
         ))}
       </nav>
-      <nav className={`${chips.row} ${home.categories}`} aria-label="카테고리">
+      <nav
+        ref={categoryRowRef}
+        className={`${chips.row} ${chips.scroll} ${home.categories}`}
+        aria-label="카테고리"
+      >
         {[null, ...CATEGORIES].map((c) => (
           <Link
             key={c ?? 'ALL'}

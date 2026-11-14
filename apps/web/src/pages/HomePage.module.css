@@ -19,6 +19,7 @@
   font-size: var(--font-size-sm);
 }
 
+/* 칩 줄의 아래 여백(var(--space-1))만큼 줄인다. */
 .categories {
-  margin-bottom: var(--space-6);
+  margin-bottom: calc(var(--space-6) - var(--space-1));
 }
