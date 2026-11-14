@@ -2,7 +2,7 @@
 
 **Author**: kh.jeon
 **Date**: 2026-11-14
-**Status**: Draft
+**Status**: 구현 완료 (2026-11-15, 1단계 #132: #135, 2단계 #133: #136)
 
 ## 1. Summary
 
