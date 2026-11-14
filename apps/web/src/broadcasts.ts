@@ -7,6 +7,8 @@ export interface Broadcast {
   title: string;
   description: string;
   category: BroadcastCategory;
+  // 카테고리가 GAME일 때만 있다.
+  game: BroadcastGame | null;
   status: BroadcastStatus;
   startedAt: string | null;
   endedAt: string | null;
@@ -28,6 +30,13 @@ export interface Broadcast {
   streamer: { id: string; nickname: string };
 }
 
+// 방송을 저장할 때의 게임 이름 스냅샷이다. 목록에서 고르면 qid가 있고,
+// 직접 입력하면 null이다.
+export interface BroadcastGame {
+  qid: string | null;
+  name: string;
+}
+
 export interface RecordingPart {
   file: string;
   startedAt: string | null;
@@ -35,3 +44,4 @@ export interface RecordingPart {
 
 export const TITLE_MAX_LENGTH = 100;
 export const DESCRIPTION_MAX_LENGTH = 2000;
+export const GAME_NAME_MAX_LENGTH = 50;

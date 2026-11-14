@@ -7,6 +7,7 @@ import { CommentsModule } from './comments/comments.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DonationsModule } from './donations/donations.module.js';
 import { FollowsModule } from './follows/follows.module.js';
+import { GamesModule } from './games/games.module.js';
 import { StreamersModule } from './streamers/streamers.module.js';
 import { HealthController } from './health.controller.js';
 import { LimeModule } from './lime/lime.module.js';
@@ -23,6 +24,7 @@ import { RecordingsModule } from './recording/recordings.module.js';
     CommentsModule,
     DonationsModule,
     FollowsModule,
+    GamesModule,
     StreamersModule,
     LimeModule,
     PublishModule,

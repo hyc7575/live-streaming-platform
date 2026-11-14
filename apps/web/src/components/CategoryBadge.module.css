@@ -12,4 +12,9 @@
   font-weight: 700;
   line-height: 18px;
   white-space: nowrap;
+  /* 게임 이름이 길면 카드·시트 폭이나 상한 안에서 말줄임한다. */
+  max-width: min(100%, var(--category-badge-max-width));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
 }

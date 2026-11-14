@@ -191,7 +191,7 @@ curl -s $API/broadcasts/<id>               # 상세, 없으면 404
 
 ### 방송 목록 검색 (#64)
 
-방송 목록 위 검색창에 제목이나 스트리머 닉네임 일부를 넣으면 맞는 카드만 남는다. 이미 받아 온 목록을 브라우저에서 거르므로 API·DB는 그대로다(PRD §7.1).
+방송 목록 위 검색창에 제목, 스트리머 닉네임, 게임 방송의 게임 타이틀(#133) 일부를 넣으면 맞는 카드만 남는다. 이미 받아 온 목록을 브라우저에서 거르므로 API·DB는 그대로다(PRD §7.1).
 
 규칙:
 
@@ -1283,6 +1283,77 @@ curl -s -b a-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/
 - `apps/web/src/broadcast-list.test.ts`: 카테고리·검색어 거르기와 빈 문구 우선순위.
 - `apps/web/src/broadcast-pages.test.tsx`: 칩 순서와 링크(`status`·`q` 유지), 탭을 바꾼 뒤에도 고른 카테고리만 남음, 모르는 `?category=`, 빈 문구, 생성·수정 폼의 칩과 보내는 값, 카드 배지(기타 없음), 시청 화면 배지와 LIVE 중 변경 반영.
 
+### 16. 게임 타이틀 (#133)
+
+게임 방송에 게임 타이틀을 붙인다. 게임은 Wikidata 게임 목록에서 고르거나 직접 입력한다([PRD-category](docs/PRD-category.md) 2단계, PRD §8.3 시나리오 24·25).
+
+규칙:
+
+- 게임 목록은 사람이 관리하지 않는다. Wikidata에서 한 번에 받은 스냅샷 `apps/api/data/games.json`(한국어 이름이 있는 비디오 게임 6,365건, CC0)을 커밋해 두고, 우리 DB의 `Game` 테이블에서 검색한다. **API는 실행 중에 Wikidata를 부르지 않는다.** Wikidata 실시간 검색은 1회에 1.2~2.8초가 걸렸고, 요청 간격이 2초여도 429가 났다([DISCOVERY](docs/DISCOVERY-broadcast-category.md) E1).
+- `GET /api/games?q=`는 로그인이 필요하다. `q`는 공백을 뺀 1~50자이고, 최대 10건을 돌려준다. 공백과 대소문자를 무시하고 한국어 이름·한국어 별칭·영어 이름에서 찾는다. 그래서 "리그오브레전드", "롤", "LOL"이 모두 "리그 오브 레전드"를 1위로 찾는다. 순서는 한국어 이름 완전 일치 → 별칭·영어 이름 완전 일치 → 앞부분 일치 → 포함 → 이름이 짧은 순이다.
+- 방송에는 저장할 때의 게임을 스냅샷(`gameQid`, `gameName`)으로 둔다. 다음 갱신에서 그 게임이 목록에서 빠져도 방송은 그대로 보인다.
+  - 목록에서 고르면 서버가 이름을 목록의 한국어 이름으로 채운다. 클라이언트가 보낸 이름은 쓰지 않는다.
+  - 목록에 없는 게임은 "직접 입력"(1~50자)으로 받는다. 예: P31 분류가 비어 목록에서 빠진 "카트라이더 슈퍼러쉬".
+- 게임은 "게임" 카테고리에만 있다. 다른 카테고리에 게임을 보내면 400이다. 카테고리를 바꾸면 서버가 게임을 비운다. DB의 CHECK 제약도 이 규칙을 지킨다.
+- 배지는 "게임 · <게임 이름>"이다. 홈 검색창은 게임 이름으로도 찾는다.
+
+| 행동 | 비로그인 | 로그인(타인) | 본인 |
+|---|---|---|---|
+| 게임 검색 `GET /games?q=` | 401 | 허용 | 허용 |
+| `POST /broadcasts`·`PATCH /broadcasts/:id`의 `{category, gameQid?, gameName?}` | 401 | 403 (수정) | 허용. 없는 qid, 게임이 아닌 카테고리의 게임 필드는 400 |
+| 방송 응답의 `game: {qid, name} \| null` (직접 입력이면 `qid: null`) | 허용 | 허용 | 허용 |
+
+화면에서 확인:
+
+1. 시나리오 24: "스트리머 A"로 방송 수정 → "게임" 칩 → 게임 칸에 "롤". 0.3초 뒤 후보 1위가 "리그 오브 레전드"다. ↓·Enter로 고르고 "저장" → 시청 화면 제목 옆과 홈 카드에 "게임 · 리그 오브 레전드" 배지가 있다. LIVE 방송에서도 같은 수정이 된다.
+2. 홈 검색창에 "리그" → 제목에 "리그"가 없어도 이 방송이 나온다.
+3. 시나리오 25: 게임 칸에 "카트라이더 슈퍼러쉬" → 후보에 "'카트라이더 슈퍼러쉬' 직접 입력"만 있다. 고르고 저장 → 배지에 그대로 보인다.
+4. 카테고리를 "음악"으로 바꿔 저장하면 게임 배지가 사라지고 "음악" 배지가 된다.
+5. 게임 칸은 WAI-ARIA combobox다. ↑↓로 옮기고, Enter로 고르고, Esc로 닫는다. 한글 조합을 끝내는 Enter는 고르지 않는다.
+
+API로 확인(2절의 `a-jar.txt`·`b-jar.txt`, `ID`는 A의 방송):
+
+```sh
+API=http://localhost:3000/api
+curl -s -o /dev/null -w '%{http_code}\n' "$API/games?q=%EB%A1%A4"                                                                              # 401
+curl -s -b a-jar.txt "$API/games?q=%EB%A1%A4"                                                                                                   # [{"qid":"Q223341","name":"리그 오브 레전드",…}, …]
+curl -s -b a-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/json' -d '{"category":"GAME","gameQid":"Q223341","gameName":"아무거나"}'  # "game":{"qid":"Q223341","name":"리그 오브 레전드"}
+curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/json' -d '{"category":"GAME","gameQid":"Q999999999999"}'  # 400
+curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/json' -d '{"category":"MUSIC","gameName":"x"}'           # 400
+curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/json' -d '{"category":"GAME","gameName":"x"}'            # 403
+```
+
+게임 목록 갱신:
+
+```sh
+pnpm --filter @lsp/api games:refresh   # Wikidata SPARQL 1회(40~55초) → apps/api/data/games.json을 새로 쓴다
+git diff --stat apps/api/data/games.json
+pnpm --filter @lsp/api games:seed      # 로컬 DB에 반영. 운영은 재배포하면 컨테이너가 시작할 때 반영한다
+```
+
+- 받은 결과가 0건이거나, HTTP 실패·타임아웃·응답 형식 오류가 나면 기존 파일을 건드리지 않고 0이 아닌 코드로 끝난다. 임시 파일에 쓴 뒤 rename한다.
+- Wikimedia User-Agent 정책에 맞춰 `LimeGameImportBot/1.0 (https://github.com/hyc7575/live-streaming-platform; …)`를 보낸다. 요청은 실행 1회에 1건이다. Wikidata Query Service는 클라이언트마다 "60초마다 처리 시간 60초"로 제한하고, 이 쿼리가 40~55초를 쓴다. 그래서 연달아 돌리면 429가 날 수 있다.
+- 자동 실행(cron)은 두지 않는다. 마감까지 목록이 바뀔 일이 거의 없다. 실서비스라면 주 1회 스케줄러로 돌린다(PRD-category 8.2).
+
+자동 테스트:
+
+- `apps/api/test/games.e2e.spec.ts`
+  - 실제 `games.json`을 시드해 DISCOVERY E1 검색어 20개와 "리그오브레전드"·"LOL"·"lol"이 모두 맞는 게임을 1위로 찾는다(KR2).
+  - `q` 400, 비로그인 401, 시드의 upsert·삭제·멱등도 본다.
+- `apps/api/test/games-refresh.spec.ts`
+  - 응답을 파일로 바꾸는 과정과 같은 qid 합치기를 본다.
+  - HTTP 500·429·타임아웃·0건·깨진 JSON에서 기존 파일이 그대로인지 본다. 네트워크는 쓰지 않는다.
+- `apps/api/test/broadcasts.e2e.spec.ts`
+  - 게임 이름은 서버가 채우는지, 직접 입력, 없는 qid와 게임이 아닌 카테고리 400을 본다.
+  - 카테고리를 바꾸면 게임이 비는지, null이면 비우고 빠지면 유지하는지, 저장된 카테고리를 기준으로 판단하는지를 본다.
+- `apps/api/test/authorization-matrix.e2e.spec.ts`
+  - "게임 검색" 행이 있다.
+  - "방송 수정" 행이 게임 필드까지 바꾼다.
+  - 목록에 없는 게임은 401 → 403 → 400 순서로 막힌다.
+- `apps/web/src/broadcast-game.test.tsx`
+  - 300ms 디바운스, ↑↓·Enter·Esc, 한글 조합 Enter, 늦게 온 응답 버리기, 검색 실패 시 직접 입력만 남기를 본다.
+  - 보내는 본문, 수정 화면의 시작 값, 배지, 홈 검색도 본다.
+
 ## 지원 환경
 
 송출·시청 기능 이슈에서 실제로 확인한 환경만 적는다.
@@ -1343,6 +1414,7 @@ git config core.hooksPath .githooks   # 커밋 전 비밀값 검사 훅
 cp .env.example .env                  # DATABASE_URL, SESSION_SECRET, OME_WEBHOOK_SECRET, OME_API_ACCESS_TOKEN, OME_HOST_IP를 채운다
 docker compose up -d --wait           # PostgreSQL + OME
 pnpm --filter @lsp/api db:migrate     # Prisma 마이그레이션 적용
+pnpm --filter @lsp/api games:seed     # 게임 목록(apps/api/data/games.json)을 Game 테이블에 넣는다
 pnpm dev                              # API :3000, 웹 :5173
 ```
 

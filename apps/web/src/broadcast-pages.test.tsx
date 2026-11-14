@@ -34,6 +34,7 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
     title: '방송',
     description: '',
     category: 'ETC',
+    game: null,
     status: 'LIVE',
     startedAt: null,
     endedAt: null,

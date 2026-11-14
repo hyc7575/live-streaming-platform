@@ -14,6 +14,7 @@ import type { DonationOrder } from '../src/donations/donations.service.js';
 import type { BroadcastStatus } from '../src/generated/prisma/client.js';
 import type { AuthUser } from '../src/auth/auth-user.js';
 import type { AdmissionRejection } from '../src/publish/admission.js';
+import { seedGames } from '../src/games/seed-games.js';
 import {
   createTestApp,
   resetDatabase,
@@ -101,6 +102,7 @@ const MATRIX = {
   '프로필 이미지 등록': [401,  200,          200],
   '프로필 이미지 삭제': [401,  204,          204],
   '채널 방송 목록': [200,      200,          200],
+  '게임 검색':      [401,      200,          200],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4에는 READY → ENDED 전이가 없어서, READY 방송은 종료할 수 없고
 // 삭제만 할 수 있다. ENDED 방송은 다시 LIVE가 되지 않으므로 송출
@@ -163,10 +165,19 @@ const ACTOR_LABEL: Record<Actor, string> = {
   owner: '소유자',
 };
 
+// 목록 게임의 이름은 서버가 채운다. 그래서 보낸 gameName과 보이는 이름이 다르다.
 const EDITED = {
   title: '고친 제목',
   description: '고친 설명',
-  category: 'TALK',
+  category: 'GAME',
+  gameQid: 'Q223341',
+  gameName: '아무거나',
+};
+const EDITED_VIEW = {
+  title: '고친 제목',
+  description: '고친 설명',
+  category: 'GAME',
+  game: { qid: 'Q223341', name: '리그 오브 레전드' },
 };
 const ORIGINAL_COMMENT = '원래 댓글';
 const ORIGINAL_CHAT = '원래 채팅';
@@ -331,15 +342,15 @@ describe('authorization matrix (PRD §7.5)', () => {
           .send({ ...EDITED, status: 'ENDED', streamerId: w.other.id }),
       verifyAllowed: async (res, w) => {
         expect(res.body).toMatchObject({
-          ...EDITED,
+          ...EDITED_VIEW,
           status: w.status,
           streamer: { id: w.owner.id },
         });
         const detail = await anonymous().get(`/api/broadcasts/${w.targetId}`);
-        expect(detail.body).toMatchObject({ ...EDITED, status: w.status });
+        expect(detail.body).toMatchObject({ ...EDITED_VIEW, status: w.status });
         const mine = await w.as.owner.get('/api/me/broadcasts');
         expect(mine.body).toEqual([
-          expect.objectContaining({ id: w.targetId, ...EDITED }),
+          expect.objectContaining({ id: w.targetId, ...EDITED_VIEW }),
         ]);
         const list = await anonymous().get('/api/broadcasts');
         const listed = (list.body as BroadcastView[]).find(
@@ -778,6 +789,18 @@ describe('authorization matrix (PRD §7.5)', () => {
         );
       },
     },
+    '게임 검색': {
+      send: (client) => client.get('/api/games').query({ q: '롤' }),
+      verifyAllowed: (res) => {
+        expect(res.body).toEqual([
+          {
+            qid: 'Q223341',
+            name: '리그 오브 레전드',
+            nameEn: 'League of Legends',
+          },
+        ]);
+      },
+    },
   };
 
   beforeAll(async () => {
@@ -786,6 +809,14 @@ describe('authorization matrix (PRD §7.5)', () => {
     ome = fakeOmeApiOf(app);
     toss = fakeTossPaymentsOf(app);
     await resetDatabase(app);
+    await seedGames(prisma, [
+      {
+        qid: 'Q223341',
+        nameKo: '리그 오브 레전드',
+        nameEn: 'League of Legends',
+        aliasesKo: ['롤'],
+      },
+    ]);
     const owner = await signUpAndLogIn(app, { nickname: '소유자' });
     const other = await signUpAndLogIn(app, { nickname: '타인' });
     world = {
@@ -991,6 +1022,14 @@ describe('authorization matrix (PRD §7.5)', () => {
 
     it('rejects a non-owner before looking at the body', async () => {
       const bad = { title: '' };
+      const url = `/api/broadcasts/${world.targetId}`;
+      expect((await world.as.anonymous.patch(url).send(bad)).status).toBe(401);
+      expect((await world.as.other.patch(url).send(bad)).status).toBe(403);
+      expect((await world.as.owner.patch(url).send(bad)).status).toBe(400);
+    });
+
+    it('rejects a non-owner before looking at a game missing from the list', async () => {
+      const bad = { category: 'GAME', gameQid: 'Q999999' };
       const url = `/api/broadcasts/${world.targetId}`;
       expect((await world.as.anonymous.patch(url).send(bad)).status).toBe(401);
       expect((await world.as.other.patch(url).send(bad)).status).toBe(403);

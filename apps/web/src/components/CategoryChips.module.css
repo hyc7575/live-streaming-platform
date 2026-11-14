@@ -9,6 +9,16 @@
   border: none;
 }
 
+/* 홈 칩 줄: 좁은 화면에서도 한 줄을 지키고 넘치면 가로로 스크롤한다.
+   폼의 칩은 줄바꿈이 낫다. 여백은 상태 탭 줄(ListPage .filters)과 같은 이유다. */
+.scroll {
+  flex-wrap: nowrap;
+  margin-top: calc(-1 * var(--space-1));
+  margin-inline: calc(-1 * var(--space-1));
+  padding: var(--space-1);
+  overflow-x: auto;
+}
+
 .chip {
   display: inline-block;
   padding: var(--space-1) var(--space-3);

@@ -16,6 +16,7 @@ import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
 import { BroadcastCategory } from '../generated/prisma/client.js';
+import { GAME_QID_PATTERN } from '../games/game-qid.js';
 import {
   ImageUpload,
   UploadedImage,
@@ -30,20 +31,53 @@ import {
   type PublicStatus,
   type UpdateBroadcastInput,
 } from './broadcasts.service.js';
+import type { GameChoice, GameColumns } from './game-update.js';
 import { ThumbnailRateGuard } from './thumbnail-rate.guard.js';
 
 export const TITLE_MAX_LENGTH = 100;
 export const DESCRIPTION_MAX_LENGTH = 2000;
+export const GAME_NAME_MAX_LENGTH = 50;
 
 const title = z.string().trim().min(1).max(TITLE_MAX_LENGTH);
 const description = z.string().trim().max(DESCRIPTION_MAX_LENGTH);
 const category = z.enum(BroadcastCategory);
 
-const createSchema = z.object({
-  title,
-  description: description.default(''),
-  category: category.optional(),
-});
+const gameFields = {
+  gameQid: z.string().regex(GAME_QID_PATTERN).nullable().optional(),
+  gameName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(GAME_NAME_MAX_LENGTH)
+    .nullable()
+    .optional(),
+};
+
+// 게임 필드를 하나라도 보내면 게임 전체를 바꾼다. qid가 있으면 목록 게임이고
+// 보낸 이름은 버린다. 이름만 있으면 직접 입력이다.
+function withGameChoice<T extends Partial<GameColumns>>({
+  gameQid,
+  gameName,
+  ...rest
+}: T): Omit<T, 'gameQid' | 'gameName'> & { game?: GameChoice | null } {
+  if (gameQid === undefined && gameName === undefined) return rest;
+  const game = gameQid
+    ? { qid: gameQid }
+    : gameName
+      ? { name: gameName }
+      : null;
+  return { ...rest, game };
+}
+
+// 게임과 카테고리가 맞는지는 서비스가 resolveGameUpdate로 판단한다.
+const createSchema = z
+  .object({
+    title,
+    description: description.default(''),
+    category: category.default('ETC'),
+    ...gameFields,
+  })
+  .transform(withGameChoice);
 
 // `status` 같은 모르는 키는 제거한다. status는 서버만 바꾼다.
 const updateSchema = z
@@ -51,10 +85,12 @@ const updateSchema = z
     title: title.optional(),
     description: description.optional(),
     category: category.optional(),
+    ...gameFields,
   })
   .refine((b) => Object.values(b).some((v) => v !== undefined), {
     message: 'Nothing to update',
-  });
+  })
+  .transform(withGameChoice);
 
 const publicStatus = {
   LIVE: 'LIVE',

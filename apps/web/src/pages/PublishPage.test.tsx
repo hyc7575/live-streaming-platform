@@ -64,6 +64,7 @@ const broadcast: Broadcast = {
   title: '첫 방송',
   description: '',
   category: 'ETC',
+  game: null,
   status: 'READY',
   startedAt: null,
   endedAt: null,

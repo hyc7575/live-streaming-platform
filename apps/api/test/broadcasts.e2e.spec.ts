@@ -11,6 +11,7 @@ import {
   type PublicStatus,
 } from '../src/broadcasts/broadcasts.service.js';
 import type { BroadcastStatus as Status } from '../src/generated/prisma/client.js';
+import { seedGames } from '../src/games/seed-games.js';
 import {
   createTestApp,
   resetDatabase,
@@ -35,8 +36,18 @@ describe('broadcasts', () => {
 
   beforeEach(async () => {
     await resetDatabase(app);
+    await seedGames(prisma, [
+      {
+        qid: 'Q223341',
+        nameKo: '리그 오브 레전드',
+        nameEn: 'League of Legends',
+        aliasesKo: ['롤'],
+      },
+    ]);
     ome.reset();
   });
+
+  const LOL_GAME = { qid: 'Q223341', name: '리그 오브 레전드' };
 
   afterAll(async () => {
     await app.close();
@@ -97,8 +108,50 @@ describe('broadcasts', () => {
         recordingParts: [],
         thumbnailUrl: null,
         standbyImageUrl: null,
+        game: null,
         streamer: { id: user.id, nickname: '불씨' },
       });
+    });
+
+    it('stores the Korean name of a listed game, whatever name was sent', async () => {
+      const { agent } = await signUpAndLogIn(app);
+      const res = await agent.post('/api/broadcasts').send({
+        title: '랭크 게임',
+        category: 'GAME',
+        gameQid: 'Q223341',
+        gameName: '아무거나',
+      });
+      expect(res.status).toBe(201);
+      const { id, game } = res.body as BroadcastView;
+      expect(game).toEqual(LOL_GAME);
+      const detail = await agent.get(`/api/broadcasts/${id}`);
+      expect((detail.body as BroadcastView).game).toEqual(LOL_GAME);
+    });
+
+    it('stores a typed-in game name, trimmed, with no qid', async () => {
+      const { agent } = await signUpAndLogIn(app);
+      const res = await agent.post('/api/broadcasts').send({
+        title: '추억의 게임',
+        category: 'GAME',
+        gameName: '  카트라이더 슈퍼러쉬  ',
+      });
+      expect(res.status).toBe(201);
+      expect((res.body as BroadcastView).game).toEqual({
+        qid: null,
+        name: '카트라이더 슈퍼러쉬',
+      });
+    });
+
+    it('lets a GAME broadcast go without a game', async () => {
+      const { agent } = await signUpAndLogIn(app);
+      const res = await agent.post('/api/broadcasts').send({
+        title: '게임 방송',
+        category: 'GAME',
+        gameQid: null,
+        gameName: null,
+      });
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ category: 'GAME', game: null });
     });
 
     it('stores the category sent', async () => {
@@ -117,7 +170,7 @@ describe('broadcasts', () => {
       expect((res.body as BroadcastView).description).toBe('');
     });
 
-    it.each([
+    it.each<[string, object]>([
       ['a missing title', {}],
       ['a blank title', { title: '   ' }],
       ['a title over 100 characters', { title: 'a'.repeat(101) }],
@@ -128,6 +181,35 @@ describe('broadcasts', () => {
       ['an unknown category', { title: 'ok', category: 'COOKING' }],
       ['a lowercase category', { title: 'ok', category: 'music' }],
       ['a non-string category', { title: 'ok', category: 1 }],
+      [
+        'a qid missing from the game list',
+        { title: 'ok', category: 'GAME', gameQid: 'Q999999' },
+      ],
+      ...['223341', 'Q0', 'Q01', 'q223341', 'Q223341 ', 'Q-1'].map(
+        (gameQid) =>
+          [
+            `a malformed qid ${JSON.stringify(gameQid)}`,
+            { title: 'ok', category: 'GAME', gameQid },
+          ] satisfies [string, object],
+      ),
+      ['a blank game name', { title: 'ok', category: 'GAME', gameName: '   ' }],
+      [
+        'a game name over 50 characters',
+        { title: 'ok', category: 'GAME', gameName: 'a'.repeat(51) },
+      ],
+      [
+        'a non-string game name',
+        { title: 'ok', category: 'GAME', gameName: 1 },
+      ],
+      [
+        'a game on a MUSIC broadcast',
+        { title: 'ok', category: 'MUSIC', gameName: '롤' },
+      ],
+      [
+        'a listed game on a TALK broadcast',
+        { title: 'ok', category: 'TALK', gameQid: 'Q223341' },
+      ],
+      ['a game with no category', { title: 'ok', gameName: '롤' }],
     ])('rejects %s with 400', async (_case, body) => {
       const { agent } = await signUpAndLogIn(app);
       const res = await agent.post('/api/broadcasts').send(body);
@@ -314,6 +396,11 @@ describe('broadcasts', () => {
     ['GET /api/broadcasts/:id', (id: string) => `/api/broadcasts/${id}`],
     ['GET /api/replays', () => '/api/replays'],
     ['GET /api/me/broadcasts', () => '/api/me/broadcasts'],
+    [
+      'GET /api/streamers/:id/broadcasts',
+      (_id: string, streamerId: string) =>
+        `/api/streamers/${streamerId}/broadcasts`,
+    ],
   ])('%s shows the broadcast’s category', async (_case, path) => {
     const { user, agent } = await signUpAndLogIn(app);
     const id = await seed(user, '축구 중계', 'ENDED');
@@ -322,12 +409,66 @@ describe('broadcasts', () => {
       data: { category: 'SPORTS', recordingFiles: [`${id}/1_0.mp4`] },
     });
 
-    const res = await agent.get(path(id));
+    const res = await agent.get(path(id, user.id));
     expect(res.status).toBe(200);
     const body = res.body as BroadcastView | BroadcastView[];
     const found = Array.isArray(body) ? body.find((b) => b.id === id) : body;
     expect(found?.category).toBe('SPORTS');
   });
+
+  it.each([
+    ['GET /api/broadcasts', () => '/api/broadcasts'],
+    ['GET /api/broadcasts/:id', (id: string) => `/api/broadcasts/${id}`],
+    ['GET /api/replays', () => '/api/replays'],
+    ['GET /api/me/broadcasts', () => '/api/me/broadcasts'],
+    [
+      'GET /api/streamers/:id/broadcasts',
+      (_id: string, streamerId: string) =>
+        `/api/streamers/${streamerId}/broadcasts`,
+    ],
+  ])(
+    '%s shows the game as {qid, name} and not the stored columns',
+    async (_case, path) => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const listed = await seed(user, '랭크', 'ENDED');
+      const typed = await seed(user, '추억', 'ENDED');
+      const none = await seed(user, '잡담', 'ENDED');
+      await prisma.broadcast.update({
+        where: { id: listed },
+        data: {
+          category: 'GAME',
+          gameQid: 'Q223341',
+          gameName: '리그 오브 레전드',
+        },
+      });
+      await prisma.broadcast.update({
+        where: { id: typed },
+        data: { category: 'GAME', gameName: '카트라이더 슈퍼러쉬' },
+      });
+      await prisma.broadcast.updateMany({
+        data: { recordingFiles: ['x/1_0.mp4'] },
+      });
+
+      const games = new Map<string, unknown>();
+      for (const id of [listed, typed, none]) {
+        const res = await agent.get(path(id, user.id));
+        expect(res.status).toBe(200);
+        const body = res.body as BroadcastView | BroadcastView[];
+        const found = Array.isArray(body)
+          ? body.find((b) => b.id === id)
+          : body;
+        expect(found).not.toHaveProperty('gameQid');
+        expect(found).not.toHaveProperty('gameName');
+        games.set(id, found?.game);
+      }
+      expect(games.get(listed)).toEqual(LOL_GAME);
+      expect(games.get(typed)).toEqual({
+        qid: null,
+        name: '카트라이더 슈퍼러쉬',
+      });
+      expect(games.get(none)).toBeNull();
+    },
+  );
 
   // PATCH와 DELETE를 누가 호출할 수 있는지는 authorization-matrix.e2e.spec.ts에서 다룬다.
   describe('PATCH /api/broadcasts/:id', () => {
@@ -370,6 +511,153 @@ describe('broadcasts', () => {
       });
     });
 
+    async function seedGameBroadcast(user: TestUser, status: Status = 'LIVE') {
+      const id = await seed(user, '게임 방송', status);
+      await prisma.broadcast.update({
+        where: { id },
+        data: {
+          category: 'GAME',
+          gameQid: 'Q223341',
+          gameName: '리그 오브 레전드',
+        },
+      });
+      return id;
+    }
+
+    it('sets the game of a GAME broadcast without resending the category', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '원래 제목', 'LIVE');
+      await prisma.broadcast.update({
+        where: { id },
+        data: { category: 'GAME' },
+      });
+
+      const res = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ gameQid: 'Q223341', gameName: '아무거나' });
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ category: 'GAME', game: LOL_GAME });
+    });
+
+    // 웹 수정 폼은 게임을 건드리지 않아도 저장된 gameQid를 다시 보낸다. 저장된
+    // qid와 같으면 그 방송의 스냅샷이라 목록에서 빠졌거나 이름이 바뀌어도 그대로 둔다.
+    it('keeps a game dropped from the list when its qid comes back with a new title', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seedGameBroadcast(user);
+      await prisma.game.deleteMany();
+
+      const res = await agent.patch(`/api/broadcasts/${id}`).send({
+        title: '새 제목',
+        category: 'GAME',
+        gameQid: 'Q223341',
+        gameName: '리그 오브 레전드',
+      });
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(res.body).toMatchObject({ title: '새 제목', game: LOL_GAME });
+    });
+
+    it('keeps the stored name when the same qid comes back after the list renamed it', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seedGameBroadcast(user);
+      await prisma.game.update({
+        where: { qid: 'Q223341' },
+        data: { nameKo: '리그 오브 레전드 (2009)' },
+      });
+
+      const res = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ gameQid: 'Q223341' });
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect((res.body as BroadcastView).game).toEqual(LOL_GAME);
+    });
+
+    it('still rejects a different qid missing from the list with 400 and changes nothing', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seedGameBroadcast(user);
+      await prisma.game.deleteMany();
+      const before = await prisma.broadcast.findUniqueOrThrow({
+        where: { id },
+      });
+
+      const res = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ title: '새 제목', gameQid: 'Q999999' });
+      expect(res.status).toBe(400);
+      expect(
+        await prisma.broadcast.findUniqueOrThrow({ where: { id } }),
+      ).toEqual(before);
+    });
+
+    it('switches a listed game to a typed-in one', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seedGameBroadcast(user);
+      const res = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ gameName: '카트라이더 슈퍼러쉬' });
+      expect(res.status).toBe(200);
+      expect((res.body as BroadcastView).game).toEqual({
+        qid: null,
+        name: '카트라이더 슈퍼러쉬',
+      });
+    });
+
+    it.each<[string, object]>([
+      ['both game fields are null', { gameQid: null, gameName: null }],
+      ['only the qid is null', { gameQid: null }],
+      ['only the name is null', { gameName: null }],
+    ])('clears the game when %s', async (_case, body) => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seedGameBroadcast(user);
+      const res = await agent.patch(`/api/broadcasts/${id}`).send(body);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ category: 'GAME', game: null });
+    });
+
+    it('keeps the game when the game fields are left out', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seedGameBroadcast(user);
+      const res = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ title: '새 제목', category: 'GAME' });
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ title: '새 제목', game: LOL_GAME });
+    });
+
+    it.each<Status>(['READY', 'LIVE', 'ENDED'])(
+      'clears the game of a %s broadcast moved from GAME to MUSIC',
+      async (status) => {
+        const { user, agent } = await signUpAndLogIn(app);
+        const id = await seedGameBroadcast(user, status);
+        const res = await agent
+          .patch(`/api/broadcasts/${id}`)
+          .send({ category: 'MUSIC' });
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ category: 'MUSIC', game: null });
+        const detail = await agent.get(`/api/broadcasts/${id}`);
+        expect(detail.body).toMatchObject({ category: 'MUSIC', game: null });
+      },
+    );
+
+    it('rejects a game on a stored MUSIC broadcast with 400 and changes nothing', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '원래 제목', 'LIVE');
+      await prisma.broadcast.update({
+        where: { id },
+        data: { category: 'MUSIC' },
+      });
+      const before = await prisma.broadcast.findUniqueOrThrow({
+        where: { id },
+      });
+
+      const res = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ title: '새 제목', gameName: '롤' });
+      expect(res.status).toBe(400);
+      expect(
+        await prisma.broadcast.findUniqueOrThrow({ where: { id } }),
+      ).toEqual(before);
+    });
+
     it.each([
       ['an empty body', {}],
       ['only unknown fields', { status: 'ENDED' }],
@@ -379,6 +667,14 @@ describe('broadcasts', () => {
       ['a non-string title', { title: 42 }],
       ['an unknown category', { category: 'COOKING' }],
       ['a non-string category', { category: 1 }],
+      [
+        'a qid missing from the game list',
+        { category: 'GAME', gameQid: 'Q999999' },
+      ],
+      ['a malformed qid', { category: 'GAME', gameQid: 'Q01' }],
+      ['a blank game name', { category: 'GAME', gameName: '  ' }],
+      ['a game while moving to TALK', { category: 'TALK', gameQid: 'Q223341' }],
+      ['a game on a stored ETC broadcast', { gameName: '롤' }],
     ])('rejects %s with 400 and changes nothing', async (_case, body) => {
       const { user, agent } = await signUpAndLogIn(app);
       const id = await seed(user, '원래 제목', 'READY');

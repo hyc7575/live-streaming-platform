@@ -31,7 +31,11 @@ export function BroadcastGrid({
             <div className={styles.thumbnail}>
               <BroadcastThumbnail broadcast={b} />
             </div>
-            <CategoryBadge category={b.category} className={styles.category} />
+            <CategoryBadge
+              category={b.category}
+              game={b.game}
+              className={styles.category}
+            />
             <p className={styles.title}>{b.title}</p>
           </Link>
           {showStreamer && (

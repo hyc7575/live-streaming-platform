@@ -265,7 +265,7 @@ export function BroadcastPage() {
               <div className={styles.status}>{status}</div>
               <div className={styles.titleRow}>
                 <h1 className={styles.title}>{b.title}</h1>
-                <CategoryBadge category={b.category} />
+                <CategoryBadge category={b.category} game={b.game} />
               </div>
               <div className={styles.streamerRow}>
                 {streamer}
@@ -285,7 +285,7 @@ export function BroadcastPage() {
               label="더 보기"
               title={b.title}
               // 360px 요약 줄은 제목 자리가 모자라 배지는 시트의 전체 제목 옆에만 단다.
-              titleAside={<CategoryBadge category={b.category} />}
+              titleAside={<CategoryBadge category={b.category} game={b.game} />}
               open={sheetOpen}
               onOpenChange={setSheetOpen}
             >

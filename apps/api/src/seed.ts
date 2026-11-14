@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import pg from 'pg';
 import { seedTestAccounts } from './auth/test-accounts.js';
 import { PrismaService } from './database/database.module.js';
+import { seedGamesFileAndLog } from './games/seed-games.js';
 import { DEMO_ENDED_TITLE, seedDemoEndedBroadcast } from './seed-demo.js';
 
 const connectionString = process.env.DATABASE_URL;
@@ -18,6 +19,7 @@ try {
   console.log(
     `Demo ended broadcast ${demo.created ? 'created' : 'kept'}: ${demo.id} (${DEMO_ENDED_TITLE})`,
   );
+  await seedGamesFileAndLog(prisma);
 } catch (err) {
   console.error(
     `Seed failed: ${err instanceof Error ? err.message : String(err)}`,
