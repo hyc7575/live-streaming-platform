@@ -33,7 +33,7 @@ export function EditBroadcastPage() {
   }
 
   const b = broadcast.data;
-  // RequireAuth guarantees a user here; the server checks ownership again.
+  // 여기서는 RequireAuth가 사용자를 보장한다. 소유권은 서버가 다시 확인한다.
   const isOwner =
     state.status === 'authenticated' && state.user.id === b.streamer.id;
   if (!isOwner) {

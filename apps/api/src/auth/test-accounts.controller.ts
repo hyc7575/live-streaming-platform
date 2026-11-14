@@ -28,8 +28,8 @@ export interface TestAccountsResponse {
   accounts: TestAccountKey[];
 }
 
-// Logs in as a seeded test account without the browser ever holding its
-// password, which lives only in the server's environment.
+// seed된 테스트 계정으로 로그인한다. 브라우저는 그 비밀번호를 한 번도
+// 갖지 않는다. 비밀번호는 서버 환경 변수에만 있다.
 @Controller('auth')
 export class TestAccountsController {
   constructor(
@@ -37,8 +37,8 @@ export class TestAccountsController {
     private readonly prisma: PrismaService,
   ) {}
 
-  // Lists only seeded accounts, so the login page never offers a button
-  // that would fail.
+  // seed된 계정만 나열한다. 그래서 로그인 페이지가 실패할 버튼을
+  // 내놓지 않는다.
   @Get('test-accounts')
   async list(): Promise<TestAccountsResponse> {
     if (!this.config.enabled) return { accounts: [] };

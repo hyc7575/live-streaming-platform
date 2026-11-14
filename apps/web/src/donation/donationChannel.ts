@@ -1,9 +1,9 @@
-// The payment opens in its own tab so the watch tab keeps playing
-// (PRD-lime 7.1). After the confirm, the payment tab tells the watch tab
-// over this channel so it re-reads the donations at once instead of on the
-// next 5 s poll. Losing the message (no BroadcastChannel, another browser)
-// only means waiting for that poll. A lime charge tab says `charged` so the
-// watch tab can re-read the balance.
+// 결제는 따로 탭을 열어서, 시청 탭은 계속 재생된다
+// (PRD-lime 7.1). 승인 뒤 결제 탭이 이 채널로 시청 탭에 알린다.
+// 그러면 시청 탭은 다음 5 s 폴링을 기다리지 않고 후원을
+// 바로 다시 읽는다. 메시지를 놓쳐도(BroadcastChannel 없음, 다른 브라우저)
+// 그 폴링을 기다리면 될 뿐이다. 라임 충전 탭은 `charged`를 보내
+// 시청 탭이 잔액을 다시 읽게 한다.
 const CHANNEL = 'donations';
 
 interface DonatedMessage {
@@ -37,8 +37,8 @@ export function announceCharge(): void {
   channel.close();
 }
 
-// Calls `onDonated` for each donation to `broadcastId`; returns the
-// unsubscribe.
+// `broadcastId`에 후원이 올 때마다 `onDonated`를 부른다. 구독 해제 함수를
+// 돌려준다.
 export function onDonation(
   broadcastId: string,
   onDonated: () => void,
@@ -56,8 +56,8 @@ export function onDonation(
   return () => channel.close();
 }
 
-// Calls `onCharged` whenever a charge tab reports a top-up; returns the
-// unsubscribe.
+// 충전 탭이 충전을 알릴 때마다 `onCharged`를 부른다. 구독 해제 함수를
+// 돌려준다.
 export function onCharge(onCharged: () => void): () => void {
   const channel = openChannel();
   if (!channel) return () => {};
@@ -68,21 +68,21 @@ export function onCharge(onCharged: () => void): () => void {
 }
 
 export function openChargeTab(): void {
-  // No `noopener`, for the same reason as the donate tab below.
+  // 아래 후원 탭과 같은 이유로 `noopener`를 붙이지 않는다.
   window.open('/lime/charge', '_blank');
 }
 
 export function openDonateTab(broadcastId: string): void {
-  // No `noopener`: only a script-opened window may close itself later.
+  // `noopener`를 붙이지 않는다. 스크립트가 연 창만 나중에 스스로 닫을 수 있다.
   window.open(
     `/broadcasts/${encodeURIComponent(broadcastId)}/donate`,
     '_blank',
   );
 }
 
-// The payment tab was opened by the watch tab, so closing it lands back
-// there. A tab the browser will not close (typed into the address bar, then
-// redirected by Toss) goes to `fallback` instead.
+// 결제 탭은 시청 탭이 열었으므로, 닫으면 시청 탭으로 돌아간다.
+// 브라우저가 닫아 주지 않는 탭(주소창에 직접 입력한 뒤
+// Toss가 리다이렉트한 탭)은 대신 `fallback`으로 간다.
 export function closeTabOr(
   fallback: string,
   navigate: (to: string) => void,

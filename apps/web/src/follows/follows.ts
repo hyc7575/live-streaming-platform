@@ -2,27 +2,27 @@ import type { Location } from 'react-router';
 import type { Broadcast } from '../broadcasts';
 import type { LoginPageState } from '../pages/LoginPage';
 
-// The panel re-reads its list this often, and right after a follow change.
+// 패널은 이 주기로, 그리고 팔로우가 바뀐 직후에 목록을 다시 읽는다.
 export const FOLLOWS_POLL_MS = 30_000;
 
 export const FOLLOWS_EMPTY = '방송을 보다가 팔로우하면 여기에 보입니다.';
 
-// Mirrors FollowedStreamer from apps/api/src/follows/follows.service.ts.
+// apps/api/src/follows/follows.service.ts의 FollowedStreamer와 같은 모양이다.
 export interface FollowedStreamer {
   id: string;
   nickname: string;
   live: { broadcastId: string; title: string; startedAt: string } | null;
 }
 
-// GET /me/followers: the caller's own followers, newest first. `count`
-// covers them all, `followers` only the newest 50.
+// GET /me/followers: 호출자의 팔로워를 최신순으로 담는다. `count`는
+// 전부를 세고, `followers`는 최신 50명만 담는다.
 export interface FollowerList {
   count: number;
   followers: { id: string; nickname: string; followedAt: string }[];
 }
 
-// One row of a follow list. The logged-in list and the anonymous list of
-// LIVE broadcasts both map into this, so a row never asks who is looking.
+// 팔로우 목록의 한 줄이다. 로그인한 목록과 비로그인 상태의
+// LIVE 방송 목록이 모두 이 모양으로 바뀌므로, 줄은 누가 보는지 묻지 않는다.
 export interface FollowEntry {
   key: string;
   streamerId: string;
@@ -48,8 +48,8 @@ export function liveEntries(broadcasts: Broadcast[]): FollowEntry[] {
   }));
 }
 
-// Login state that brings the visitor back to where they are. The login and
-// signup pages themselves are no place to come back to.
+// 방문자를 지금 있는 곳으로 되돌려 보낼 로그인 state다. 로그인과
+// 가입 페이지 자체는 돌아올 곳이 아니다.
 export function returnHere(location: Location): LoginPageState {
   if (location.pathname === '/login' || location.pathname === '/signup') {
     return {};

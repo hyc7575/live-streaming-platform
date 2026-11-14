@@ -1,28 +1,28 @@
 {
-	# The firewall opens 443/tcp only, so HTTP/3 (443/udp) would never connect.
+	# 방화벽이 443/tcp만 열어 HTTP/3(443/udp)는 연결될 수 없다.
 	servers {
 		protocols h1 h2
 	}
 }
 
 {$DOMAIN} {
-	# The API trusts exactly one proxy hop for X-Forwarded-Proto and X-Forwarded-For.
+	# API는 X-Forwarded-Proto와 X-Forwarded-For에 대해 프록시 한 단계만 믿는다.
 	handle /api/* {
 		reverse_proxy api:3000
 	}
 
-	# OME: WHIP signalling and LL-HLS. Blocking playlist requests and chunked
-	# partial segments must reach the player as soon as OME writes them.
+	# OME: WHIP 시그널링과 LL-HLS. blocking playlist 요청과 chunked
+	# partial segment는 OME가 쓰는 즉시 플레이어에 닿아야 한다.
 	handle /app/* {
 		reverse_proxy ome:3333 {
 			flush_interval -1
 		}
 	}
 
-	# Recordings (#19). OME writes tmp_* while recording and an info .xml
-	# next to each file; only finished .mp4 files are served. file_server
-	# answers Range requests, so the browser can seek and read the moov box
-	# that OME writes at the end of the file.
+	# 녹화(#19). OME는 녹화하는 동안 tmp_*를 쓰고 파일마다 옆에 정보 .xml을
+	# 쓴다. 끝난 .mp4 파일만 내준다. file_server가 Range 요청에 응답하므로
+	# 브라우저가 seek할 수 있고, OME가 파일 끝에 쓰는 moov box를
+	# 읽을 수 있다.
 	handle_path /recordings/* {
 		root * /recordings
 		file_server {
@@ -30,9 +30,9 @@
 		}
 	}
 
-	# Thumbnails (#62). The API writes .live-*.tmp and renames it over
-	# live.jpg, so only finished images are served. nosniff keeps a browser
-	# from reading an uploaded file as anything but the image it claims.
+	# 썸네일(#62). API가 .live-*.tmp를 쓰고 live.jpg로 이름을 바꿔 덮으므로
+	# 다 쓴 이미지만 내준다. nosniff는 브라우저가 올린 파일을 그 파일이 밝힌
+	# 이미지 말고 다른 것으로 읽지 못하게 한다.
 	handle_path /thumbnails/* {
 		root * /thumbnails
 		header X-Content-Type-Options nosniff
@@ -53,9 +53,9 @@
 	}
 }
 
-# A previous domain keeps old links working by sending them to {$DOMAIN}
-# with the same path and query. compose defaults it to an http:// address
-# on a reserved name, so an unused block never asks for a certificate.
+# 예전 도메인은 같은 경로와 쿼리로 {$DOMAIN}에 보내 옛 링크가 계속 동작하게 한다.
+# compose는 기본값으로 예약 이름의 http:// 주소를 넣는다. 그래서 쓰지 않는
+# 블록이 인증서를 요청하지 않는다.
 {$LEGACY_DOMAIN} {
 	redir https://{$DOMAIN}{uri} permanent
 }

@@ -2,15 +2,15 @@ import type { AuthUser } from './auth/auth-user.js';
 import type { TestAccountKey } from './auth/test-accounts.js';
 import type { PrismaService } from './database/database.module.js';
 
-// An ENDED broadcast by test account A, so judges can try comments (a graded
-// item, written only after a broadcast ends) without streaming first. The
-// title is how a re-run finds it again.
+// 테스트 계정 A의 ENDED 방송. 심사위원이 먼저 방송하지 않고도 댓글(채점
+// 항목이며 방송이 끝난 뒤에만 쓸 수 있다)을 써 볼 수 있게 한다. 다시 실행할 때는
+// 제목으로 이 방송을 찾는다.
 export const DEMO_ENDED_TITLE = '끝난 방송 예시: 댓글을 남겨 보세요';
 
 const MINUTE_MS = 60_000;
 
-// Creates the demo broadcast with its chat and comments in one write the
-// first time; afterwards finds it and changes nothing.
+// 처음에는 데모 방송을 채팅·댓글과 함께 한 번의 쓰기로 만든다.
+// 그다음부터는 찾기만 하고 아무것도 바꾸지 않는다.
 export async function seedDemoEndedBroadcast(
   prisma: PrismaService,
   users: Record<TestAccountKey, AuthUser>,

@@ -8,8 +8,8 @@ import {
   watchUntilPlaying,
 } from './support';
 
-// Like the CI capture tests: no fake UI flag, so getDisplayMedia captures
-// the real tab picked by title.
+// CI 캡처 테스트처럼 fake UI 플래그를 빼서, getDisplayMedia가 제목으로 고른
+// 실제 탭을 캡처한다.
 test.use({
   launchOptions: {
     args: [
@@ -76,8 +76,8 @@ function currentTime(viewer: Page) {
     .evaluate((v: HTMLVideoElement) => v.currentTime);
 }
 
-// The fake mic beeps about once a second. Headless Chrome captures tab audio
-// as silence, so the beeps are what a viewer can hear here.
+// 가짜 마이크는 약 1초마다 삐 소리를 낸다. headless Chrome은 탭 오디오를
+// 무음으로 캡처하므로 여기서 시청자가 들을 수 있는 것은 이 삐 소리다.
 async function maxViewerLevel(viewer: Page) {
   return viewer.evaluate(async () => {
     const analyser = (window as unknown as Probe).viewerAnalyser;
@@ -109,11 +109,11 @@ test('a shared screen with mic reaches a viewer, survives a reselect, and ends w
   await page.goto(`/studio/broadcasts/${id}`);
 
   await test.step('share the screen and go live', async () => {
-    // The tone tab opened last and holds focus; getDisplayMedia from an
-    // unfocused document rejects.
+    // tone 탭이 마지막에 열려 포커스를 쥐고 있다. 포커스 없는 문서에서 부른
+    // getDisplayMedia는 거부된다.
     await page.bringToFront();
     await page.getByRole('button', { name: '화면 공유' }).click();
-    // Chrome focuses the captured tab; a streamer comes back first.
+    // Chrome은 캡처한 탭에 포커스를 준다. 스트리머는 먼저 돌아온다.
     await expect(page.getByRole('button', { name: '방송 시작' })).toBeVisible();
     await page.bringToFront();
     await page.getByRole('button', { name: '방송 시작' }).click();

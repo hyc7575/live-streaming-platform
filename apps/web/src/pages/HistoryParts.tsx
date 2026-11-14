@@ -8,7 +8,7 @@ const historyTimeFormat = new Intl.DateTimeFormat('ko-KR', {
   minute: '2-digit',
 });
 
-// The broadcast a donation was made on, or "삭제된 방송" once it is gone
+// 후원한 방송. 방송이 지워졌으면 "삭제된 방송"을 보인다
 // (#114).
 export function BroadcastLink({
   broadcast,
@@ -22,8 +22,8 @@ export function BroadcastLink({
   );
 }
 
-// "불씨에게 · <방송 제목>". The recipient is missing only on donations whose
-// broadcast was deleted before donations kept their recipient.
+// "불씨에게 · <방송 제목>". 받는 사람이 없는 것은, 후원이 받는 사람을 따로
+// 저장하기 전에 방송이 지워진 후원뿐이다.
 export function DonationTargetText({ target }: { target: DonationTarget }) {
   return (
     <>

@@ -29,7 +29,7 @@ test('a published camera reaches an anonymous viewer over LL-HLS', async ({
   const viewer = await viewerContext.newPage();
   await viewer.goto(`/broadcasts/${id}`);
   const video = viewer.getByLabel('방송 화면');
-  // The first frame comes about 11 s after the publish connects (#102).
+  // 첫 프레임은 송출이 연결되고 약 11초 뒤에 온다(#102).
   await expect
     .poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), {
       timeout: 60_000,
@@ -41,7 +41,7 @@ test('a published camera reaches an anonymous viewer over LL-HLS', async ({
     start: v.currentTime,
     src: v.src,
   }));
-  // hls.js plays through MediaSource, so the element holds a blob: URL.
+  // hls.js는 MediaSource로 재생하므로 요소에는 blob: URL이 들어 있다.
   expect(playback.src).toMatch(/^blob:/);
   expect(playback.width).toBeGreaterThan(0);
   expect(playback.height).toBeGreaterThan(0);

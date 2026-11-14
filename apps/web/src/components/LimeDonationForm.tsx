@@ -20,18 +20,18 @@ import type { LoginPageState } from '../pages/LoginPage';
 import { usePolledApi } from '../use-api';
 import styles from './LimeDonationForm.module.css';
 
-// A charge tab normally reports back at once; this only catches a missed
-// message (another browser, no BroadcastChannel).
+// 충전 탭은 보통 바로 결과를 알린다. 이것은 놓친 메시지만
+// 잡는다(다른 브라우저, BroadcastChannel 없음).
 const BALANCE_POLL_MS = 30_000;
 
 const AMOUNT_RANGE_ERROR = `${formatLime(DONATION_MIN_AMOUNT)}부터 ${formatLime(DONATION_MAX_AMOUNT)}까지 후원할 수 있습니다.`;
 
-// The server may have made the donation before the answer was lost, so this
-// says the result is unknown and how to learn it without donating twice.
+// 응답을 잃기 전에 서버가 후원을 처리했을 수 있다. 그래서 이 문구는
+// 결과를 모른다고 알리고, 두 번 후원하지 않고 확인하는 방법을 알려 준다.
 const UNSETTLED_MESSAGE =
   '후원 결과를 확인하지 못했습니다. 금액과 메시지를 그대로 두고 다시 누르면 두 번 후원되지 않습니다.';
 
-// A 4xx the server sent about this attempt.
+// 이 시도에 대해 서버가 보낸 4xx.
 function refusalMessage(err: ApiError): string {
   if (err.status === 400) return AMOUNT_RANGE_ERROR;
   if ((err.status === 403 || err.status === 409) && err.serverMessage) {
@@ -46,12 +46,12 @@ interface Attempt {
   message: string;
 }
 
-// Donating lime without leaving the watch page (PRD-lime 7.3). Each attempt
-// gets its own idempotency key, kept until the server answers it: pressing
-// again after a lost response (network error, 5xx) resends the same key, so
-// the server makes at most one donation of it. `onDonated` runs after a
-// donation; `onUnsettled` after a lost answer, to re-read the list in case
-// the donation went through.
+// 시청 페이지를 떠나지 않고 라임으로 후원한다(PRD-lime 7.3). 시도마다
+// 멱등 키를 따로 두고, 서버가 답할 때까지 유지한다. 응답을 잃은 뒤
+// (네트워크 오류, 5xx) 다시 누르면 같은 키를 다시 보내므로,
+// 서버는 그 키로 후원을 최대 한 번만 만든다. `onDonated`는 후원 뒤에,
+// `onUnsettled`는 응답을 잃은 뒤에 실행한다. 후원이 처리됐을 경우에 대비해
+// 목록을 다시 읽게 한다.
 export function LimeDonationForm({
   broadcastId,
   onDonated,
@@ -68,7 +68,7 @@ export function LimeDonationForm({
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The attempt whose answer was lost, if any.
+  // 응답을 잃은 시도. 없으면 비어 있다.
   const [unsettled, setUnsettled] = useState<Attempt | null>(null);
 
   useEffect(() => onCharge(reloadBalance), [reloadBalance]);
@@ -76,12 +76,12 @@ export function LimeDonationForm({
   const value = Number(amount);
   const balance =
     balanceData.status === 'loaded' ? balanceData.data.balance : null;
-  // How much lime the chosen amount lacks; 0 while the balance is unknown,
-  // so the server decides.
+  // 고른 금액에 모자란 라임. 잔액을 모르는 동안은 0이고,
+  // 그때는 서버가 판단한다.
   const shortBy =
     balance !== null && isDonationAmount(value) ? value - balance : 0;
-  // Pressing again resends the unsettled attempt. Its lime may already be
-  // gone from the balance, so a shortfall must not hide the button then.
+  // 다시 누르면 미확정 시도를 다시 보낸다. 그 라임은 이미 잔액에서
+  // 빠졌을 수 있으므로, 그때는 부족분 때문에 버튼을 숨기면 안 된다.
   const resending =
     unsettled !== null &&
     unsettled.amount === value &&
@@ -121,7 +121,7 @@ export function LimeDonationForm({
         return;
       }
       if (err instanceof ApiError && err.status < 500) {
-        // The server decided this attempt, so the next press is a new one.
+        // 서버가 이 시도를 판정했으므로, 다음 누름은 새 시도다.
         setUnsettled(null);
         if (err.status === 409) reloadBalance();
         setError(refusalMessage(err));

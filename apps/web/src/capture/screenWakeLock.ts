@@ -1,9 +1,9 @@
 export type WakeLockStatus = 'pending' | 'active' | 'unsupported' | 'failed';
 
 /**
- * Keeps the screen on until the returned release function is called.
- * The browser drops the lock whenever the page is hidden, so it is requested
- * again each time the page becomes visible.
+ * 돌려받은 해제 함수를 부를 때까지 화면을 켜 둔다.
+ * 브라우저는 페이지가 숨겨질 때마다 잠금을 풀기 때문에, 페이지가
+ * 다시 보일 때마다 잠금을 새로 요청한다.
  */
 export function holdScreenWakeLock(
   onChange: (status: WakeLockStatus) => void,

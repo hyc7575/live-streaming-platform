@@ -11,7 +11,7 @@ type ObsUrl =
   | { kind: 'none' }
   | { kind: 'issuing' }
   | { kind: 'issued'; url: string; expiresAt: Date }
-  // The server refuses an expired URL, so it is no longer shown.
+  // 서버가 만료된 URL을 거절하므로 더 이상 보이지 않는다.
   | { kind: 'expired' }
   | { kind: 'failed'; error: string };
 
@@ -26,8 +26,8 @@ const expiryFormat = new Intl.DateTimeFormat('ko-KR', {
 });
 
 /**
- * Hands the streamer a WHIP URL for OBS and follows the publish through the
- * page's polled broadcast. `endControl` is the page's own 방송 종료.
+ * 스트리머에게 OBS용 WHIP URL을 건네고, 페이지가 폴링하는 방송으로 송출
+ * 상태를 따라간다. `endControl`은 페이지 자체의 방송 종료다.
  */
 export function ObsPanel({
   broadcast,
@@ -36,7 +36,7 @@ export function ObsPanel({
 }: {
   broadcast: Broadcast;
   endControl: ReactNode;
-  /** Called on each issued URL, so the ended screen knows OBS was set up. */
+  /** URL을 발급할 때마다 호출한다. 그래서 종료 화면이 OBS 설정 여부를 안다. */
   onIssued: () => void;
 }) {
   const navigate = useNavigate();
@@ -130,8 +130,8 @@ export function ObsPanel({
           </li>
           <li>설정 › 출력에서 키프레임 간격을 1~2초로 맞춥니다.</li>
         </ol>
-        {/* #88: OBS words a refused URL as a stream key problem, and after
-            the broadcast ends it keeps reconnecting until stopped by hand. */}
+        {/* #88: OBS는 거절된 URL을 스트림 키 문제로 표시하고, 방송이
+            끝난 뒤에도 손으로 멈출 때까지 재연결을 계속한다. */}
         <p className={page.note}>
           OBS가 &ldquo;스트림 키에 접근할 수 없습니다&rdquo;라고 하면 주소가
           만료되었거나 방송이 끝난 것입니다. 주소를 다시 발급하세요.
@@ -169,8 +169,8 @@ function IssuedUrl({ url, expiresAt }: { url: string; expiresAt: Date }) {
   const [copy, setCopy] = useState<CopyResult>('idle');
 
   function copyUrl() {
-    // navigator.clipboard is missing outside a secure context; that is a
-    // failed copy too.
+    // 보안 컨텍스트 밖에서는 navigator.clipboard가 없다. 이것도
+    // 복사 실패로 본다.
     Promise.resolve()
       .then(() => navigator.clipboard.writeText(url))
       .then(

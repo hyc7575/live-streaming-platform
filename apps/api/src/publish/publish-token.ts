@@ -1,14 +1,14 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-// PRD §7.5: a publish token names one broadcast and its streamer and is
-// checked only when OME asks about a new connection. It is stateless, so a
-// token outlives nothing but its own expiry.
+// PRD §7.5: 송출 토큰은 방송 하나와 그 스트리머를 가리키며,
+// OME가 새 연결을 물을 때만 확인한다. 상태가 없으므로
+// 토큰은 자기 만료 시각 말고는 아무 제약도 받지 않는다.
 //
-// OBS reconnects on its own with the URL it was given, and admission checks
-// the token again on every reconnect, so an OBS token must outlast a whole
-// broadcast. The token is bound to one broadcast and an ENDED broadcast never
-// goes LIVE again, so the longer life only widens exposure of a URL that
-// leaks before the broadcast starts.
+// OBS는 받은 URL로 스스로 다시 연결하고, 송출 허가는 다시 연결할 때마다
+// 토큰을 다시 확인한다. 그래서 OBS 토큰은 방송 하나가 끝날 때까지
+// 유효해야 한다. 토큰은 방송 하나에 묶이고 ENDED 방송은 다시
+// LIVE가 되지 않는다. 그래서 수명이 길어져도 방송 시작 전에 새어 나간
+// URL의 노출만 넓어진다.
 export type PublishClient = 'browser' | 'obs';
 
 export const PUBLISH_TOKEN_TTL_SECONDS: Record<PublishClient, number> = {
@@ -21,8 +21,8 @@ export interface PublishGrant {
   streamerId: string;
 }
 
-// Derived from the session secret so the deployment needs no new secret, and
-// separated by purpose so a session signature never verifies as a token.
+// 세션 secret에서 파생하므로 배포에 새 secret이 필요 없다. 또
+// 용도별로 분리해 세션 서명이 토큰으로 검증되는 일은 없다.
 export function publishTokenKey(sessionSecret: string): Buffer {
   return createHmac('sha256', sessionSecret).update('publish-token').digest();
 }

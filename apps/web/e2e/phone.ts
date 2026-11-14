@@ -11,8 +11,8 @@ declare global {
   }
 }
 
-// Chrome's fake cameras report no facingMode, so this stands in for a phone:
-// fake_device_0 is the front camera and fake_device_1 the rear one.
+// Chrome의 가짜 카메라는 facingMode를 알리지 않으므로 이 코드가 휴대폰을 대신한다.
+// fake_device_0이 전면 카메라, fake_device_1이 후면 카메라다.
 export function emulatePhoneCameras() {
   window.acquiredTracks = [];
   window.wakeLocks = [];

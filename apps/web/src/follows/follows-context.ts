@@ -3,11 +3,11 @@ import type { Loadable } from '../use-api';
 import type { FollowedStreamer } from './follows';
 
 export interface FollowsContextValue {
-  // null while nobody is logged in: there is no list to load.
+  // 아무도 로그인하지 않았으면 null이다. 불러올 목록이 없다.
   follows: Loadable<FollowedStreamer[]> | null;
   isFollowing: (streamerId: string) => boolean;
-  // Resolves once the list has been re-read, and rejects when the follow or
-  // unfollow itself failed.
+  // 목록을 다시 읽으면 resolve하고, 팔로우나
+  // 언팔로우 자체가 실패하면 reject한다.
   setFollowing: (streamerId: string, following: boolean) => Promise<void>;
 }
 

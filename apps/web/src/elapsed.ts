@@ -1,6 +1,6 @@
 const pad = (n: number) => String(n).padStart(2, '0');
 
-// H:MM:SS, or M:SS under an hour.
+// H:MM:SS, 한 시간 미만이면 M:SS.
 export function formatClock(ms: number): string {
   const total = Math.floor(ms / 1000);
   const h = Math.floor(total / 3600);

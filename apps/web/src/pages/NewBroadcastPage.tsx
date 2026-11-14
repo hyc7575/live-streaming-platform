@@ -19,7 +19,7 @@ export function NewBroadcastPage() {
         method: 'POST',
         body: JSON.stringify(fields),
       });
-      // replace: going back from the publish page skips the spent form.
+      // replace: 송출 페이지에서 뒤로 가면 이미 제출한 폼을 건너뛴다.
       void navigate(`/studio/broadcasts/${created.id}`, { replace: true });
       return null;
     } catch (err) {

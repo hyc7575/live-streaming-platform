@@ -9,7 +9,7 @@ import { TestAccountLogin } from './TestAccountLogin';
 export interface LoginPageState {
   email?: string;
   signedUp?: boolean;
-  // The in-app path to return to after logging in.
+  // 로그인한 뒤 돌아갈 앱 안의 경로다.
   from?: string;
 }
 

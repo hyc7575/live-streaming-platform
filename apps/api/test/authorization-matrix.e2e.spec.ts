@@ -29,12 +29,12 @@ import {
 } from './support/fake-toss-payments.js';
 import { mintedToken, openPublish } from './support/webhook.js';
 
-// PRD §7.5 authorization matrix (KR3), driven as one table. Every row that
-// exists in the API today runs for each caller against an owner's broadcast
-// in every status. A cell is the expected HTTP status. A rejected cell also
-// proves the database did not change and neither OME nor Toss was asked
-// anything, and an allowed cell proves its effect through the API the way a user would
-// see it.
+// PRD §7.5 인가 매트릭스(KR3)를 표 하나로 돌린다. 지금 API에 있는 행은
+// 모두 호출자마다, 모든 상태의 소유자 방송을 대상으로 실행한다. 칸 값은
+// 기대하는 HTTP 상태다. 거부된 칸은 데이터베이스가 바뀌지 않았고 OME와
+// Toss에도 아무것도 묻지 않았음을 함께 증명한다. 허용된 칸은 그 효과를
+// 사용자가 보는 방식대로 API를 거쳐
+// 증명한다.
 
 type Actor = 'anonymous' | 'other' | 'owner';
 type Cell = number | Record<BroadcastStatus, number>;
@@ -43,24 +43,24 @@ interface World {
   status: BroadcastStatus;
   owner: TestUser;
   other: TestUser;
-  // The owner's broadcast that resource rows act on.
+  // 리소스 행이 대상으로 삼는 소유자의 방송.
   targetId: string;
   targetEndedAt: Date | null;
-  // A comment the owner wrote on the target, so for the comment rows the
-  // owner column is the comment's author and 'other' is anyone else.
+  // 소유자가 대상 방송에 쓴 댓글. 그래서 댓글 행에서는
+  // 소유자 열이 댓글 작성자이고 'other'는 그 외 모든 사람이다.
   targetCommentId: string;
-  // Likewise a chat message the owner sent on the target.
+  // 마찬가지로 소유자가 대상 방송에 보낸 채팅 메시지.
   targetChatId: string;
-  // An unpaid order by the other user on the target, so for '후원 승인' the
-  // owner column is the streamer, not the donor: someone else's order.
+  // 타인이 대상 방송에 넣은 미결제 주문. 그래서 '후원 승인'에서는
+  // 소유자 열이 후원자가 아니라 스트리머다. 남의 주문이다.
   pendingOrder: { paymentKey: string; orderId: string; amount: number };
-  // An ENDED broadcast of the other user, so lists have something to leave out.
+  // 타인의 ENDED 방송. 목록이 빼야 할 대상이 있도록 둔다.
   othersId: string;
   as: Record<Actor, TestAgent>;
 }
 
-// Same columns and labels as the PRD table. '—' means the PRD has no cell:
-// nobody owns a broadcast before creating it.
+// PRD 표와 같은 열과 이름을 쓴다. '—'는 PRD에 칸이 없다는 뜻이다.
+// 방송을 만들기 전에는 아무도 그 방송의 소유자가 아니다.
 const ACTORS: Actor[] = ['anonymous', 'other', 'owner'];
 
 // prettier-ignore
@@ -102,30 +102,30 @@ const MATRIX = {
   '프로필 이미지 삭제': [401,  204,          204],
   '채널 방송 목록': [200,      200,          200],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
-// §7.4 has no READY → ENDED edge, so a READY broadcast cannot be ended, only
-// deleted. An ENDED broadcast never goes LIVE again, so it gets no publish
-// token. A thumbnail is a frame of the live stream, so only a LIVE broadcast
-// takes one. Chat and comments are read wherever the detail page is, but
-// written by status: chat before the broadcast ends (READY and LIVE),
-// comments after it (ENDED). Chat has no edit or delete route for anyone,
-// its author included, so that row is 404 in every cell. Donations are ordered only
-// while LIVE, and never by the streamer, whose 403 comes before the status.
-// A confirm ignores the status: the donor already paid by then. A lime
-// donation follows the same target rule as a card order (§7.5 "직접결제·라임
-// 공통"); both users hold lime, so no cell turns on the balance.
-// The PRD's one row "팔로우·언팔로우" is two rows here, one per request. The
-// owner column is the owner following themselves, and "내 팔로우 목록" has no
-// such cell: it is only ever the caller's own list. The standby image is
-// the caller's own channel, so 'other' and the owner each act on their own
-// and the broadcast's status does not matter. The PRD's one row "라임
-// 내역·보낸·받은 후원·팔로워 조회" is four rows here, and like the standby
-// image each caller reads only their own: the other user donated to the owner and
-// the owner follows the other user, so each list differs by caller.
+// §7.4에는 READY → ENDED 전이가 없어서, READY 방송은 종료할 수 없고
+// 삭제만 할 수 있다. ENDED 방송은 다시 LIVE가 되지 않으므로 송출
+// 토큰을 받지 않는다. 썸네일은 라이브 스트림의 한 프레임이라 LIVE 방송만
+// 받는다. 채팅과 댓글은 상세 페이지가 열리는 곳이면 어디서나 읽지만,
+// 쓰기는 상태를 따른다. 채팅은 방송이 끝나기 전(READY와 LIVE),
+// 댓글은 끝난 뒤(ENDED)에 쓴다. 채팅에는 누구에게도 수정·삭제 경로가 없고
+// 작성자도 마찬가지라서, 그 행은 모든 칸이 404다. 후원 주문은
+// LIVE일 때만 받고 스트리머는 할 수 없다. 스트리머의 403은 상태보다 먼저 나온다.
+// 승인은 상태를 보지 않는다. 그때 후원자는 이미 결제했다. 라임
+// 후원은 카드 주문과 같은 대상 규칙을 따른다(§7.5 "직접결제·라임
+// 공통"). 두 사용자 모두 라임이 있어서 잔액 때문에 달라지는 칸은 없다.
+// PRD의 "팔로우·언팔로우" 한 행은 여기서 요청마다 하나씩 두 행이다.
+// 소유자 열은 소유자가 자기 자신을 팔로우하는 경우이고, "내 팔로우 목록"에는
+// 그런 칸이 없다. 언제나 호출자 자신의 목록이기 때문이다. 기본 대기 이미지는
+// 호출자 자신의 채널 것이라서 'other'와 소유자는 각자 자기 것에 작용하고
+// 방송 상태와 상관없다. PRD의 "라임
+// 내역·보낸·받은 후원·팔로워 조회" 한 행은 여기서 네 행이고, 대기 화면
+// 이미지처럼 호출자마다 자기 것만 읽는다. 타인은 소유자에게 후원했고
+// 소유자는 타인을 팔로우하므로, 목록은 호출자마다 다르다.
 
 type Action = keyof typeof MATRIX;
 
-// The §7.5 row "OME 송출 연결 (Webhook 판정)". OME passes no cookie, only the
-// token in the publish URL, so the callers are told apart by token.
+// §7.5의 "OME 송출 연결 (Webhook 판정)" 행. OME는 쿠키 없이
+// 송출 URL의 토큰만 보낸다. 그래서 호출자는 토큰으로 구분한다.
 type PublishState =
   'READY' | 'LIVE 연결 중' | 'LIVE 유예 중' | 'LIVE 유예 초과' | 'ENDED';
 type WebhookCell = '허용' | AdmissionRejection;
@@ -147,7 +147,7 @@ const DROPPED_AGO_MS: Partial<Record<PublishState, number>> = {
 
 interface ActionDriver {
   send: (client: TestAgent, world: World) => Promise<Response>;
-  // Checks the effect of an allowed call through the API, as a user sees it.
+  // 허용된 호출의 효과를 사용자가 보는 방식대로 API로 확인한다.
   verifyAllowed: (
     res: Response,
     world: World,
@@ -167,8 +167,8 @@ const EDITED = { title: '고친 제목', description: '고친 설명' };
 const ORIGINAL_COMMENT = '원래 댓글';
 const ORIGINAL_CHAT = '원래 채팅';
 const PAID_AMOUNT = 1000;
-// What seed() charges each user, so a lime donation can only fail on its
-// target, never on the balance.
+// seed()가 사용자마다 충전해 두는 금액. 그래서 라임 후원은
+// 잔액이 아니라 대상 때문에만 실패할 수 있다.
 const SEEDED_LIME = 10_000;
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
@@ -184,14 +184,14 @@ describe('authorization matrix (PRD §7.5)', () => {
 
   const ids = (body: unknown) => (body as BroadcastView[]).map((b) => b.id);
 
-  // Public list per §7.4. The seeded READY target is minutes old, inside the
-  // day a READY broadcast stays listed, so every status is listed.
+  // §7.4에 따른 공개 목록. 시드한 READY 대상은 만든 지 몇 분밖에 안 돼
+  // READY 방송이 목록에 남는 하루 안에 있으므로, 모든 상태가 목록에 나온다.
   const publicIds = (w: World) => [w.targetId, w.othersId];
 
   const broadcastRows = () =>
     prisma.broadcast.findMany({ orderBy: { id: 'asc' } });
 
-  // What a rejected call must leave untouched.
+  // 거부된 호출이 건드리지 말아야 하는 것.
   const rows = async () => ({
     broadcasts: await broadcastRows(),
     comments: await prisma.comment.findMany({ orderBy: { id: 'asc' } }),
@@ -241,7 +241,7 @@ describe('authorization matrix (PRD §7.5)', () => {
   const follows = async (w: World, actor: 'owner' | 'other') =>
     (await w.as[actor].get('/api/me/follows')).body as unknown;
 
-  // The other user's list once they follow the owner, as the panel reads it.
+  // 타인이 소유자를 팔로우한 뒤의 타인 목록. 패널이 읽는 그대로다.
   const followingOwner = (w: World) => [
     {
       id: w.owner.id,
@@ -263,7 +263,7 @@ describe('authorization matrix (PRD §7.5)', () => {
   const uploadStandby = (client: TestAgent) =>
     client.put('/api/me/standby-image').attach('image', PNG, 'a.png');
 
-  // What the owner's seeded follow of the other user looks like to the owner.
+  // 소유자가 시드해 둔 타인 팔로우가 소유자에게 보이는 모습.
   const ownerFollowsOther = (w: World) => [
     { id: w.other.id, nickname: w.other.nickname, live: null },
   ];
@@ -273,8 +273,8 @@ describe('authorization matrix (PRD §7.5)', () => {
       const req = client.post(`/api/broadcasts/${w.targetId}/publish-token`);
       return body === undefined ? req : req.send(body);
     },
-    // Issuing a token changes no state: the broadcast goes LIVE only when
-    // OME admits the connection.
+    // 토큰 발급은 상태를 바꾸지 않는다. 방송은 OME가 연결을
+    // 승인할 때만 LIVE가 된다.
     verifyAllowed: async (res, w) => {
       expect((res.body as { publishUrl: string }).publishUrl).toMatch(
         new RegExp(`^/app/${w.targetId}\\?.*&token=`),
@@ -319,8 +319,8 @@ describe('authorization matrix (PRD §7.5)', () => {
       },
     },
     '방송 수정': {
-      // `status` and `streamerId` ride along to prove a client can neither
-      // move the lifecycle nor hand the broadcast to someone else.
+      // `status`와 `streamerId`를 함께 실어 보내, 클라이언트가 수명 주기를
+      // 옮기지도, 방송을 남에게 넘기지도 못함을 증명한다.
       send: (client, w) =>
         client
           .patch(`/api/broadcasts/${w.targetId}`)
@@ -407,8 +407,8 @@ describe('authorization matrix (PRD §7.5)', () => {
       },
     },
     '채팅 작성': {
-      // `authorId` rides along to prove a client cannot speak in someone
-      // else's name.
+      // `authorId`를 함께 실어 보내, 클라이언트가 남의
+      // 이름으로 말할 수 없음을 증명한다.
       send: (client, w) =>
         client
           .post(`/api/broadcasts/${w.targetId}/chat`)
@@ -461,8 +461,8 @@ describe('authorization matrix (PRD §7.5)', () => {
       },
     },
     '댓글 수정': {
-      // `authorId` rides along to prove a client cannot hand the comment to
-      // someone else.
+      // `authorId`를 함께 실어 보내, 클라이언트가 댓글을
+      // 남에게 넘길 수 없음을 증명한다.
       send: (client, w) =>
         client
           .patch(`/api/comments/${w.targetCommentId}`)
@@ -483,8 +483,8 @@ describe('authorization matrix (PRD §7.5)', () => {
       },
     },
     후원: {
-      // `donorId` rides along to prove a client cannot order in someone
-      // else's name.
+      // `donorId`를 함께 실어 보내, 클라이언트가 남의
+      // 이름으로 주문할 수 없음을 증명한다.
       send: (client, w) =>
         client
           .post(`/api/broadcasts/${w.targetId}/donations`)
@@ -506,8 +506,8 @@ describe('authorization matrix (PRD §7.5)', () => {
       },
     },
     '라임 후원': {
-      // `donorId` rides along to prove a client cannot donate in someone
-      // else's name or from their balance.
+      // `donorId`를 함께 실어 보내, 클라이언트가 남의
+      // 이름이나 남의 잔액으로 후원할 수 없음을 증명한다.
       send: (client, w) =>
         client.post(`/api/broadcasts/${w.targetId}/lime-donations`).send({
           amount: 3000,
@@ -573,8 +573,8 @@ describe('authorization matrix (PRD §7.5)', () => {
     },
     언팔로우: {
       send: (client, w) => client.delete(`/api/streamers/${w.owner.id}/follow`),
-      // Nothing was followed, so the call alone shows no change. Following
-      // first through the API proves the delete removes a real follow.
+      // 팔로우한 것이 없으므로 호출만으로는 변화가 보이지 않는다. 먼저 API로
+      // 팔로우해 두면 삭제가 실제 팔로우를 지운다는 것이 증명된다.
       verifyAllowed: async (_res, w) => {
         expect(await follows(w, 'other')).toEqual([]);
         const url = `/api/streamers/${w.owner.id}/follow`;
@@ -620,8 +620,8 @@ describe('authorization matrix (PRD §7.5)', () => {
     },
     '대기 이미지 삭제': {
       send: (client) => client.delete('/api/me/standby-image'),
-      // Nothing was uploaded, so the call alone shows no change. Uploading
-      // first through the API proves the delete removes a real image.
+      // 올린 것이 없으므로 호출만으로는 변화가 보이지 않는다. 먼저 API로
+      // 올려 두면 삭제가 실제 이미지를 지운다는 것이 증명된다.
       verifyAllowed: async (_res, w, actor) => {
         const self = actor === 'owner' ? 'owner' : 'other';
         expect(await standbyUrl(w, self)).toBeNull();
@@ -802,11 +802,11 @@ describe('authorization matrix (PRD §7.5)', () => {
     await app.close();
   });
 
-  // Written directly so every status is one insert away, without driving the
-  // publish flow.
+  // 직접 써 넣어서, 송출 흐름을 거치지 않고도 어떤 상태든
+  // insert 한 번으로 만든다.
   async function seed(status: BroadcastStatus): Promise<void> {
-    // Deleting a broadcast no longer removes its donations (#114), so they
-    // are cleared explicitly.
+    // 방송을 지워도 더는 후원이 지워지지 않으므로(#114),
+    // 후원을 따로 지운다.
     await prisma.donation.deleteMany();
     await prisma.broadcast.deleteMany();
     await prisma.follow.deleteMany();
@@ -835,7 +835,7 @@ describe('authorization matrix (PRD §7.5)', () => {
         },
       });
     }
-    // The other user's follow list must leave this one out.
+    // 타인의 팔로우 목록은 이것을 빼야 한다.
     await prisma.follow.create({
       data: { followerId: world.owner.id, streamerId: world.other.id },
     });
@@ -944,7 +944,7 @@ describe('authorization matrix (PRD §7.5)', () => {
     );
   });
 
-  // The guard checks login before ownership, and ownership before the body.
+  // 가드는 로그인을 소유권보다 먼저, 소유권을 본문보다 먼저 확인한다.
   describe('check order', () => {
     const unknownId = '00000000-0000-4000-8000-000000000000';
 
@@ -1001,9 +1001,9 @@ describe('authorization matrix (PRD §7.5)', () => {
       expect((await world.as.owner.patch(url).send(bad)).status).toBe(400);
     });
 
-    // Chat and comment writes check login, then the body (a parameter pipe,
-    // which Nest runs before the handler), then the broadcast, then its
-    // status: 401 → 400 → 404 → 409.
+    // 채팅과 댓글 쓰기는 로그인, 본문(Nest가 핸들러보다 먼저 실행하는
+    // 파라미터 파이프), 방송, 방송 상태 순으로 확인한다:
+    // 401 → 400 → 404 → 409.
     it('checks a chat message’s body before the broadcast and its status', async () => {
       await seed('ENDED');
       const send = (actor: Actor, body: string, id = world.targetId) =>
@@ -1043,8 +1043,8 @@ describe('authorization matrix (PRD §7.5)', () => {
       expect((await send('other')).status).toBe(400);
     });
 
-    // A thumbnail is checked for login, ownership, rate (one attempt per
-    // broadcast every 10 s, invalid ones included), image, then status.
+    // 썸네일은 로그인, 소유권, 빈도(방송마다 10초에 한 번, 잘못된 시도 포함),
+    // 이미지, 상태 순으로 확인한다.
     it('checks a thumbnail’s owner, rate and image before its status', async () => {
       const url = `/api/broadcasts/${world.targetId}/thumbnail`;
       const send = (actor: Actor, image: Buffer) =>
@@ -1058,8 +1058,8 @@ describe('authorization matrix (PRD §7.5)', () => {
       expect((await send('owner', JPEG)).status).toBe(409);
     });
 
-    // The standby image is checked for login before the image, and its 400s
-    // carry the same message for a wrong format and an oversized file.
+    // 기본 대기 이미지는 이미지보다 로그인을 먼저 확인하고, 400 응답은
+    // 형식이 틀렸을 때와 파일이 너무 클 때 같은 메시지를 담는다.
     it('checks a standby image’s login before the image', async () => {
       const send = (actor: Actor, image: Buffer, filename: string) =>
         world.as[actor]
@@ -1078,8 +1078,8 @@ describe('authorization matrix (PRD §7.5)', () => {
       expect(await rows()).toEqual(before);
     });
 
-    // PRD §7.5 gives comment edits to the author alone, so owning the
-    // broadcast does not let the streamer change a viewer's comment.
+    // PRD §7.5는 댓글 수정을 작성자에게만 허용한다. 그래서 방송을
+    // 소유했다고 스트리머가 시청자의 댓글을 고칠 수는 없다.
     it('refuses the streamer a viewer’s comment on their own broadcast', async () => {
       await seed('ENDED');
       const posted = await world.as.other
@@ -1182,8 +1182,8 @@ describe('authorization matrix (PRD §7.5)', () => {
     );
   });
 
-  // §7.5 rows whose API does not exist yet. Each becomes a matrix row when
-  // its issue lands, so a missing row stays visible here.
+  // API가 아직 없는 §7.5 행. 해당 이슈가 들어오면 각각 매트릭스 행이 된다.
+  // 그래서 빠진 행이 여기에 남아 눈에 띈다.
   describe('rows not built yet', () => {
     it.todo('스트림 키 조회·재발급: 비로그인 401, 타인 403, 소유자 허용 (P3)');
   });

@@ -1,8 +1,8 @@
 import { defineConfig } from '@playwright/test';
 import { loadEnv } from 'vite';
 
-// Same lookup as vite.config.ts, so the dev server and the tests agree on
-// WEB_PORT from the repo-root .env. A WEB_PORT in the shell still wins.
+// vite.config.ts와 같은 방식으로 찾아, 개발 서버와 테스트가 저장소 루트 .env의
+// WEB_PORT를 똑같이 쓴다. 셸에 WEB_PORT가 있으면 그 값이 우선한다.
 const repoRoot = new URL('../..', import.meta.url).pathname;
 const port = Number(loadEnv('development', repoRoot, '').WEB_PORT || 5173);
 
@@ -17,8 +17,8 @@ export default defineConfig({
     launchOptions: {
       args: [
         '--use-fake-device-for-media-stream',
-        // Without --use-fake-ui-for-media-stream, so getDisplayMedia captures
-        // the real tab picked by title instead of Chrome's fake screen.
+        // --use-fake-ui-for-media-stream을 빼서, getDisplayMedia가 Chrome의 가짜 화면 대신
+        // 제목으로 고른 실제 탭을 캡처한다.
         `--auto-select-tab-capture-source-by-title=${TONE_TAB_TITLE}`,
         '--autoplay-policy=no-user-gesture-required',
       ],

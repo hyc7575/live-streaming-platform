@@ -14,13 +14,13 @@ import { FollowsContext, type FollowsContextValue } from './follows-context';
 
 const LOADING: Loadable<never> = { status: 'loading' };
 
-// The one owner of GET /api/me/follows. The panel, the follow button and the
-// following page all read this, so a follow shows up everywhere at once.
+// GET /api/me/follows를 가진 유일한 곳이다. 패널, 팔로우 버튼,
+// 팔로잉 페이지가 모두 이것을 읽으므로, 팔로우가 어디서나 한꺼번에 보인다.
 export function FollowsProvider({ children }: { children: ReactNode }) {
   const { state } = useAuth();
   const userId = state.status === 'authenticated' ? state.user.id : null;
-  // Tagged with the user it belongs to, so logging in as someone else never
-  // shows the previous user's list.
+  // 목록의 주인인 사용자를 붙여 둔다. 그래서 다른 사람으로 로그인해도
+  // 이전 사용자의 목록이 보이지 않는다.
   const [result, setResult] = useState<{
     userId: string;
     loadable: Loadable<FollowedStreamer[]>;
@@ -31,8 +31,8 @@ export function FollowsProvider({ children }: { children: ReactNode }) {
     if (!userId) return;
     let cancelled = false;
     let latest = 0;
-    // Only the most recently started read may land: a poll that began before
-    // a follow must not overwrite the re-read that follows it.
+    // 가장 최근에 시작한 읽기만 반영한다. 팔로우 전에 시작한 폴링이
+    // 팔로우 뒤의 다시 읽기를 덮어쓰면 안 된다.
     const load = async () => {
       const mine = ++latest;
       try {

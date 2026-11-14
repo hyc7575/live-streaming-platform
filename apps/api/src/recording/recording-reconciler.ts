@@ -31,10 +31,10 @@ export const DEFAULT_RECONCILE_INTERVAL_MS = 30_000;
 
 const uuid = z.uuid();
 
-// Converges OME's recording tasks, the recordings directory and
-// Broadcast.recordingFiles with recordingStartedAt. Every step the lifecycle
-// hooks may miss (a failed startRecord or stopRecord, a file finalized after
-// the broadcast ended, a deleted broadcast) is settled here on the next tick.
+// OME의 녹화 작업, 녹화 디렉터리, Broadcast.recordingFiles와
+// recordingStartedAt을 한 상태로 수렴시킨다. 생애주기
+// 훅이 놓칠 수 있는 단계(startRecord나 stopRecord 실패, 방송 종료 뒤
+// 마무리된 파일, 삭제된 방송)는 모두 다음 틱에 여기서 정리한다.
 @Injectable()
 export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RecordingReconciler.name);
@@ -75,9 +75,9 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
     await this.convergeFiles();
   }
 
-  // Tasks are listed before the LIVE broadcasts are read. A broadcast that
-  // goes LIVE in between starts its own task, and one that ends in between
-  // may get a task here that the next tick stops again.
+  // LIVE 방송을 읽기 전에 작업 목록을 먼저 가져온다. 그 사이에
+  // LIVE가 된 방송은 스스로 작업을 시작하고, 그 사이에 끝난 방송은
+  // 여기서 작업을 받았다가 다음 틱에 다시 멈출 수 있다.
   private async convergeTasks(): Promise<void> {
     let tasks: string[];
     try {
@@ -106,8 +106,8 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // The disk is read before the rows: a directory exists only after its
-  // broadcast went LIVE, so a directory without a row means a deleted one.
+  // 행보다 디스크를 먼저 읽는다. 디렉터리는 방송이
+  // LIVE가 된 뒤에만 생기므로, 행이 없는 디렉터리는 삭제된 방송의 것이다.
   private async convergeFiles(): Promise<void> {
     const dirs = await readRecordingDirs(this.config.dir);
     const rows = await this.prisma.broadcast.findMany({
@@ -127,8 +127,8 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
     });
     const plan = planRecordings(dirs, rows, this.config.maxBytes);
 
-    // The columns are cleared first so a listed replay never points at a
-    // deleted file.
+    // 컬럼을 먼저 비운다. 그래야 목록에 오른 다시보기가 삭제된 파일을
+    // 가리키는 일이 없다.
     for (const id of plan.evict) {
       await this.prisma.broadcast.updateMany({
         where: { id },
@@ -169,8 +169,8 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
   }
 }
 
-// A missing root reads as no recordings yet. Directories whose name is not a
-// broadcast id are left alone.
+// 루트가 없으면 아직 녹화가 없는 것으로 읽는다. 이름이 방송 id가 아닌
+// 디렉터리는 건드리지 않는다.
 export async function readRecordingDirs(root: string): Promise<RecordingDir[]> {
   const entries = await readdir(root, { withFileTypes: true }).catch(
     (error: unknown) => {
@@ -198,8 +198,8 @@ async function readFiles(
   const info = await readInfo(dir, names);
   const files: RecordingFile[] = [];
   for (const name of names) {
-    // OME renames tmp_ files as it finalizes them, so a listed name may be
-    // gone by the time it is read. The next tick sees the new name.
+    // OME는 tmp_ 파일을 마무리하면서 이름을 바꾼다. 그래서 목록에 있던 이름이
+    // 읽을 때는 사라졌을 수 있다. 다음 틱이 새 이름을 본다.
     const stats = await stat(join(dir, name)).catch(nullIfNotFound);
     if (!stats?.isFile()) continue;
     const entry = name.endsWith('.mp4')
@@ -215,8 +215,8 @@ async function readFiles(
   return files;
 }
 
-// Every transaction's XML in the directory, keyed by file. A restarted
-// recording task starts a new transaction and so a new XML.
+// 디렉터리 안 모든 트랜잭션의 XML을 파일별로 모은 것. 녹화 작업을
+// 다시 시작하면 새 트랜잭션이 생기고, 그래서 XML도 새로 생긴다.
 async function readInfo(
   dir: string,
   names: string[],

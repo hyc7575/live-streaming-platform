@@ -11,8 +11,8 @@ import {
 
 const TITLE = '팔로우 확인 방송';
 
-// A screenshot taken in the frame right after a resize can catch a half-painted
-// page, so let two frames pass first.
+// 크기를 바꾼 직후 프레임에서 찍은 스크린샷은 반쯤 그린 페이지를 담을 수 있다.
+// 그래서 먼저 두 프레임을 흘려보낸다.
 async function resize(page: Page, width: number, height: number) {
   await page.setViewportSize({ width, height });
   await page.evaluate(
@@ -28,13 +28,13 @@ test('a follow from the watch page shows in the panel, goes offline, and leaves 
   browser,
   request,
 }) => {
-  // The panel re-reads every 30 s, so seeing the broadcast end can take that.
+  // 패널은 30초마다 다시 읽으므로 방송 종료가 보이기까지 그만큼 걸릴 수 있다.
   test.setTimeout(240_000);
   const streamer = await signUpAndLogIn(page.request, '라임조아');
   const id = await createBroadcast(page.request, TITLE);
   await startPublishing(page, id);
-  // Earlier runs can leave broadcasts by the same nickname, so entries are
-  // found by the link to this broadcast.
+  // 이전 실행이 같은 닉네임의 방송을 남겼을 수 있어 항목은
+  // 이 방송으로 가는 링크로 찾는다.
   const toThisBroadcast = `a[href="/broadcasts/${id}"]`;
 
   const ownerView = await page.context().newPage();
@@ -56,7 +56,7 @@ test('a follow from the watch page shows in the panel, goes offline, and leaves 
 
   const viewerContext = await browser.newContext({
     viewport: { width: 1440, height: 900 },
-    // Keeps the logo dot still for the screenshots.
+    // 스크린샷을 위해 로고 점을 움직이지 않게 한다.
     reducedMotion: 'reduce',
   });
   const viewer = await viewerContext.newPage();
@@ -107,7 +107,7 @@ test('a follow from the watch page shows in the panel, goes offline, and leaves 
   const anonymousContext = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     reducedMotion: 'reduce',
-    // Login is rate limited per client IP, like signup.
+    // 로그인도 가입처럼 클라이언트 IP마다 rate limit이 걸린다.
     extraHTTPHeaders: { 'X-Forwarded-For': clientIp() },
   });
   const anonymous = await anonymousContext.newPage();
@@ -152,7 +152,7 @@ test('a follow from the watch page shows in the panel, goes offline, and leaves 
     .getByRole('listitem')
     .filter({ hasText: streamer.nickname });
   await expect(offline).toContainText('오프라인', { timeout: 40_000 });
-  // An offline streamer opens their channel page, no longer their broadcast.
+  // 오프라인 스트리머는 이제 방송이 아니라 채널 페이지로 간다.
   await expect(offline.getByRole('link')).toHaveAttribute(
     'href',
     `/channels/${streamer.id}`,

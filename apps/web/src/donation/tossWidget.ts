@@ -13,9 +13,9 @@ export interface PaymentRequest {
 
 export type RequestPayment = (request: PaymentRequest) => Promise<void>;
 
-// The widget refuses a second render into a container it already filled, so
-// mounts and teardowns run one at a time. StrictMode's mount, unmount, mount
-// then lands as a skipped first mount followed by the real one.
+// 위젯은 이미 채운 컨테이너에 다시 그리기를 거부한다. 그래서
+// 마운트와 정리를 한 번에 하나씩 실행한다. 그러면 StrictMode의 마운트, 언마운트, 마운트는
+// 건너뛴 첫 마운트와 그 뒤의 실제 마운트가 된다.
 let turn: Promise<unknown> = Promise.resolve();
 function inTurn<T>(task: () => Promise<T>): Promise<T> {
   const run = turn.then(task);
@@ -23,9 +23,9 @@ function inTurn<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
-// Renders the payment methods and agreement into the two containers for the
-// order's amount. Aborting `signal` tears the widget down. Resolves to null
-// when it was aborted first.
+// 주문 금액으로 결제 수단과 약관 동의를 두 컨테이너에 그린다.
+// `signal`을 abort하면 위젯을 정리한다. 먼저 abort됐으면
+// null로 resolve한다.
 export function mountDonationWidget(
   order: Pick<DonationOrder, 'clientKey' | 'customerKey' | 'amount'>,
   signal: AbortSignal,

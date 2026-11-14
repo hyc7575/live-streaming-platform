@@ -5,16 +5,16 @@ import { CommentPanel } from './CommentPanel';
 import type { BroadcastStatus } from './StatusBadge';
 import styles from './SidePanel.module.css';
 
-// Before a broadcast ends, viewers talk in chat; after, they leave comments
-// and can read back the chat it had.
+// 방송이 끝나기 전에는 시청자가 채팅으로 이야기하고, 끝난 뒤에는 댓글을
+// 남기고 그 방송의 채팅을 다시 읽을 수 있다.
 const SIDE_PANEL: Record<BroadcastStatus, 'chat' | 'after'> = {
   READY: 'chat',
   LIVE: 'chat',
   ENDED: 'after',
 };
 
-// `partStarts` and `playhead` line the chat log up with the replay; see
-// ChatHistory.
+// `partStarts`와 `playhead`는 채팅 기록을 다시보기 위치에 맞춘다.
+// ChatHistory 참고.
 export function BroadcastSidePanel({
   broadcastId,
   status,
@@ -54,8 +54,8 @@ const TABS = [
 
 type Tab = (typeof TABS)[number]['key'];
 
-// WAI-ARIA tabs with automatic activation: ←/→ move to the previous or next
-// tab (wrapping), Home/End to the first or last, and focus follows.
+// 자동 활성화 방식의 WAI-ARIA 탭: ←/→는 이전·다음 탭으로(끝에서 돌아감),
+// Home/End는 첫·마지막 탭으로 옮기고, 포커스가 따라간다.
 function AfterTabs({
   broadcastId,
   partStarts,
@@ -66,8 +66,8 @@ function AfterTabs({
   playhead: Playhead | null;
 }) {
   const [selected, setSelected] = useState<Tab>('comments');
-  // The chat log is read when its tab is first opened, then kept so the
-  // comment draft and the log both survive switching back and forth.
+  // 채팅 기록은 탭을 처음 열 때 읽고 그 뒤로 유지한다. 그래서 탭을
+  // 오가도 댓글 초안과 채팅 기록이 모두 남는다.
   const [opened, setOpened] = useState<ReadonlySet<Tab>>(
     () => new Set(['comments']),
   );

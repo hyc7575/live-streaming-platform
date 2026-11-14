@@ -7,8 +7,8 @@ export interface BroadcastFields {
   description: string;
 }
 
-// The title and description form shared by creating and editing. `onSubmit`
-// resolves to an error message to show, or to null once the page has moved on.
+// 방송 만들기와 수정이 함께 쓰는 제목·설명 폼. `onSubmit`은
+// 보여 줄 오류 메시지로 resolve하고, 페이지가 이미 넘어갔으면 null로 resolve한다.
 export function BroadcastForm({
   initial = { title: '', description: '' },
   submitLabel,

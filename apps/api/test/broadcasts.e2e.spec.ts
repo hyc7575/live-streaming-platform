@@ -42,8 +42,8 @@ describe('broadcasts', () => {
     await app.close();
   });
 
-  // Written directly so every status is one insert away, without driving the
-  // publish flow.
+  // 직접 써 넣어서, 송출 흐름을 거치지 않고도 어떤 상태든
+  // insert 한 번으로 만든다.
   async function seed(
     streamer: TestUser,
     title: string,
@@ -124,7 +124,7 @@ describe('broadcasts', () => {
   });
 
   describe('GET /api/broadcasts', () => {
-    // Relative to the injected clock, which READY_LISTED_MS is measured on.
+    // 주입한 시계 기준이다. READY_LISTED_MS도 이 시계로 잰다.
     function ago(ms: number): Date {
       return new Date(clock.now().getTime() - ms);
     }
@@ -296,7 +296,7 @@ describe('broadcasts', () => {
     });
   });
 
-  // Who may call PATCH and DELETE is covered by authorization-matrix.e2e.spec.ts.
+  // PATCH와 DELETE를 누가 호출할 수 있는지는 authorization-matrix.e2e.spec.ts에서 다룬다.
   describe('PATCH /api/broadcasts/:id', () => {
     it('changes only the fields sent and trims them like create', async () => {
       const { user, agent } = await signUpAndLogIn(app);
@@ -379,7 +379,7 @@ describe('broadcasts', () => {
         { broadcastId: id, statusAtCall: 'ENDED' },
         { broadcastId: id, statusAtCall: 'ENDED' },
       ]);
-      // Only the successful drop is followed by a recording stop.
+      // 연결 끊기가 성공했을 때만 그 뒤에 녹화 중지가 온다.
       expect(ome.recordCalls).toEqual([
         { kind: 'stop', broadcastId: id, statusAtCall: 'ENDED' },
       ]);

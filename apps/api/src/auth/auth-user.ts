@@ -2,8 +2,8 @@ import 'express-session';
 import type { Prisma } from '../generated/prisma/client.js';
 import { userImageUrl } from '../images/image-store.js';
 
-// What the API may reveal about a user to that user. Never includes the
-// password hash.
+// API가 사용자 본인에게 공개해도 되는 정보. 비밀번호 해시는
+// 절대 담지 않는다.
 export interface AuthUser {
   id: string;
   email: string;

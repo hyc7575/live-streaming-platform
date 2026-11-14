@@ -7,10 +7,10 @@ import {
 import type { Request } from 'express';
 import { BroadcastsService } from './broadcasts.service.js';
 
-// Lets only the streamer of the broadcast named by `:id` through. List it
-// after LoggedInGuard, `@UseGuards(LoggedInGuard, BroadcastOwnerGuard)`, so an
-// anonymous caller gets 401 before the broadcast is even looked up. A missing
-// broadcast is 404 and someone else's is 403.
+// `:id`가 가리키는 방송의 스트리머만 통과시킨다. LoggedInGuard 뒤에
+// `@UseGuards(LoggedInGuard, BroadcastOwnerGuard)`처럼 둔다. 그래야
+// 익명 호출자는 방송을 찾아보기도 전에 401을 받는다. 없는
+// 방송은 404, 남의 방송은 403이다.
 @Injectable()
 export class BroadcastOwnerGuard implements CanActivate {
   constructor(private readonly broadcasts: BroadcastsService) {}

@@ -24,7 +24,7 @@ import { fakeClockOf, type FakeClock } from './support/fake-clock.js';
 import { fakeOmeApiOf, type FakeOmeApi } from './support/fake-ome-api.js';
 import { closePublish, mintedToken, openPublish } from './support/webhook.js';
 
-// PRD §7.4 abnormal end
+// PRD §7.4 비정상 종료
 
 const GRACE_MS = 30_000;
 

@@ -4,9 +4,9 @@ import { authUserSelect, toAuthUser, type AuthUser } from './auth-user.js';
 import { emailSchema, newPasswordSchema, nicknameSchema } from './fields.js';
 import { hashPassword } from './password.js';
 
-// Public accounts for contest judges (PRD §6): A streams, B is the other user
-// who must be refused on A's broadcast. Passwords come only from the
-// environment (PRD §7.9), so the repository never holds one.
+// 공모전 심사위원용 공개 계정(PRD §6). A는 방송하고, B는 A의 방송에서
+// 거부되어야 하는 다른 사용자다. 비밀번호는 환경 변수에서만
+// 가져오므로(PRD §7.9) 저장소에는 비밀번호가 하나도 없다.
 export const TEST_ACCOUNT_KEYS = ['A', 'B'] as const;
 export type TestAccountKey = (typeof TEST_ACCOUNT_KEYS)[number];
 
@@ -23,9 +23,9 @@ export const TEST_ACCOUNTS_CONFIG = Symbol('TEST_ACCOUNTS_CONFIG');
 
 type Env = Record<string, string | undefined>;
 
-// Judges share these accounts, and the README checks them by nickname, so
-// their nicknames stay what the seed set (PRD-mypage 7.2). Compared by email,
-// the same value the seed upserts on.
+// 심사위원이 이 계정을 함께 쓰고 README가 닉네임으로 확인하므로,
+// 닉네임은 seed가 정한 값을 유지한다(PRD-mypage 7.2). 이메일로 비교하며,
+// seed가 upsert 기준으로 쓰는 값과 같다.
 export function isTestAccount(
   config: TestAccountsConfig,
   email: string,
@@ -69,8 +69,8 @@ export function testAccountsConfigFromEnv(env: Env): TestAccountsConfig {
   };
 }
 
-// Creates or updates both accounts so the environment is the source of
-// truth: running it again changes nothing but the password hash's salt.
+// 두 계정을 만들거나 갱신해 환경 변수를 기준으로
+// 삼는다. 다시 실행해도 비밀번호 해시의 salt 말고는 바뀌지 않는다.
 export async function seedTestAccounts(
   prisma: PrismaService,
   env: Env,

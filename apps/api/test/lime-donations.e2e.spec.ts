@@ -49,8 +49,8 @@ const UNKNOWN_ID = '00000000-0000-4000-8000-000000000000';
 const INSUFFICIENT = '라임이 부족합니다.';
 const KEY_TAKEN = '이미 다른 후원에 쓰인 요청입니다.';
 
-// PRD-lime 7.3·§8.4: a lime donation spends the donor's balance in one
-// transaction, once per idempotency key.
+// PRD-lime 7.3·§8.4: 라임 후원은 후원자의 잔액을 한 트랜잭션에서,
+// 멱등 키당 한 번 쓴다.
 describe('lime donations', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
@@ -78,8 +78,8 @@ describe('lime donations', () => {
   const messageOf = (res: { body: unknown }) =>
     (res.body as { message: string }).message;
 
-  // Charges through the real charge API (fake Toss), so the ledger has the
-  // CHARGE row a real balance would.
+  // 실제 충전 API(가짜 Toss)로 충전해서, 실제 잔액처럼 원장에
+  // CHARGE 행이 생기게 한다.
   const charge = async (agent: TestAgent, amount: number) => {
     const ordered = await agent.post('/api/lime/charges').send({ amount });
     expect(ordered.status, JSON.stringify(ordered.body)).toBe(201);
@@ -193,7 +193,7 @@ describe('lime donations', () => {
       ).toBe(0);
     });
 
-    // Acceptance: 5 concurrent 3,000 donations from a 5,000 balance.
+    // 인수 기준: 잔액 5,000에서 3,000 후원 5건을 동시에 보낸다.
     it('lets one of five concurrent donations through and refuses the rest', async () => {
       await charge(donor.agent, 5_000);
       const tabs = [donor.agent];
@@ -213,7 +213,7 @@ describe('lime donations', () => {
   });
 
   describe('resending a key', () => {
-    // Acceptance: the same orderId twice is one donation, debited once.
+    // 인수 기준: 같은 orderId를 두 번 보내면 후원 한 건이고, 한 번만 차감된다.
     it('returns the first donation with 200 and debits once', async () => {
       await charge(donor.agent, 10_000);
       const body = attempt(3_000, '한 번만');
@@ -240,8 +240,8 @@ describe('lime donations', () => {
       expect(await prisma.donation.count()).toBe(1);
     });
 
-    // The response was lost after the donation spent the last lime: the
-    // resend must not read as "not enough lime".
+    // 후원이 마지막 라임을 쓴 뒤 응답이 유실됐다. 재전송이
+    // "라임 부족"으로 읽히면 안 된다.
     it('returns the donation even after it spent the whole balance', async () => {
       await charge(donor.agent, 3_000);
       const body = attempt(3_000);
@@ -251,8 +251,8 @@ describe('lime donations', () => {
       expect(await balanceOf(donor.agent)).toBe(0);
     });
 
-    // The response was lost and the streamer ended the broadcast before the
-    // resend: the key still answers with the donation it made, not with
+    // 응답이 유실됐고 재전송 전에 스트리머가 방송을 종료했다. 그래도 키는
+    // 자신이 만든 후원으로 답한다. 이렇게 답하지 않는다:
     // "방송 중일 때만 후원할 수 있습니다."
     it.each<BroadcastStatus>(['ENDED', 'READY'])(
       'returns the donation to a resend after the broadcast became %s',
@@ -280,8 +280,8 @@ describe('lime donations', () => {
       expect(messageOf(res)).toBe(KEY_TAKEN);
     });
 
-    // The donation outlives its deleted broadcast (#114), but there is no
-    // broadcast left to answer for, so the donor's own resend is a 404.
+    // 후원은 삭제된 방송보다 오래 남지만(#114), 책임질 방송이
+    // 남아 있지 않으므로 후원자 본인의 재전송도 404다.
     it('answers 404 to a resend after the broadcast was deleted', async () => {
       await charge(donor.agent, 10_000);
       const body = attempt(3_000);
@@ -311,7 +311,7 @@ describe('lime donations', () => {
       expect(await balanceOf(other.agent)).toBe(10_000);
     });
 
-    // Acceptance: another user sending the same orderId is 409.
+    // 인수 기준: 다른 사용자가 같은 orderId를 보내면 409다.
     it('refuses the key to another user with 409', async () => {
       await charge(donor.agent, 10_000);
       await charge(other.agent, 10_000);
@@ -381,7 +381,7 @@ describe('lime donations', () => {
   });
 
   describe('target and body', () => {
-    // Acceptance: 401 anonymous, 403 own broadcast, 409 READY and ENDED.
+    // 인수 기준: 비로그인 401, 자기 방송 403, READY와 ENDED는 409.
     it('answers 401 to anonymous callers', async () => {
       const res = await anonymous()
         .post(`/api/broadcasts/${broadcastId}/lime-donations`)
@@ -444,8 +444,8 @@ describe('lime donations', () => {
       expect(await prisma.donation.count()).toBe(0);
     });
 
-    // PRD-lime 7.3: 401 → 400 → 404 → 403 → 409 not LIVE → 409 short of lime.
-    // Unlike a card order, the body comes before the broadcast.
+    // PRD-lime 7.3: 401 → 400 → 404 → 403 → 409 LIVE 아님 → 409 라임 부족.
+    // 카드 주문과 달리 본문을 방송보다 먼저 본다.
     it('checks login, body, broadcast, streamer, status, then balance', async () => {
       const bad = { amount: 1 };
       const good = attempt(1_000);
@@ -465,9 +465,9 @@ describe('lime donations', () => {
       expect(messageOf(short)).toBe(INSUFFICIENT);
     });
 
-    // #114: the donation is the only record of where the lime went, so
-    // deleting the broadcast unlinks it instead of deleting it. afterEach
-    // checks that its ledger row still resolves.
+    // #114: 후원은 라임이 어디로 갔는지 남은 유일한 기록이라,
+    // 방송을 지우면 후원을 지우지 않고 연결만 끊는다. afterEach는
+    // 그 원장 행이 여전히 연결되는지 확인한다.
     it('keeps lime donations of a deleted broadcast, unlinked', async () => {
       await charge(donor.agent, 10_000);
       const donated = await donate(donor.agent, attempt(3_000));

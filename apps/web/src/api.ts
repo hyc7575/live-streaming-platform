@@ -2,11 +2,11 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
-    // The API's own `message`, when it sent one meant for the user (a 409's
-    // Korean explanation, for example).
+    // API가 사용자에게 보여 줄 `message`를 보냈을 때 그 값이다(예: 409의
+    // 한국어 설명).
     readonly serverMessage: string | null = null,
-    // The API's machine-readable `code`, when it sent one, so a screen can
-    // tell one 409 from another without matching the message.
+    // API가 기계가 읽는 `code`를 보냈을 때 그 값이다. 화면은 메시지를 비교하지
+    // 않고도 409끼리 구분할 수 있다.
     readonly serverCode: string | null = null,
   ) {
     super(message);
@@ -14,8 +14,8 @@ export class ApiError extends Error {
   }
 }
 
-// A 401 from these means a wrong password or a rejected sign-up, not a lost
-// session, so the screen shows its own message instead of logging out.
+// 이 요청들의 401은 세션이 끊긴 것이 아니라 비밀번호가 틀렸거나 가입이 거절된 것이다.
+// 그래서 화면은 로그아웃하지 않고 자기 메시지를 보여 준다.
 const CREDENTIAL_PATHS = new Set([
   '/auth/login',
   '/auth/signup',
@@ -24,8 +24,8 @@ const CREDENTIAL_PATHS = new Set([
 
 const unauthorizedListeners = new Set<() => void>();
 
-// AuthProvider subscribes here so any 401 turns the app logged out, wherever
-// the request came from. Returns the unsubscribe function.
+// AuthProvider가 여기를 구독해, 어느 요청에서 온 401이든 앱을 로그아웃 상태로
+// 바꾼다. 구독 해제 함수를 돌려준다.
 export function onUnauthorized(listener: () => void): () => void {
   unauthorizedListeners.add(listener);
   return () => {
@@ -38,8 +38,8 @@ export async function apiFetch<T>(
   init?: RequestInit,
 ): Promise<T> {
   const headers = new Headers(init?.headers);
-  // A FormData body needs the multipart boundary, which only the browser
-  // knows, so its Content-Type is left for fetch to set.
+  // FormData 본문에는 multipart boundary가 필요하고, 이 값은 브라우저만
+  // 안다. 그래서 Content-Type은 fetch가 정하도록 비워 둔다.
   if (
     init?.body !== undefined &&
     !(init.body instanceof FormData) &&

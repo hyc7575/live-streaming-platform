@@ -1,21 +1,21 @@
 import type { RecordingPart } from './broadcasts';
 import type { ChatMessage } from './chat';
 
-// Viewers type while watching LL-HLS a few seconds behind the stream
-// (ome/Server.xml LLHLS PartHoldBack 1.5 s plus the player's buffer), so a
-// message refers to what was on screen about this long before its createdAt.
-// createdAt and the part starts both come from the server clock; the
-// viewer's clock never enters this.
+// 시청자는 스트림보다 몇 초 늦은 LL-HLS를 보며 입력한다
+// (ome/Server.xml LLHLS PartHoldBack 1.5 s에 플레이어 버퍼를 더한 만큼). 그래서
+// 메시지는 createdAt보다 대략 이만큼 앞서 화면에 나온 장면을 가리킨다.
+// createdAt과 각 파트의 시작 시각은 모두 서버 시계에서 온다.
+// 시청자의 시계는 여기에 끼지 않는다.
 export const VIEWER_DELAY_MS = 3000;
 
-// A spot in a recording: which part (0-based) and how far into it.
+// 녹화 속 한 지점이다. 몇 번째 부(0부터)이고 그 안에서 얼마나 지났는지다.
 export interface Playhead {
   part: number;
   seconds: number;
 }
 
-// When each part's video starts, in ms, or null when the replay cannot be
-// lined up with chat: no parts, or a part whose start was never recorded.
+// 각 파트의 영상이 시작한 시각(ms)이다. 다시보기를 채팅과 맞출 수 없으면
+// null이다: 파트가 없거나, 시작 시각이 기록되지 않은 파트가 있다.
 export function partStarts(parts: readonly RecordingPart[]): number[] | null {
   if (parts.length === 0) return null;
   const starts: number[] = [];
@@ -26,9 +26,9 @@ export function partStarts(parts: readonly RecordingPart[]): number[] | null {
   return starts;
 }
 
-// Where in the replay a message belongs. Chat from before the first part
-// (READY) sits at its 0 s. Chat from a gap between parts runs past the end
-// of the earlier part, so it shows once playback reaches the next one.
+// 메시지가 다시보기의 어디에 놓이는지 정한다. 첫 파트 전(READY)의 채팅은
+// 첫 파트의 0 s에 놓인다. 파트 사이 공백의 채팅은 앞 파트의 끝을 넘어서므로,
+// 재생이 다음 파트에 닿으면 보인다.
 export function chatPlacement(
   createdAtMs: number,
   starts: readonly number[],
@@ -47,7 +47,7 @@ export function isReached(placement: Playhead, playhead: Playhead): boolean {
     : placement.part < playhead.part;
 }
 
-// The messages sent by the time the replay reaches `playhead`.
+// 다시보기가 `playhead`에 닿을 때까지 보낸 메시지다.
 export function chatUpTo(
   messages: readonly ChatMessage[],
   starts: readonly number[],

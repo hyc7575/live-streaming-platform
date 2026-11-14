@@ -36,8 +36,8 @@ export const THUMBNAIL_NOT_LIVE_MESSAGE =
 
 export type PublicStatus = Extract<BroadcastStatus, 'LIVE' | 'READY' | 'ENDED'>;
 
-// What the API reveals about a broadcast. The streamer appears by nickname
-// only, never by email.
+// API가 방송에 대해 공개하는 정보. 스트리머는 닉네임으로만 나오고
+// 이메일로는 절대 나오지 않는다.
 const broadcastSelect = {
   id: true,
   title: true,
@@ -64,15 +64,15 @@ type BroadcastRow = Prisma.BroadcastGetPayload<{
   select: typeof broadcastSelect;
 }>;
 
-// startedAt is the moment the part's video at 0 s shows. It is null for
-// every part when any part's start is unknown.
+// startedAt은 그 파트 영상의 0초 지점이 찍힌 시각이다. 어느 한 파트라도
+// 시작 시각을 모르면 모든 파트에서 null이다.
 export interface RecordingPart {
   file: string;
   startedAt: Date | null;
 }
 
-// Upload times and extensions only exist to build URLs, so clients get the
-// URLs. The standby image is the streamer's, shared by all their broadcasts.
+// 업로드 시각과 확장자는 URL을 만들 때만 쓰므로 클라이언트는 URL을
+// 받는다. 기본 대기 이미지는 스트리머 것이라 그 스트리머의 모든 방송이 함께 쓴다.
 export type BroadcastView = Omit<
   BroadcastRow,
   'recordingStartedAt' | 'thumbnailUpdatedAt' | 'streamer'
@@ -106,21 +106,21 @@ function toView({
   };
 }
 
-// No pagination: one contest-scale deployment holds tens of broadcasts, so a
-// fixed cap keeps the response bounded without a cursor API.
+// 페이지네이션이 없다. 공모전 규모 배포 하나에는 방송이 수십 개라서
+// 커서 API 없이 고정 상한만으로 응답 크기를 묶어 둔다.
 export const PUBLIC_LIST_LIMIT = 100;
 
-// List order. The enum declares READY first, so ordering by status cannot
-// give this.
+// 목록 순서. enum은 READY를 먼저 선언하므로 status로 정렬해서는
+// 이 순서가 나오지 않는다.
 const PUBLIC_STATUSES = [
   'LIVE',
   'READY',
   'ENDED',
 ] as const satisfies readonly PublicStatus[];
 
-// A READY broadcast is listed for a day after creation so viewers can gather
-// before it starts. Abandoned ones drop out of the list but are never ended
-// or deleted.
+// READY 방송은 생성 후 하루 동안 목록에 올라, 시작 전에 시청자가 모일 수
+// 있게 한다. 버려진 방송은 목록에서 빠지지만 종료되거나 삭제되지는
+// 않는다.
 export const READY_LISTED_MS = 24 * 60 * 60 * 1000;
 
 const uuid = z.uuid();
@@ -148,8 +148,8 @@ export class BroadcastsService {
     );
   }
 
-  // The public list, or one streamer's part of it for their channel page:
-  // both follow the same status rules.
+  // 공개 목록, 또는 채널 페이지용으로 그중 한 스트리머의 몫.
+  // 둘 다 같은 status 규칙을 따른다.
   async listPublic({
     status,
     streamerId,
@@ -195,8 +195,8 @@ export class BroadcastsService {
     return rows.map(toView);
   }
 
-  // A malformed id names no broadcast, so it gets the same 404 as an unknown
-  // one. Checking first also keeps Postgres from rejecting a non-uuid value.
+  // 형식이 틀린 id는 어떤 방송도 가리키지 않으므로 모르는 id와 같은 404를
+  // 받는다. 먼저 확인하면 Postgres가 uuid가 아닌 값을 거부하는 일도 막는다.
   async get(id: string): Promise<BroadcastView> {
     const broadcast = uuid.safeParse(id).success
       ? await this.prisma.broadcast.findUnique({
@@ -219,8 +219,8 @@ export class BroadcastsService {
     return broadcast.streamerId;
   }
 
-  // Title and description are not part of the status lifecycle, so every
-  // status, LIVE included, accepts an edit.
+  // 제목과 설명은 status 생애주기에 속하지 않는다. 그래서 LIVE를 포함한
+  // 모든 status에서 수정을 받는다.
   async update(
     id: string,
     input: UpdateBroadcastInput,
@@ -241,19 +241,19 @@ export class BroadcastsService {
     }
   }
 
-  // PRD §7.4: the database turns ENDED before OME drops the stream, so a
-  // publisher reconnecting in between is refused by the admission webhook.
-  // The reverse order would let it slip back in. An ENDED broadcast still
-  // gets the drop, so a retry after a failed drop converges. Stopping the
-  // recording comes last and may fail: RecordingReconciler stops any task
-  // whose broadcast is no longer LIVE.
+  // PRD §7.4: OME가 스트림을 끊기 전에 데이터베이스가 먼저 ENDED가 된다. 그래서
+  // 그 사이에 다시 연결하는 송출자는 Admission Webhook에서 거부된다.
+  // 순서를 뒤집으면 다시 끼어들 수 있다. ENDED 방송에도 끊기를 다시
+  // 보내므로, 끊기에 실패한 뒤 재시도하면 같은 상태로 수렴한다. 녹화 중지는
+  // 맨 마지막이고 실패해도 된다. RecordingReconciler가 방송이 더 이상
+  // LIVE가 아닌 작업을 모두 멈춘다.
   async end(id: string): Promise<BroadcastView> {
     await this.prisma.broadcast.updateMany({
       where: { id, status: 'LIVE' },
       data: { status: 'ENDED', endedAt: new Date() },
     });
     const broadcast = await this.get(id);
-    // §7.4 has no READY → ENDED edge. A READY broadcast is deleted instead.
+    // §7.4에는 READY → ENDED 전이가 없다. READY 방송은 대신 삭제한다.
     if (broadcast.status === 'READY') {
       throw new ConflictException(END_READY_MESSAGE);
     }
@@ -271,10 +271,10 @@ export class BroadcastsService {
     return broadcast;
   }
 
-  // A READY broadcast never had a stream, so it is deleted outright. Any
-  // other is ended first, which also retries the stream drop of an ENDED
-  // broadcast whose earlier drop failed. Once a broadcast leaves READY it
-  // never returns, so the filtered delete cannot race the end.
+  // READY 방송은 스트림을 가진 적이 없으므로 바로 삭제한다. 그 밖의
+  // 방송은 먼저 종료한다. 이때 앞서 스트림 끊기에 실패한 ENDED 방송의
+  // 끊기도 다시 시도한다. 방송은 한 번 READY를 벗어나면
+  // 돌아오지 않으므로, 조건부 삭제가 종료와 경합할 일이 없다.
   async remove(id: string): Promise<void> {
     const { count } = await this.prisma.broadcast.deleteMany({
       where: { id, status: 'READY' },
@@ -283,8 +283,8 @@ export class BroadcastsService {
       await this.end(id);
       await this.prisma.broadcast.deleteMany({ where: { id } });
     }
-    // The broadcast is already gone, so a leftover folder is only disk space
-    // and not worth failing the delete over.
+    // 방송은 이미 없으므로, 남은 폴더는 디스크 공간만 차지할 뿐이다.
+    // 그 때문에 삭제를 실패시킬 가치는 없다.
     try {
       await this.images.removeThumbnail(id);
     } catch (error) {
@@ -292,9 +292,9 @@ export class BroadcastsService {
     }
   }
 
-  // The update repeats the LIVE check so a broadcast that ends mid-upload
-  // keeps its time. Its file may still be replaced, which only shows a
-  // slightly newer frame under the old URL.
+  // 업데이트에서 LIVE 확인을 한 번 더 한다. 그래서 업로드 도중 끝난 방송은
+  // 시각을 그대로 유지한다. 파일은 여전히 교체될 수 있지만, 그래 봐야
+  // 예전 URL 아래 조금 더 최근 프레임이 보일 뿐이다.
   async saveThumbnail(id: string, bytes: Uint8Array): Promise<void> {
     const { status } = await this.get(id);
     if (status !== 'LIVE') {

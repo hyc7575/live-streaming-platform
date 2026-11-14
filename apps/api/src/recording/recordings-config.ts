@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export interface RecordingsConfig {
-  // Where OME's FILE publisher writes, one directory per broadcast.
+  // OME의 FILE publisher가 쓰는 곳. 방송마다 디렉터리 하나.
   dir: string;
   maxBytes: number;
 }
@@ -11,8 +11,8 @@ export const RECORDINGS_CONFIG = Symbol('RECORDINGS_CONFIG');
 
 const BYTES_PER_GB = 1024 ** 3;
 
-// Resolves to the repository root from both src/recording and
-// dist/recording, which sit at the same depth.
+// src/recording과 dist/recording 어디서든 저장소 루트로
+// 풀린다. 두 폴더의 깊이가 같기 때문이다.
 const DEFAULT_DIR = fileURLToPath(
   new URL('../../../../recordings/', import.meta.url),
 );

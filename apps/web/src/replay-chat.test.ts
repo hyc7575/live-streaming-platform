@@ -7,15 +7,15 @@ import {
   VIEWER_DELAY_MS,
 } from './replay-chat';
 
-// Part 1 runs 01:00:00 to 01:10:00, the publisher drops, and part 2 starts
-// at 01:12:00.
+// 1부는 01:00:00부터 01:10:00까지이고, 송출이 끊긴 뒤 2부가
+// 01:12:00에 시작한다.
 const PART_1 = '2026-11-10T01:00:00.000Z';
 const PART_2 = '2026-11-10T01:12:00.000Z';
 const ONE_PART = [Date.parse(PART_1)];
 const TWO_PARTS = [Date.parse(PART_1), Date.parse(PART_2)];
 
-// A message sent `seconds` into the stream that started at `start`, after
-// the viewer's delay.
+// `start`에 시작한 스트림의 `seconds` 시점에서 시청자 지연만큼 지난 뒤
+// 보낸 메시지다.
 const sentAt = (start: string, seconds: number) =>
   Date.parse(start) + seconds * 1000 + VIEWER_DELAY_MS;
 

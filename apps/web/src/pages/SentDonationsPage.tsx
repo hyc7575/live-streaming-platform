@@ -10,8 +10,8 @@ import styles from './History.module.css';
 import { DonationTargetText, HistoryTime } from './HistoryParts';
 import listStyles from './ListPage.module.css';
 
-// /me/donations: every paid donation the caller sent, card and lime in one
-// list. 1 lime = 1 won, so the total is in won like the watch page's.
+// /me/donations: 호출한 사용자가 보낸 결제 완료 후원 전부. 카드와 라임을
+// 한 목록에 둔다. 1 라임 = 1원이므로 합계는 시청 페이지처럼 원으로 쓴다.
 export function SentDonationsPage() {
   useDocumentTitle('보낸 후원');
   const sent = useApi<SentDonationSummary>('/me/donations');

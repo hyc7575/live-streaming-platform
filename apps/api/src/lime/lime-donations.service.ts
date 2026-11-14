@@ -17,36 +17,36 @@ export const ORDER_ID_TAKEN_MESSAGE = '이미 다른 후원에 쓰인 요청입�
 export interface LimeDonationInput {
   amount: number;
   message: string;
-  // The client's idempotency key: one per donation attempt, the same on
-  // every resend of that attempt. Stored as Donation.orderId, which shares
-  // its UNIQUE with card orders.
+  // 클라이언트의 멱등 키. 후원 시도마다 하나이고, 그 시도를 다시 보낼 때마다
+  // 같다. Donation.orderId에 저장하며, 이 컬럼의
+  // UNIQUE를 카드 주문과 함께 쓴다.
   orderId: string;
 }
 
 export interface LimeDonationResult {
   donation: ConfirmedDonation;
-  // false when the key had already made this donation and nothing changed.
+  // 이 키가 이미 이 후원을 만들었고 아무것도 바뀌지 않았으면 false.
   created: boolean;
 }
 
-// Thrown inside the transaction so it rolls back; told apart from a real
-// failure afterwards.
+// 트랜잭션 안에서 던져 롤백시킨다. 그 뒤 진짜 실패와
+// 구별한다.
 class InsufficientLime extends Error {}
 
 @Injectable()
 export class LimeDonationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // The caller has already looked the key up (`earlier`) and checked the
-  // target (DonationTargetGuard.check).
+  // 호출자가 이미 키를 조회했고(`earlier`) 대상을
+  // 확인했다(DonationTargetGuard.check).
   //
-  // One transaction debits, records the donation and writes the ledger. The
-  // debit is a conditional UPDATE, so concurrent donations queue on the
-  // user's row and each sees the balance the previous one left: they can
-  // never spend the same lime twice. A resent key hits Donation.orderId's
-  // UNIQUE, Postgres aborts the transaction, and everything rolls back,
-  // the debit included. Only then, outside it, is the earlier donation
-  // looked up, because an aborted transaction cannot run more queries.
+  // 트랜잭션 하나가 차감, 후원 기록, 원장 쓰기를 한다.
+  // 차감은 조건부 UPDATE이므로, 동시에 온 후원은
+  // 사용자 행에서 줄을 서고 각자 앞선 후원이 남긴 잔액을 본다. 그래서
+  // 같은 라임을 두 번 쓸 수 없다. 다시 보낸 키는 Donation.orderId의
+  // UNIQUE에 걸리고, Postgres가 트랜잭션을 중단해 차감까지
+  // 모두 롤백된다. 그런 다음에야 트랜잭션 밖에서 앞선 후원을
+  // 조회한다. 중단된 트랜잭션은 쿼리를 더 실행할 수 없기 때문이다.
   async donate(
     { broadcastId, recipientId }: { broadcastId: string; recipientId: string },
     donorId: string,
@@ -89,8 +89,8 @@ export class LimeDonationsService {
       return { donation, created: true };
     } catch (error) {
       if (error instanceof InsufficientLime || hasPrismaCode(error, 'P2002')) {
-        // A resend after the balance ran out finds no lime to debit, so a
-        // shortfall may also be a key that already donated.
+        // 잔액이 바닥난 뒤 다시 보내면 차감할 라임이 없다. 그래서
+        // 잔액 부족은 이미 후원한 키일 수도 있다.
         const replayed = await this.earlier(broadcastId, donorId, input);
         if (replayed) return { donation: replayed, created: false };
         if (error instanceof InsufficientLime) {
@@ -98,7 +98,7 @@ export class LimeDonationsService {
         }
         throw error;
       }
-      // The broadcast was deleted between the check and the insert.
+      // 확인과 삽입 사이에 방송이 삭제됐다.
       if (hasPrismaCode(error, 'P2003')) {
         throw new NotFoundException('Broadcast not found');
       }
@@ -106,17 +106,17 @@ export class LimeDonationsService {
     }
   }
 
-  // The donation an earlier request with this key made, when it is the same
-  // donor giving the same amount in lime to the same broadcast. Any other
-  // owner of the key (another user, a card order) is a 409, whether or not
-  // its broadcast still exists. The donor's own donation whose broadcast was
-  // deleted (#114) is a 404: it is kept on record, but there is no broadcast
-  // left to answer for. Null when no donation has the key.
+  // 이 키로 앞선 요청이 만든 후원. 같은 후원자가 같은 방송에 같은 금액을
+  // 라임으로 낸 경우에만 해당한다. 키의 다른
+  // 주인(다른 사용자, 카드 주문)은 방송이 아직 있든 없든
+  // 409이다. 후원자 본인의 후원이지만 방송이
+  // 삭제된 경우(#114)는 404이다. 기록으로는 남지만 답해 줄 방송이
+  // 없다. 그 키를 가진 후원이 없으면 null.
   //
-  // The controller asks this before checking the broadcast, so a resend whose
-  // first answer was lost gets that donation back even after the broadcast
-  // has ended. Only a key that made nothing yet goes through the target
-  // check (PRD-lime 7.3 order).
+  // 컨트롤러는 방송을 확인하기 전에 이것을 묻는다. 그래서 첫 응답을 잃고 다시 보낸
+  // 요청은 방송이 끝난 뒤에도 그 후원을 돌려받는다.
+  // 아직 아무것도 만들지 않은 키만 대상 확인을
+  // 거친다(PRD-lime 7.3 순서).
   async earlier(
     broadcastId: string,
     donorId: string,

@@ -10,8 +10,8 @@ import type { Request } from 'express';
 import { isValidOmeSignature } from './admission.js';
 import { PUBLISH_CONFIG, type PublishConfig } from './publish-config.js';
 
-// Runs before the body pipe, so an unsigned request is refused before any of
-// its content is read. Needs the app created with `rawBody: true`.
+// body pipe보다 먼저 돈다. 그래서 서명 없는 요청은 내용을 하나도
+// 읽기 전에 거부된다. 앱을 `rawBody: true`로 만들어야 한다.
 @Injectable()
 export class OmeSignatureGuard implements CanActivate {
   constructor(@Inject(PUBLISH_CONFIG) private readonly config: PublishConfig) {}

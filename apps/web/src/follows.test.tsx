@@ -58,8 +58,8 @@ const liveStreamer = (
   },
 });
 
-// A fake API that keeps the follow list the way the server would: PUT adds,
-// DELETE removes, and GET /api/me/follows answers what is there now.
+// 서버처럼 팔로우 목록을 들고 있는 가짜 API다. PUT은 더하고,
+// DELETE는 빼고, GET /api/me/follows는 지금 있는 목록으로 답한다.
 function stubApi(options: {
   me?: typeof viewer | null;
   follows?: FollowedStreamer[];
@@ -134,7 +134,7 @@ it('lists followed streamers with the live ones linking to their broadcast', asy
   const live = within(panel).getByRole('link', { name: /라임조아/ });
   expect(live.getAttribute('href')).toBe('/broadcasts/b-s1');
   expect(live.getAttribute('title')).toBe('라임조아 · 새벽 랭크');
-  // An offline streamer opens their channel page instead.
+  // 오프라인 스트리머는 대신 채널 페이지를 연다.
   expect(
     within(items[1])
       .getByRole('link', { name: /코딩하는곰/ })

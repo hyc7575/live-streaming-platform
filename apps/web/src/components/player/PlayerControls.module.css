@@ -6,7 +6,7 @@
   border-radius: var(--radius-md);
 }
 
-/* The ring sits on the page background, not the video. */
+/* 링은 영상이 아니라 페이지 배경 위에 놓인다. */
 .container:focus-visible {
   outline: 2px solid var(--color-brand-strong);
   outline-offset: 2px;
@@ -31,7 +31,7 @@
   transition: opacity var(--duration-fade);
 }
 
-/* Taps on a hidden bar reach the video, which brings the controls back. */
+/* 숨은 바를 탭하면 영상에 닿고, 영상이 컨트롤을 다시 보인다. */
 .hidden {
   opacity: 0;
   pointer-events: none;
@@ -60,7 +60,7 @@
   cursor: pointer;
 }
 
-/* Over the dark video the full lime reads; brand-strong would not. */
+/* 어두운 영상 위에서는 원래 라임색이 읽힌다. brand-strong은 읽히지 않는다. */
 .button:focus-visible,
 .live:focus-visible,
 .unmuteHint:focus-visible,
@@ -93,14 +93,14 @@
   opacity: 1;
 }
 
-/* Phones change volume with their own buttons. */
+/* 휴대폰은 자체 버튼으로 볼륨을 바꾼다. */
 @media (pointer: coarse) {
   .volume {
     display: none;
   }
 }
 
-/* A row of its own above the buttons. */
+/* 버튼 위에 따로 한 줄을 차지한다. */
 .seek {
   flex: 1 0 100%;
   margin: 0 0 var(--space-1);
@@ -170,8 +170,8 @@
   font-size: var(--player-icon-size);
 }
 
-/* On a short phone video the bar's gradient padding reaches the middle;
-   the button stays on top so all of it takes the tap. */
+/* 짧은 휴대폰 영상에서는 바의 그라데이션 padding이 가운데까지 닿는다.
+   버튼을 위에 두어 버튼 전체가 탭을 받게 한다. */
 .bigPlay {
   position: absolute;
   z-index: 1;

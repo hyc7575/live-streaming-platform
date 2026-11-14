@@ -8,7 +8,7 @@ import {
 } from '../images/image-rules.js';
 import { UserImageService } from './user-image.service.js';
 
-// The caller's own channel. No path names a user, so there is no 403 case.
+// 호출자 본인의 채널. 경로에 사용자가 들어가지 않으므로 403인 경우가 없다.
 @Controller('me/standby-image')
 @UseGuards(LoggedInGuard)
 export class StandbyImageController {

@@ -4,8 +4,8 @@
   gap: var(--space-4);
 }
 
-/* Wide screens put the chat or comments beside the player. Narrow ones
-   stack player, info, then chat or comments. */
+/* 넓은 화면은 채팅이나 댓글을 플레이어 옆에 둔다. 좁은 화면은
+   플레이어, 정보, 채팅이나 댓글 순으로 쌓는다. */
 @media (min-width: 1024px) {
   .page {
     grid-template-columns:
@@ -68,8 +68,8 @@
   color: var(--color-on-video);
 }
 
-/* The streamer's standby image fills the player as a whole picture, and the
-   notice sits on a band so it stays readable over any picture. */
+/* 스트리머의 기본 대기 이미지는 잘리지 않고 통째로 플레이어를 채운다. 안내는
+   띠 위에 얹어 어떤 그림 위에서도 읽히게 한다. */
 .standby {
   position: absolute;
   inset: 0;
@@ -126,11 +126,11 @@
   white-space: pre-wrap;
 }
 
-/* Narrow screens give the page exactly the screen below the header, as
-   Twitch's mobile web does: the player, one summary line, then the chat or
-   comments filling the rest. The page itself never scrolls; only the
-   panel's list does. The negative margins take back the main area's
-   vertical padding. */
+/* 좁은 화면은 Twitch 모바일 웹처럼 헤더 아래 화면만큼만 페이지에 준다.
+   플레이어, 요약 한 줄, 그리고 나머지를 채우는 채팅이나 댓글 순이다.
+   페이지 자체는 스크롤하지 않고, 패널의 목록만 스크롤한다.
+   음수 마진은 main 영역의 세로 패딩을
+   되돌린다. */
 @media (max-width: 1023.98px) {
   .page {
     display: flex;

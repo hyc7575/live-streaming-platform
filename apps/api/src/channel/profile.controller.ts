@@ -26,9 +26,9 @@ const profileSchema = z
     message: 'nickname or bio is required',
   });
 
-// The caller's own profile. No path names a user, so the only 403 is a test
-// account's nickname. Guards run before the body pipe, so the order is
-// 401 → 400 → 403 (PRD-mypage 7.2).
+// 호출자 본인의 프로필. 경로에 사용자가 들어가지 않으므로 403은 테스트
+// 계정의 닉네임뿐이다. guard가 body pipe보다 먼저 돌므로 순서는
+// 401 → 400 → 403이다(PRD-mypage 7.2).
 @Controller('me')
 @UseGuards(LoggedInGuard)
 export class ProfileController {

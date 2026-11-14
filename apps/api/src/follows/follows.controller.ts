@@ -16,8 +16,8 @@ import {
   type FollowerList,
 } from './follows.service.js';
 
-// Guards run before pipes, so an anonymous caller gets 401 before a bad id
-// gets 400.
+// guard가 pipe보다 먼저 돈다. 그래서 익명 호출자는 잘못된 id로 400을 받기 전에
+// 401을 받는다.
 @Controller()
 @UseGuards(LoggedInGuard)
 export class FollowsController {

@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// Answers like the API: anonymous until test-login succeeds.
+// API처럼 응답한다. test-login이 성공하기 전까지는 익명이다.
 function stubApi(accounts: string[] | 'error') {
   const calls: { url: string; body?: unknown }[] = [];
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
@@ -33,7 +33,7 @@ function stubApi(accounts: string[] | 'error') {
         }),
       );
     }
-    // Any other 401 would log the user out again (#78).
+    // 다른 401은 사용자를 다시 로그아웃시킨다 (#78).
     if (url === '/api/me/follows' || url.startsWith('/api/broadcasts')) {
       return Promise.resolve(Response.json([]));
     }

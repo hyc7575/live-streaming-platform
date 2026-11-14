@@ -21,7 +21,7 @@ import {
 import { OmeSignatureGuard } from './ome-signature.guard.js';
 import { PublishService, type PublishTicket } from './publish.service.js';
 
-// The web app posts with no body, which Express 5 leaves undefined.
+// 웹 앱은 body 없이 POST하고, Express 5는 이를 undefined로 둔다.
 const issueSchema = z
   .object({ client: z.enum(['browser', 'obs']).default('browser') })
   .prefault({});
@@ -42,8 +42,8 @@ export class PublishController {
     return this.publish.issue(id, user.id, body.client);
   }
 
-  // OME Admission Webhook. OME refuses the connection on anything but a 200
-  // with `allowed: true`, so every failure path here is fail-closed.
+  // OME Admission Webhook. OME는 `allowed: true`인 200이 아니면 연결을
+  // 거부한다. 그래서 여기의 모든 실패 경로는 fail-closed다.
   @Post('ome/admission')
   @HttpCode(200)
   @UseGuards(OmeSignatureGuard)
@@ -52,8 +52,8 @@ export class PublishController {
   ): Promise<AdmissionDecision | Record<string, never>> {
     const { direction, status, url } = body.request;
     const target = publishTargetOf(url);
-    // `closing` is a notification and OME ignores the reply. OME sends it
-    // only for connections it admitted.
+    // `closing`은 알림이며 OME는 응답을 무시한다. OME는 자기가
+    // 허용한 연결에만 이것을 보낸다.
     if (status === 'closing') {
       if (direction === 'incoming' && target) {
         const started = await this.publish.disconnect(target.broadcastId);

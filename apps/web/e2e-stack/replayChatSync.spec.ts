@@ -19,7 +19,7 @@ interface Part {
   startedAt: string | null;
 }
 
-// Issue #92 asks for chat within ±3 s of the moment the viewer saw.
+// 이슈 #92는 시청자가 본 순간에서 ±3초 안의 채팅을 요구한다.
 const TOLERANCE_MS = 3000;
 const NEAR_LIVE_MS = 6000;
 
@@ -39,14 +39,14 @@ async function postChat(api: APIRequestContext, id: string, body: string) {
   return Date.parse(((await res.json()) as { createdAt: string }).createdAt);
 }
 
-// Watches the live broadcast, notes the capture time of the frame on screen
-// and sends a chat about it, as a viewer reacting to what they see.
+// 라이브 방송을 보며 화면에 뜬 프레임의 캡처 시각을 적고 그에 대한 채팅을 보낸다.
+// 본 것에 반응하는 시청자처럼 한다.
 async function chatAboutWhatIsOnScreen(viewer: Page, id: string, body: string) {
   await viewer.goto(`/broadcasts/${id}`);
   await watchUntilPlaying(viewer);
   const live = viewer.getByLabel('방송 화면');
-  // Right after a reconnect the player can sit on old segments for a while.
-  // The rule under test assumes a viewer near the live edge, so wait for one.
+  // 재연결 직후 플레이어는 한동안 옛 세그먼트에 머물 수 있다.
+  // 검증하는 규칙은 시청자가 라이브 엣지 가까이 있다고 가정하므로 그때까지 기다린다.
   const watchingFrom = Date.now();
   await expect
     .poll(async () => Date.now() - ((await wallClockOf(live)) ?? 0), {
@@ -70,8 +70,8 @@ async function shown(log: Locator, body: string) {
   return (await log.getByText(body, { exact: true }).count()) > 0;
 }
 
-// The first position in the current part at which `body` is listed, to
-// 0.1 s. Shown chat only grows as the playhead moves forward.
+// 현재 part에서 `body`가 목록에 처음 나오는 위치(0.1초 단위). 재생 위치가 앞으로
+// 갈수록 보이는 채팅은 늘기만 한다.
 async function firstShownAt(video: Locator, log: Locator, body: string) {
   let lo = 0;
   let hi = await video.evaluate(

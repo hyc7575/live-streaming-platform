@@ -9,15 +9,15 @@ import { Prisma } from '../generated/prisma/client.js';
 
 export const CHAT_MAX_LENGTH = 200;
 
-// One poll answers at most this many messages. A client that gets a full
-// page asks again right away with the last id.
+// 폴링 한 번은 메시지를 최대 이만큼 돌려준다. 꽉 찬 페이지를 받은
+// 클라이언트는 마지막 id로 바로 다시 묻는다.
 export const CHAT_PAGE_LIMIT = 200;
 
 export const CHAT_ENDED_MESSAGE =
   '끝난 방송에는 채팅을 보낼 수 없습니다. 댓글을 남겨 주세요.';
 
-// What the API reveals about a chat message. The author appears by nickname
-// only.
+// API가 채팅 메시지에 대해 공개하는 정보. 작성자는 닉네임으로만
+// 나온다.
 const chatSelect = {
   id: true,
   body: true,
@@ -36,9 +36,9 @@ export class ChatService {
     private readonly broadcasts: BroadcastsService,
   ) {}
 
-  // Messages in (createdAt, id) order, strictly after the `after` message.
-  // An `after` that is not a message of this broadcast (deleted, say) reads
-  // from the start; the client drops the ids it already has.
+  // (createdAt, id) 순서의 메시지 중 `after` 메시지보다 엄밀히 뒤인 것.
+  // `after`가 이 방송의 메시지가 아니면(예: 삭제됨) 처음부터
+  // 읽는다. 클라이언트는 이미 가진 id를 버린다.
   async list(
     broadcastId: string,
     after: string | undefined,
@@ -81,7 +81,7 @@ export class ChatService {
         select: chatSelect,
       });
     } catch (error) {
-      // The broadcast was deleted between the check and the insert.
+      // 확인과 삽입 사이에 방송이 삭제됐다.
       if (hasPrismaCode(error, 'P2003')) {
         throw new NotFoundException('Broadcast not found');
       }

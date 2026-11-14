@@ -12,15 +12,15 @@ export const TEST_TOSS_CONFIG: TossConfig = {
   secretKey: 'test_gsk_fake',
 };
 
-// Stands in for Toss's payment API, which CI never calls. By default it
-// approves every payment, echoing the input the way Toss does.
+// Toss 결제 API를 대신한다. CI는 이 API를 부르지 않는다. 기본으로는
+// 모든 결제를 승인하고, Toss처럼 입력을 그대로 돌려준다.
 export class FakeTossPayments implements TossPayments {
   calls: TossConfirmInput[] = [];
-  // Thrown instead of answering, like a Toss error or a network failure.
+  // 응답 대신 던진다. Toss 오류나 네트워크 장애와 같다.
   failure: Error | null = null;
-  // Changes the approved payment, for answers that do not match the order.
+  // 승인된 결제를 바꾼다. 주문과 맞지 않는 응답을 만들 때 쓴다.
   tamper: (payment: TossPayment) => TossPayment = (payment) => payment;
-  // Holds each answer back, so concurrent confirms overlap.
+  // 응답마다 잠시 붙잡아 두어, 동시 승인이 겹치게 한다.
   delayMs = 0;
 
   async confirm(input: TossConfirmInput): Promise<TossPayment> {

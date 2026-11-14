@@ -1,6 +1,6 @@
-// A fresh UUID v4 for one donation attempt. `crypto.randomUUID` exists only
-// in secure contexts (HTTPS, localhost), so a viewer on plain http (a phone
-// on the LAN) gets one built from getRandomValues, which works everywhere.
+// 후원 시도 한 번에 쓸 새 UUID v4다. `crypto.randomUUID`는 보안 컨텍스트
+// (HTTPS, localhost)에만 있다. 그래서 일반 http의 시청자(LAN의 휴대폰)는
+// 어디서나 동작하는 getRandomValues로 만든 값을 받는다.
 export function newIdempotencyKey(): string {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   const bytes = crypto.getRandomValues(new Uint8Array(16));

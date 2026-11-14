@@ -1,13 +1,13 @@
 import type { Locator, Page } from '@playwright/test';
 
-// The fake camera paints Date.now() as black and white cells, and a replay
-// frame decodes back to the moment it was captured. That turns "does this
-// position show the right moment" into a number.
+// 가짜 카메라가 Date.now()를 흑백 칸으로 그리고, 다시보기 프레임은 캡처된 순간으로
+// 디코드된다. 그래서 "이 위치가 맞는 순간을 보여 주는가"를
+// 숫자로 바꾼다.
 const BITS = 42;
 const COLS = 14;
 const ROWS = BITS / COLS;
-// Each bit is painted twice, the second time inverted, so a frame whose
-// cells blur into grey fails to decode instead of reading a wrong time.
+// 비트마다 두 번 그리고 두 번째는 반전한다. 그래서 칸이 회색으로 번진 프레임은
+// 틀린 시각으로 읽히지 않고 디코드에 실패한다.
 const LAYOUT = { width: 640, height: 360, cell: 40, left: 40, top: 20 };
 
 export async function installWallClockCamera(page: Page) {
@@ -55,8 +55,8 @@ export async function installWallClockCamera(page: Page) {
   );
 }
 
-// The capture time of the frame the video element shows now, or null when
-// the cells do not decode.
+// video 요소가 지금 보여 주는 프레임의 캡처 시각. 칸이 디코드되지 않으면
+// null.
 export async function wallClockOf(video: Locator): Promise<number | null> {
   return video.evaluate(
     (v: HTMLVideoElement, { BITS, COLS, ROWS, LAYOUT }) => {

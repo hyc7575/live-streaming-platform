@@ -89,8 +89,8 @@ describe('publish', () => {
     return url.searchParams.get('token') ?? '';
   }
 
-  // A token the API would never issue (ENDED, expired), signed with the
-  // same key so only the rule under test can reject it.
+  // API가 절대 발급하지 않을 토큰(ENDED, 만료). 같은 키로
+  // 서명해서, 테스트 대상 규칙만 이 토큰을 거부할 수 있게 한다.
   function mintedToken(id: string, now = clock.now()): string {
     return mintToken({ broadcastId: id, streamerId: owner.user.id }, now);
   }

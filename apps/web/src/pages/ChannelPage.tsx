@@ -4,12 +4,12 @@ import { UserImageField } from '../components/UserImageField';
 import { useDocumentTitle } from '../use-document-title';
 import styles from './ChannelPage.module.css';
 
-// /studio/channel: the standby image every READY broadcast of the streamer
-// shows.
+// /studio/channel: 스트리머의 모든 READY 방송이 보이는 기본 대기
+// 이미지.
 export function ChannelPage() {
   useDocumentTitle('내 채널');
   const { state } = useAuth();
-  // RequireAuth renders this page only for a logged-in user.
+  // RequireAuth는 로그인한 사용자에게만 이 페이지를 렌더링한다.
   if (state.status !== 'authenticated') return null;
   const user = state.user;
 

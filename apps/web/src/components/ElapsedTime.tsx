@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatClock, formatMinutes } from '../elapsed';
 
-// The watch page ticks every second; a list card only needs the minute.
+// 시청 페이지는 매초 갱신한다. 목록 카드는 분 단위면 된다.
 const PRECISION = {
   second: { tickMs: 1000, format: formatClock },
   minute: { tickMs: 60_000, format: formatMinutes },
@@ -18,7 +18,7 @@ function useNow(tickMs: number): number {
   return now;
 }
 
-// No aria-live: a screen reader should not announce every tick.
+// aria-live 없음: 스크린 리더가 매 틱을 읽으면 안 된다.
 export function ElapsedTime({
   startedAt,
   precision,

@@ -18,13 +18,13 @@ type Save =
   | { status: 'saved' }
   | { status: 'failed'; message: string };
 
-// /me/profile: the profile image, nickname and introduction the channel page
-// shows (PRD-mypage 7.3). A test account's nickname change comes back 403
-// with the API's own sentence, which is shown as is.
+// /me/profile: 채널 페이지에 보이는 프로필 이미지, 닉네임, 소개
+// (PRD-mypage 7.3). 테스트 계정이 닉네임을 바꾸면 403과 API가 쓴
+// 문장이 돌아오고, 그 문장을 그대로 보인다.
 export function ProfilePage() {
   useDocumentTitle('프로필');
   const { state } = useAuth();
-  // RequireAuth renders this page only for a logged-in user.
+  // RequireAuth는 로그인한 사용자에게만 이 페이지를 렌더링한다.
   if (state.status !== 'authenticated') return null;
   const user = state.user;
 

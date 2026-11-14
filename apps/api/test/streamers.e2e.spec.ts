@@ -19,8 +19,8 @@ import { fakeClockOf, type FakeClock } from './support/fake-clock.js';
 
 const UNKNOWN_ID = '00000000-0000-4000-8000-000000000000';
 
-// PRD-mypage 7.2: a streamer's public channel page. Anyone may read it,
-// logged in or not.
+// PRD-mypage 7.2: 스트리머의 공개 채널 페이지. 로그인 여부와
+// 상관없이 누구나 읽을 수 있다.
 describe('streamer channel', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;

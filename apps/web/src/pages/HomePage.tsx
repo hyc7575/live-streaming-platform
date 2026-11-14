@@ -9,7 +9,7 @@ import home from './HomePage.module.css';
 import styles from './ListPage.module.css';
 import { TestAccountLogin } from './TestAccountLogin';
 
-// `status` is the page's ?status= value, `path` what the API is asked.
+// `status`는 페이지의 ?status= 값이고, `path`는 API에 요청하는 경로다.
 const FILTERS = [
   {
     status: null,
@@ -43,8 +43,8 @@ const FILTERS = [
   },
 ] as const;
 
-// Filters the list already fetched, so only the newest PUBLIC_LIST_LIMIT
-// broadcasts can match. Server-side search would replace this past that size.
+// 이미 받은 목록을 거르므로, 최신 PUBLIC_LIST_LIMIT개 방송만
+// 걸린다. 목록이 그보다 커지면 서버 검색으로 바꾼다.
 function matches(broadcast: Broadcast, needle: string) {
   return (
     broadcast.title.toLowerCase().includes(needle) ||
@@ -54,9 +54,9 @@ function matches(broadcast: Broadcast, needle: string) {
 
 const LIST_REFRESH_MS = 30_000;
 
-// What the service is, and for a logged-out visitor (a judge, usually) the
-// one-click test accounts. Logging in keeps them on this screen. `loading`
-// and `error` show no buttons: the visitor may already be logged in.
+// 서비스 소개와, 로그아웃한 방문자(대개 심사위원)를 위한 원클릭
+// 테스트 계정. 로그인해도 이 화면에 머문다. `loading`과
+// `error`에서는 버튼을 보이지 않는다. 방문자가 이미 로그인했을 수 있다.
 function Intro() {
   const { state, logInAsTestAccount } = useAuth();
   const [loggingIn, setLoggingIn] = useState(false);
@@ -101,8 +101,8 @@ export function HomePage() {
   const [params, setParams] = useSearchParams();
   const filter =
     FILTERS.find((f) => f.status === params.get('status')) ?? FILTERS[0];
-  // Re-read like the follow panel, so LIVE cards pick up new thumbnails and
-  // status changes without a reload.
+  // 팔로우 패널처럼 다시 읽어, LIVE 카드가 새로고침 없이 새 썸네일과
+  // 상태 변화를 반영한다.
   const broadcasts = usePolledApi<Broadcast[]>(
     filter.path,
     LIST_REFRESH_MS,

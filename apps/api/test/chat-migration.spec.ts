@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-// Runs the real migration files in a throwaway schema, so the data move is
-// checked against the SQL that production will run, not a copy of its rule.
+// 실제 마이그레이션 파일을 일회용 스키마에서 실행해, 데이터 이동을
+// 규칙을 베낀 사본이 아니라 운영에서 실행될 SQL 그대로 검증한다.
 const MIGRATIONS_DIR = new URL('../prisma/migrations/', import.meta.url)
   .pathname;
 const CHAT_MIGRATION = '20261111150000_chat_messages';
@@ -18,7 +18,7 @@ const BROADCAST = {
 };
 const ENDED_AT = '2026-11-10T12:00:00.000Z';
 
-// [comment id, broadcast, createdAt]
+// [댓글 id, 방송, createdAt]
 const COMMENTS = [
   [
     '30000000-0000-4000-8000-000000000001',
@@ -93,8 +93,8 @@ describe(`migration ${CHAT_MIGRATION}`, () => {
   });
 
   it('moves comments written before the end, or on an unended broadcast, to chat with their ids', async () => {
-    // createdAt is a timestamp without time zone holding UTC, so it is read
-    // back as text rather than through pg's local-time Date parsing.
+    // createdAt은 UTC 값을 담은 timestamp without time zone이라,
+    // pg의 로컬 시간 Date 파싱을 거치지 않고 텍스트로 읽어 온다.
     const chat = await client.query<{
       id: string;
       createdAt: string;

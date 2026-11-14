@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-// One <file> of the info XML OME writes per recording transaction.
+// OME가 녹화 트랜잭션마다 쓰는 info XML의 <file> 하나.
 export interface RecordingInfoEntry {
-  // Relative to the recordings root, like Broadcast.recordingFiles.
+  // Broadcast.recordingFiles처럼 녹화 루트 기준 상대 경로.
   file: string;
   startTime: Date;
   recordTimeMs: number;
@@ -20,8 +20,8 @@ const entrySchema = z
     recordTimeMs: Number(recordTime),
   }));
 
-// OME may be rewriting the file while it is read, so anything malformed is
-// skipped rather than thrown: the next tick reads it again.
+// 읽는 도중 OME가 파일을 다시 쓰고 있을 수 있다. 그래서 형식이 깨진 것은
+// 던지지 않고 건너뛴다. 다음 틱에 다시 읽는다.
 export function parseRecordingInfo(xml: string): RecordingInfoEntry[] {
   const entries: RecordingInfoEntry[] = [];
   for (const [, body = ''] of xml.matchAll(/<file>([\s\S]*?)<\/file>/g)) {
@@ -42,10 +42,10 @@ function tagText(body: string, tag: string): string | undefined {
   return match ? (match[1] ?? match[2] ?? '').trim() : undefined;
 }
 
-// startTime is when OME opened the file and recordTime how long it kept it,
-// but the file holds only the video it received in that span, so the video
-// at 0 s is the end of the span minus the video's length. finishTime is not
-// used: after an abrupt disconnect it lands well past the last frame.
+// startTime은 OME가 파일을 연 시각, recordTime은 연 채로 둔 시간이다.
+// 하지만 파일에는 그 구간에 받은 영상만 있으므로, 영상의 0초 지점은
+// 구간 끝에서 영상 길이를 뺀 시각이다. finishTime은 쓰지
+// 않는다. 갑자기 끊기면 마지막 프레임보다 한참 뒤로 찍힌다.
 export function recordingStartedAt(
   entry: RecordingInfoEntry,
   videoSeconds: number,
@@ -57,7 +57,7 @@ export function recordingStartedAt(
   );
 }
 
-// Reads `length` bytes at `offset`, fewer at the end of the file.
+// `offset`에서 `length` 바이트를 읽는다. 파일 끝에서는 그보다 적게 읽는다.
 export type ByteReader = (offset: number, length: number) => Promise<Buffer>;
 
 interface Box {
@@ -66,9 +66,9 @@ interface Box {
   end: number;
 }
 
-// The duration of the first video track of an MP4, from its mdhd, or null
-// when there is none. Only box headers and the few bytes of hdlr and mdhd are
-// read, so the size of mdat does not matter.
+// MP4의 첫 영상 트랙 길이를 mdhd에서 읽는다. 영상 트랙이 없으면
+// null이다. box 헤더와 hdlr·mdhd의 몇 바이트만
+// 읽으므로 mdat 크기는 상관없다.
 export async function readVideoSeconds(
   read: ByteReader,
   size: number,
@@ -83,7 +83,7 @@ export async function readVideoSeconds(
     const hdlr = children.find((box) => box.type === 'hdlr');
     const mdhd = children.find((box) => box.type === 'mdhd');
     if (!hdlr || !mdhd) continue;
-    // version and flags, then pre_defined, then handler_type.
+    // version과 flags, 그다음 pre_defined, 그다음 handler_type.
     const handler = await read(hdlr.body + 8, 4);
     if (handler.toString('latin1') !== 'vide') continue;
     return mdhdSeconds(
@@ -102,8 +102,8 @@ async function findBox(
   return (await listBoxes(read, start, end)).find((box) => box.type === type);
 }
 
-// The boxes laid end to end in [start, end). A box that runs past `end`
-// stops the walk, since nothing after it can be trusted.
+// [start, end) 안에 이어 붙은 box들. `end`를 넘어가는 box를 만나면
+// 순회를 멈춘다. 그 뒤로는 아무것도 믿을 수 없기 때문이다.
 async function listBoxes(
   read: ByteReader,
   start: number,

@@ -8,8 +8,8 @@ import styles from './History.module.css';
 import { DonationTargetText, HistoryTime } from './HistoryParts';
 import listStyles from './ListPage.module.css';
 
-// The charge opens in its own tab, which says so over the donations channel;
-// the poll only catches what that message misses.
+// 충전은 별도 탭에서 열리고, 그 탭이 donations 채널로 알린다.
+// 폴링은 그 메시지가 놓친 것만 잡는다.
 const LIME_POLL_MS = 30_000;
 
 function signed(delta: number): string {
@@ -48,8 +48,8 @@ function LedgerRow({ entry }: { entry: LimeLedgerEntry }) {
   );
 }
 
-// /me: where the balance came from. Newest first, so the top row's balance
-// is the balance above it (PRD-mypage KR5).
+// /me: 잔액이 어디서 왔는지 보인다. 최신순이므로 맨 위 행의 잔액이
+// 그 위에 보이는 잔액과 같다 (PRD-mypage KR5).
 export function LimeHistoryPage() {
   useDocumentTitle('라임 내역');
   const balance = usePolledApi<LimeBalance>('/me/lime', LIME_POLL_MS);

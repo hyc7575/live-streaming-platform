@@ -5,8 +5,8 @@ import { OME_API, type OmeApi } from '../../src/ome/ome-api.js';
 
 export interface DropStreamCall {
   broadcastId: string;
-  // The broadcast's status in the database when OME was asked, so a test can
-  // see whether the drop came after the status change.
+  // OME에 요청했을 때 데이터베이스의 방송 상태. 테스트가
+  // 상태 변경 뒤에 연결 끊기가 왔는지 볼 수 있다.
   statusAtCall: BroadcastStatus | null;
 }
 
@@ -14,17 +14,17 @@ export interface RecordCall extends DropStreamCall {
   kind: 'start' | 'stop';
 }
 
-// Stands in for OME's admin API, which CI does not run.
+// OME 관리 API를 대신한다. CI에서는 OME를 실행하지 않는다.
 export class FakeOmeApi implements OmeApi {
   calls: DropStreamCall[] = [];
   failing = false;
   streams: string[] = [];
   listFailing = false;
   recordCalls: RecordCall[] = [];
-  // The recording tasks OME holds, keyed by broadcast id.
+  // OME가 들고 있는 녹화 작업. 방송 id를 키로 한다.
   records: string[] = [];
   recordFailing = false;
-  // Lets a test hold startRecord open, like an OME that never answers.
+  // 테스트가 startRecord를 열린 채로 붙잡게 한다. 응답하지 않는 OME와 같다.
   startRecordHangs = false;
 
   constructor(private readonly prisma: PrismaService) {}

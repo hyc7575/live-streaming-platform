@@ -1,6 +1,6 @@
 import type { BroadcastStatus } from './components/StatusBadge';
 
-// Mirrors BroadcastView from apps/api/src/broadcasts/broadcasts.service.ts.
+// apps/api/src/broadcasts/broadcasts.service.ts의 BroadcastView와 같은 모양이다.
 export interface Broadcast {
   id: string;
   title: string;
@@ -8,20 +8,20 @@ export interface Broadcast {
   status: BroadcastStatus;
   startedAt: string | null;
   endedAt: string | null;
-  // When the publish dropped while LIVE: set during the reconnect grace,
-  // null while a publish is connected or before one ever connected.
+  // LIVE 중 송출이 끊긴 시각이다. 유예 시간 동안 값이 있고,
+  // 송출이 연결돼 있거나 한 번도 연결된 적 없으면 null이다.
   disconnectedAt: string | null;
   createdAt: string;
-  // Paths under /recordings, oldest first. Empty means no replay.
+  // /recordings 아래 경로다. 오래된 것이 먼저 온다. 비어 있으면 다시보기가 없다.
   recordingFiles: string[];
-  // The same files in the same order, each with the server time its video
-  // shows at 0 s, or null when that was never recorded.
+  // 같은 파일을 같은 순서로 담고, 각 영상의 0 s가 서버 시각으로 언제인지 붙인다.
+  // 그 시각이 기록되지 않았으면 null이다.
   recordingParts: RecordingPart[];
-  // The streamer's latest captured frame under /thumbnails, or null when the
-  // broadcast never uploaded one.
+  // /thumbnails 아래 스트리머의 가장 최근 캡처 프레임이다. 방송이
+  // 한 번도 올리지 않았으면 null이다.
   thumbnailUrl: string | null;
-  // The streamer's standby image under /thumbnails, shared by all their
-  // broadcasts, or null when they never uploaded one.
+  // /thumbnails 아래 스트리머의 기본 대기 이미지다. 그 스트리머의 모든 방송이
+  // 함께 쓴다. 한 번도 올리지 않았으면 null이다.
   standbyImageUrl: string | null;
   streamer: { id: string; nickname: string };
 }

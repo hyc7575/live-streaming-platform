@@ -9,7 +9,7 @@ import {
   watchUntilPlaying,
 } from './support';
 
-// PRD §7.4 abnormal end against the real OME (README "비정상 종료와 재접속
+// 실제 OME에서 PRD §7.4 비정상 종료를 확인한다(README "비정상 종료와 재접속
 // 유예").
 const GRACE_S = 30;
 const CLOSING_S = 1;
@@ -89,9 +89,9 @@ test('a reload within the grace period keeps the same broadcast LIVE', async ({
     });
     await page.waitForTimeout(1000);
   }
-  // Buffered media can carry currentTime a little past timeAtReload, and
-  // hls.js seeks forward when it joins the new stream's timeline, so only a
-  // real-time pace with data ahead counts as playing.
+  // 버퍼에 남은 미디어로 currentTime이 timeAtReload를 조금 넘을 수 있고,
+  // hls.js는 새 스트림의 타임라인에 붙을 때 앞으로 seek한다. 그래서 앞쪽 데이터가
+  // 있고 실시간 속도로 흐를 때만 재생 중으로 본다.
   const advancing = async () => {
     const before = await video.evaluate((v: HTMLVideoElement) => v.currentTime);
     await viewer.waitForTimeout(2000);

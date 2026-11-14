@@ -26,8 +26,8 @@ function orderErrorMessage(err: unknown): string {
   return '충전을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
-// Opened in its own tab (PRD-lime 7.3). Step 1 saves a charge order; step 2
-// pays it through the same Toss widget as a card donation.
+// 별도 탭에서 열린다 (PRD-lime 7.3). 1단계에서 충전 주문을 저장하고, 2단계에서
+// 카드 후원과 같은 Toss 위젯으로 결제한다.
 export function LimeChargePage() {
   useDocumentTitle('라임 충전');
   const navigate = useNavigate();

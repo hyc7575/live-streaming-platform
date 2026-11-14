@@ -2,8 +2,8 @@ import { useNavigate } from 'react-router';
 import { ApiError } from './api';
 import type { LoginPageState } from './pages/LoginPage';
 
-// Sends the viewer to log in and back to the broadcast when a request says
-// the session ran out. Returns whether it did.
+// 요청이 세션 만료를 알리면 시청자를 로그인으로 보내고, 로그인 뒤 방송으로
+// 되돌린다. 그렇게 했는지를 돌려준다.
 export function useLoginRedirect(broadcastId: string) {
   const navigate = useNavigate();
   return (err: unknown): boolean => {

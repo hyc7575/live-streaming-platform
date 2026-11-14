@@ -10,8 +10,8 @@ import type { Prisma } from '../generated/prisma/client.js';
 import type { ParsedImage } from '../images/image-rules.js';
 import { ImageStore, type UserImageSlot } from '../images/image-store.js';
 
-// The User columns each slot keeps: the extension names the file, the time
-// busts caches. Both null, or both set.
+// 슬롯마다 User에 두는 컬럼. 확장자는 파일 이름을 정하고, 시각은
+// 캐시를 깬다. 둘 다 null이거나 둘 다 값이 있다.
 const SLOT_COLUMNS = {
   standby: (ext, at) => ({ standbyImageExt: ext, standbyImageUpdatedAt: at }),
   avatar: (ext, at) => ({ avatarExt: ext, avatarUpdatedAt: at }),
@@ -20,10 +20,10 @@ const SLOT_COLUMNS = {
   (ext: string | null, at: Date | null) => Prisma.UserUpdateInput
 >;
 
-// Each change writes or prunes files and then the row, in that order. Two
-// changes for one user running interleaved could prune each other's file
-// (a PNG upload removing the WebP that a parallel upload just recorded), so
-// one user's changes run one at a time. The API runs as a single process.
+// 변경마다 파일을 쓰거나 정리한 뒤 행을 바꾼다. 이 순서다. 한 사용자의
+// 변경 두 개가 섞여 돌면 서로의 파일을 지울 수 있다
+// (PNG 업로드가 동시 업로드가 막 기록한 WebP를 지우는 식). 그래서
+// 한 사용자의 변경은 하나씩 돈다. API는 단일 프로세스로 돈다.
 @Injectable()
 export class UserImageService {
   private readonly queues = new Map<string, Promise<unknown>>();
@@ -34,8 +34,8 @@ export class UserImageService {
     @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
-  // The file is in place before the row names it, and the other formats are
-  // pruned only once the row has moved on, so a URL never points at nothing.
+  // 행이 파일을 가리키기 전에 파일을 먼저 두고, 다른 형식의 파일은
+  // 행이 바뀐 뒤에야 정리한다. 그래서 URL이 빈 곳을 가리키는 일이 없다.
   save(
     userId: string,
     slot: UserImageSlot,
@@ -58,7 +58,7 @@ export class UserImageService {
     });
   }
 
-  // Idempotent: removing an image that is already gone succeeds.
+  // 멱등: 이미 없는 이미지를 지워도 성공한다.
   remove(userId: string, slot: UserImageSlot): Promise<void> {
     return this.serialize(userId, async () => {
       await this.prisma.user.update({

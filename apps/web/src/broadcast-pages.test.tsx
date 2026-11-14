@@ -16,7 +16,7 @@ import type { Comment } from './comments';
 import { renderInDataRouter } from './testing/renderInDataRouter';
 
 beforeEach(() => {
-  // jsdom's play() returns nothing; a browser's returns a promise.
+  // jsdom의 play()는 아무것도 돌려주지 않고, 브라우저의 play()는 promise를 돌려준다.
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
 });
 
@@ -47,9 +47,9 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
   };
 }
 
-// Answers each `METHOD /api/path` from the table; anything else is a 404.
-// A function value builds the whole Response, for an error with a body.
-// `bodies` keeps the request body each call sent, keyed the same way.
+// 각 `METHOD /api/path`에 표의 값으로 답하고, 나머지는 404다.
+// 함수 값은 Response 전체를 만든다. 본문이 있는 오류에 쓴다.
+// `bodies`는 호출마다 보낸 요청 본문을 같은 키로 모아 둔다.
 function stubApi(routes: Record<string, unknown>) {
   const calls: string[] = [];
   const bodies: Record<string, unknown> = {};
@@ -325,12 +325,12 @@ it('stops waiting for a replay 90 s after the broadcast ended', async () => {
     const reads = () =>
       calls.filter((call) => call === 'GET /api/broadcasts/b1').length;
 
-    // Reads at 5 s … 85 s still fall inside the window.
+    // 5 s … 85 s의 읽기는 아직 기다리는 시간 안이다.
     await act(() => vi.advanceTimersByTimeAsync(85_000));
     expect(reads()).toBe(18);
     expect(screen.getByText(PREPARING)).toBeDefined();
 
-    // The read at 90 s finds the window closed: no replay, no more reads.
+    // 90 s의 읽기에서 기다리는 시간이 끝난다. 다시보기도 없고 더 읽지도 않는다.
     await act(() => vi.advanceTimersByTimeAsync(5000));
     expect(reads()).toBe(19);
     expect(screen.queryByText(PREPARING)).toBeNull();
@@ -415,7 +415,7 @@ it('opens the publish page from a 방송 준비 중 card and the watch page from
     'GET /api/broadcasts': mine.slice(1),
     'GET /api/broadcasts/b3': mine[0],
   });
-  // The publish page uses useBlocker, which needs a data router.
+  // 송출 페이지는 useBlocker를 쓰고, useBlocker에는 data router가 필요하다.
   renderInDataRouter(
     ['/studio'],
     <AuthProvider>
@@ -433,7 +433,7 @@ it('opens the publish page from a 방송 준비 중 card and the watch page from
   expect(screen.getByRole('link', { name: '시청 화면 열기' })).toBeDefined();
   cleanup();
 
-  // The public list shares the card and still opens the watch page.
+  // 공개 목록도 같은 카드를 쓰고, 여전히 시청 페이지를 연다.
   renderAt('/');
   expect(await hrefOf(/송출 중인 방송/)).toBe('/broadcasts/b4');
   expect(await hrefOf(/끝난 방송/)).toBe('/broadcasts/b5');
@@ -630,8 +630,8 @@ it('says the broadcast does not exist on a 404', async () => {
 
 const other = { id: 'u2', email: 'b@example.com', nickname: '타인' };
 
-// Waits for the header to show who is logged in, so the assertions run after
-// the auth state has settled rather than while it is still loading.
+// 헤더에 로그인한 사용자가 보일 때까지 기다린다. 그래야 단언이 로딩 중이
+// 아니라 인증 상태가 정해진 뒤에 실행된다.
 it.each([
   [
     'an anonymous visitor',
@@ -788,7 +788,7 @@ it('edits the title and description from the detail page', async () => {
   fireEvent.change(title, { target: { value: '고친 제목' } });
   fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
-  // The stub serves the old detail again; the PATCH body is what must change.
+  // stub은 예전 상세를 다시 내준다. 바뀌어야 하는 것은 PATCH 본문이다.
   expect(
     await screen.findByRole('heading', { name: '원래 제목' }),
   ).toBeDefined();
@@ -845,7 +845,7 @@ it('switches a viewer to 방송이 끝났습니다 once a status poll says ENDED
     routes['GET /api/broadcasts/b1'] = 500;
     await act(() => vi.advanceTimersByTimeAsync(5000));
     expect(screen.getByLabelText('방송 화면')).toBeDefined();
-    // The badge beside the title; the player has its own LIVE indicator.
+    // 제목 옆 배지다. 플레이어에는 따로 LIVE 표시가 있다.
     const info = screen.getByRole('heading', { level: 1 }).parentElement;
     expect(within(info!).getByText('LIVE')).toBeDefined();
 
@@ -939,8 +939,8 @@ function chat(id: string, overrides: Partial<ChatMessage> = {}): ChatMessage {
 const COMMENTS = 'GET /api/broadcasts/b1/comments';
 const CHAT = 'GET /api/broadcasts/b1/chat';
 
-// The chat poll waits on setTimeout, so these tests fake it too and step
-// time by hand instead of using findBy, whose own waiting would stall.
+// 채팅 폴링은 setTimeout으로 기다린다. 그래서 이 테스트들은 그것도 가짜로 바꾸고
+// findBy 대신 시간을 직접 넘긴다. findBy는 스스로 기다리다 멈춰 버린다.
 const fakeAllTimers = () =>
   vi.useFakeTimers({
     toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
@@ -1173,8 +1173,8 @@ it('opens an ended broadcast on the 댓글 tab, with the chat log read-only behi
   expect(screen.queryByRole('tabpanel', { name: '댓글' })).toBeNull();
 });
 
-// Part 1 starts at 01:00:00 and runs ten minutes, the publisher drops, and
-// part 2 starts at 01:12:00. Chat placement subtracts the 3 s viewer delay.
+// 1부는 01:00:00에 시작해 10분 이어지고, 송출이 끊긴 뒤
+// 2부가 01:12:00에 시작한다. 채팅 위치는 시청자 지연 3 s를 뺀다.
 const REPLAY_PARTS: RecordingPart[] = [
   { file: 'b1/1_0.mp4', startedAt: '2026-11-10T01:00:00.000Z' },
   { file: 'b1/1_1.mp4', startedAt: '2026-11-10T01:12:00.000Z' },
@@ -1519,9 +1519,9 @@ it.each([
   }
 });
 
-// jsdom has neither matchMedia nor a modal <dialog>. The page reads the
-// screen width through matchMedia, and the sheet needs only showModal and
-// close to toggle `open` and fire close, as a browser does.
+// jsdom에는 matchMedia도 모달 <dialog>도 없다. 페이지는 matchMedia로
+// 화면 너비를 읽는다. 시트에는 브라우저처럼 `open`을 켜고 끄며 close를 발생시키는
+// showModal과 close만 있으면 된다.
 function narrowScreen() {
   vi.stubGlobal('matchMedia', (query: string) => ({
     matches: false,

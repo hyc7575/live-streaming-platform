@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-// Runs the real migration files in a throwaway schema, so the backfill is
-// checked against the SQL that production will run.
+// 실제 마이그레이션 파일을 일회용 스키마에서 실행해, 백필을
+// 운영에서 실행될 SQL 그대로 검증한다.
 const MIGRATIONS_DIR = new URL('../prisma/migrations/', import.meta.url)
   .pathname;
 const MIGRATION = '20261114090000_donation_recipient';
@@ -15,7 +15,7 @@ const DONOR = '10000000-0000-4000-8000-000000000002';
 const BROADCAST = '20000000-0000-4000-8000-000000000001';
 const DONATION = {
   onBroadcast: '30000000-0000-4000-8000-000000000001',
-  // #114 already cleared its broadcastId: nobody knows who received it.
+  // #114에서 이미 broadcastId가 지워졌다. 누가 받았는지 아무도 모른다.
   orphaned: '30000000-0000-4000-8000-000000000002',
 };
 

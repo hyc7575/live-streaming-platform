@@ -22,11 +22,11 @@ export class LimeDonationsController {
     private readonly limeDonations: LimeDonationsService,
   ) {}
 
-  // 401 (guard) → 400 (body pipe) → a key that already donated: 200 with
-  // that donation, 404 if it is the caller's and its broadcast was deleted,
-  // or 409 if it is someone else's → 404 → 403 → 409 not LIVE (target) →
-  // 409 short of lime (service). A new key keeps PRD-lime 7.3's order. 201
-  // for a new donation.
+  // 401(guard) → 400(body pipe) → 이미 후원한 키: 그 후원과 함께 200,
+  // 호출자의 후원인데 방송이 삭제됐으면 404,
+  // 남의 키면 409 → 404 → 403 → LIVE 아님 409(대상) →
+  // 라임 부족 409(서비스). 새 키는 PRD-lime 7.3의 순서를 따른다. 새 후원은
+  // 201이다.
   @Post('broadcasts/:id/lime-donations')
   @UseGuards(LoggedInGuard)
   async donate(

@@ -2,9 +2,9 @@ import { expect } from 'vitest';
 import type { PrismaService } from '../../src/database/database.module.js';
 import { Prisma } from '../../src/generated/prisma/client.js';
 
-// PRD §8.4: every user's balance equals the sum of their ledger deltas, no
-// balance is negative, and every ledger row resolves to its charge or
-// donation.
+// PRD §8.4: 모든 사용자의 잔액은 원장 변동분의 합과 같고,
+// 음수 잔액은 없으며, 모든 원장 행은 자신의 충전이나
+// 후원으로 연결된다.
 export async function expectLedgerMatchesBalances(
   prisma: PrismaService,
 ): Promise<void> {
@@ -21,8 +21,8 @@ export async function expectLedgerMatchesBalances(
     expect(row.limeBalance, `balance of ${row.id}`).toBeGreaterThanOrEqual(0);
   }
 
-  // #114: every ledger row still points at the charge or donation behind
-  // it, even after that donation's broadcast was deleted.
+  // #114: 후원의 방송이 삭제된 뒤에도, 모든 원장 행은
+  // 자신의 근거인 충전이나 후원을 여전히 가리킨다.
   const dangling = await prisma.$queryRaw<{ id: string; kind: string }[]>(
     Prisma.sql`
       SELECT l.id, l.kind::text AS kind FROM "LimeLedger" l

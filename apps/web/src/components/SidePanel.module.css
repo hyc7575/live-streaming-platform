@@ -10,8 +10,8 @@
   border-radius: var(--radius-md);
 }
 
-/* Chat, or the comment and chat-log tabs of an ended broadcast. Each tab
-   lays out like the panel itself. */
+/* 채팅, 또는 끝난 방송의 댓글·채팅 기록 탭. 각 탭은
+   패널 자체처럼 배치한다. */
 .tabPanel {
   display: flex;
   flex: 1;
@@ -84,8 +84,8 @@
   gap: var(--space-1);
 }
 
-/* One wrapping row: the line takes the space, my 삭제 sits at its end, and
-   the delete confirmation and error drop to full rows. */
+/* 한 줄로 감싸는 행: 줄이 공간을 차지하고, 내 삭제는 그 끝에 붙고,
+   삭제 확인과 오류는 전체 너비 행으로 내려간다. */
 .chatItem {
   display: flex;
   flex-wrap: wrap;
@@ -278,10 +278,10 @@
   color: var(--color-danger);
 }
 
-/* The panel fills the height it is given, whatever the message count, so
-   the heading or tabs and the form stay put and only the list scrolls, as
-   on Twitch or Chzzk. Wide screens give it a full-height column beside the
-   player; narrow ones the rest of the screen under it (BroadcastPage). */
+/* 메시지 수와 상관없이 패널은 주어진 높이를 채운다. 그래서 제목이나
+   탭과 폼은 제자리에 있고 목록만 스크롤된다. Twitch나 Chzzk와
+   같다. 넓은 화면은 플레이어 옆에 전체 높이 열을 주고, 좁은 화면은
+   그 아래 남은 화면을 준다(BroadcastPage). */
 @media (min-width: 1024px) {
   .panel {
     position: sticky;
@@ -290,8 +290,8 @@
   }
 }
 
-/* Enter sends on a phone's keyboard (enterKeyHint), so the button only
-   takes room there. */
+/* 휴대폰 키보드에서는 Enter가 보내기이므로(enterKeyHint), 거기서 버튼은
+   자리만 차지한다. */
 @media (max-width: 1023.98px) {
   .send {
     display: none;

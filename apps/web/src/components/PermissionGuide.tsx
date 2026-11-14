@@ -1,6 +1,6 @@
 import styles from './PermissionGuide.module.css';
 
-/** Where to turn camera and mic back on once the browser has blocked them. */
+/** 브라우저가 카메라와 마이크를 막은 뒤 다시 켜는 곳을 안내한다. */
 export function PermissionGuide() {
   return (
     <div role="alert" className={styles.guide}>

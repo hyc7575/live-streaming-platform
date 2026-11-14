@@ -31,8 +31,8 @@ interface Call {
   body: unknown;
 }
 
-// Answers each `METHOD /api/path` with the Response its function builds;
-// anything else is a 404. Returns the calls with their JSON bodies.
+// 각 `METHOD /api/path`에 그 함수가 만든 Response로 답한다.
+// 나머지는 404다. 호출과 그 JSON 본문을 돌려준다.
 function stubApi(routes: Record<string, (body: unknown) => Response>) {
   const calls: Call[] = [];
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {

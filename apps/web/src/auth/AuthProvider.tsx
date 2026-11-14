@@ -16,7 +16,7 @@ import {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
-  // Bumped by recheck() to run the /auth/me effect again.
+  // recheck()가 값을 올려 /auth/me effect를 다시 실행한다.
   const [checks, setChecks] = useState(0);
 
   useEffect(() => {
@@ -35,8 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [checks]);
 
-  // A 401 anywhere means the session is gone (logged out in another tab or
-  // expired), so the login page stops bouncing back to the screen.
+  // 어디서든 401이 오면 세션이 사라진 것이다(다른 탭에서 로그아웃했거나
+  // 만료됐다). 그래서 로그인 페이지가 더는 원래 화면으로 되돌려 보내지 않는다.
   useEffect(() => onUnauthorized(() => setState({ status: 'anonymous' })), []);
 
   const recheck = useCallback(() => {

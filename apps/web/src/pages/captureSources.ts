@@ -33,9 +33,9 @@ interface SourceSpec {
   acquiringText: string;
   start: () => Promise<ActiveCapture>;
   failureMessage: (error: unknown) => string;
-  /** The browser blocked the device, so only its settings can bring it back. */
+  /** 브라우저가 장치를 막았으므로, 브라우저 설정에서만 되살릴 수 있다. */
   isPermissionDenied: (error: unknown) => boolean;
-  /** Status texts for a page that offers this source first. */
+  /** 이 소스를 먼저 제안하는 페이지의 상태 문구. */
   offer: { placeholder: string; onAirWithoutCapture: string };
 }
 
@@ -89,7 +89,7 @@ export const CAPTURE_SOURCES: Record<CaptureSource, SourceSpec> = {
   },
 };
 
-/** The first source is the one the page suggests. */
+/** 첫 번째 소스가 페이지가 제안하는 소스다. */
 export function offeredSources(support: ScreenAudioSupport): CaptureSource[] {
   return support === 'no-screen-capture' ? ['camera'] : ['screen', 'camera'];
 }

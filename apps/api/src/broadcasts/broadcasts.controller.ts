@@ -39,7 +39,7 @@ const description = z.string().trim().max(DESCRIPTION_MAX_LENGTH);
 
 const createSchema = z.object({ title, description: description.default('') });
 
-// Unknown keys such as `status` are stripped: only the server moves status.
+// `status` 같은 모르는 키는 제거한다. status는 서버만 바꾼다.
 const updateSchema = z
   .object({ title: title.optional(), description: description.optional() })
   .refine((b) => b.title !== undefined || b.description !== undefined, {
@@ -105,8 +105,8 @@ export class BroadcastsController {
     return this.broadcasts.end(id);
   }
 
-  // Guards run before the interceptor, so only the owner's upload within the
-  // rate is ever read into memory (multer's default storage).
+  // guard가 interceptor보다 먼저 돈다. 그래서 소유자가 빈도 제한 안에서 올린
+  // 업로드만 메모리로 읽는다(multer 기본 저장소).
   @Put('broadcasts/:id/thumbnail')
   @HttpCode(204)
   @UseGuards(LoggedInGuard, BroadcastOwnerGuard, ThumbnailRateGuard)

@@ -5,9 +5,9 @@ export const CAPTURE_INTERVAL_MS = 30_000;
 export const CAPTURE_WIDTH = 480;
 const JPEG_QUALITY = 0.7;
 
-// Draws the preview as it arrives from the capture, with no transform. The
-// front-camera mirror on the preview is CSS only, so this is the unmirrored
-// frame viewers see. Null until the video has a frame.
+// 캡처에서 온 미리보기를 transform 없이 그대로 그린다.
+// 미리보기의 전면 카메라 좌우 반전은 CSS로만 하므로, 이것은 시청자가 보는
+// 반전되지 않은 프레임이다. 영상에 프레임이 생기기 전에는 null이다.
 export function captureFrame(video: HTMLVideoElement): Promise<Blob | null> {
   const { videoWidth, videoHeight } = video;
   if (!videoWidth || !videoHeight) return Promise.resolve(null);
@@ -31,9 +31,9 @@ function uploadThumbnail(broadcastId: string, image: Blob): Promise<void> {
   });
 }
 
-// While `enabled`, uploads a frame of the preview right away and then every
-// 30 s. A thumbnail is a nicety: any failure waits for the next tick and
-// never reaches the publish session or the page.
+// `enabled`인 동안 미리보기 프레임을 바로 올리고, 이후
+// 30 s마다 올린다. 썸네일은 있으면 좋은 정도라서, 실패하면 다음 차례를 기다리고
+// 송출 세션이나 페이지에는 알리지 않는다.
 export function useThumbnailCapture(
   broadcastId: string,
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -49,7 +49,7 @@ export function useThumbnailCapture(
         const image = await captureFrame(video);
         if (image && !stopped) await uploadThumbnail(broadcastId, image);
       } catch {
-        // The next tick tries again.
+        // 다음 차례에 다시 시도한다.
       }
     };
     void tick();

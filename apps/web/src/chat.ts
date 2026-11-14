@@ -1,4 +1,4 @@
-// Mirrors ChatMessageView from apps/api/src/chat/chat.service.ts.
+// apps/api/src/chat/chat.service.ts의 ChatMessageView와 같은 모양이다.
 export interface ChatMessage {
   id: string;
   body: string;
@@ -8,14 +8,14 @@ export interface ChatMessage {
 
 export const CHAT_MAX_LENGTH = 200;
 
-// The API's CHAT_PAGE_LIMIT. A page this full may have more behind it.
+// API의 CHAT_PAGE_LIMIT이다. 이만큼 꽉 찬 페이지 뒤에는 더 있을 수 있다.
 export const CHAT_PAGE_LIMIT = 200;
 
-// The messages on screen, in the API's (createdAt, id) order with no id
-// twice. `cursor` is the `after` for the next poll: every message that sorts
-// at or before it has been answered by a poll. The viewer's own post joins
-// the list without moving it, because messages others sent just before it
-// may not have been polled yet.
+// 화면의 메시지다. API의 (createdAt, id) 순서이고 같은 id는
+// 두 번 없다. `cursor`는 다음 폴링의 `after`다. 정렬상 그 이하인
+// 메시지는 모두 폴링으로 받았다. 시청자가 직접 쓴 글은 목록에 들어가도
+// cursor를 옮기지 않는다. 바로 앞에 다른 사람이 보낸 메시지를
+// 아직 폴링하지 못했을 수 있기 때문이다.
 export interface ChatFeed {
   messages: ChatMessage[];
   cursor: string | null;
@@ -27,8 +27,8 @@ export type ChatFeedAction =
 
 export const EMPTY_CHAT_FEED: ChatFeed = { messages: [], cursor: null };
 
-// createdAt is a fixed-width ISO string and ids are lowercase uuids, so
-// string order matches the database's.
+// createdAt은 고정 길이 ISO 문자열이고 id는 소문자 uuid라서,
+// 문자열 순서가 데이터베이스의 순서와 같다.
 function compare(a: ChatMessage, b: ChatMessage): number {
   if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;

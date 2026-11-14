@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-// Shared by request bodies and the test-account seed, so a seeded account
-// follows the same rules as one made through signup.
+// 요청 body와 테스트 계정 seed가 함께 쓴다. 그래서 seed된 계정도
+// 회원가입으로 만든 계정과 같은 규칙을 따른다.
 export const emailSchema = z
   .string()
   .trim()

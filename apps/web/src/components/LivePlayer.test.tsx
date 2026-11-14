@@ -51,7 +51,7 @@ beforeEach(() => {
   hls.supported.value = true;
   vi.useFakeTimers();
   vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
-  // jsdom's play() returns nothing; a browser's returns a promise.
+  // jsdom의 play()는 아무것도 돌려주지 않고, 브라우저의 play()는 promise를 돌려준다.
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
 });
 

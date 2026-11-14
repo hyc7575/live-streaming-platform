@@ -5,7 +5,7 @@ import {
   type ScryptOptions,
 } from 'node:crypto';
 
-// OWASP Password Storage Cheat Sheet scrypt row: N=2^15, r=8, p=3 (32 MiB).
+// OWASP Password Storage Cheat Sheet의 scrypt 행: N=2^15, r=8, p=3 (32 MiB).
 const PARAMS = { N: 2 ** 15, r: 8, p: 3 } as const;
 const KEY_LENGTH = 32;
 const SALT_LENGTH = 16;
@@ -26,8 +26,8 @@ function deriveKey(
   });
 }
 
-// Stored as `scrypt$N$r$p$salt$hash` so the cost can rise later without
-// invalidating existing hashes.
+// `scrypt$N$r$p$salt$hash` 형태로 저장한다. 그래야 나중에 비용을 올려도
+// 기존 해시가 무효가 되지 않는다.
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(SALT_LENGTH);
   const key = await deriveKey(password, salt, PARAMS);

@@ -50,7 +50,7 @@
   word-break: keep-all;
 }
 
-/* Folded to avatars: only the list stays. */
+/* 아바타로 접힌 상태: 목록만 남는다. */
 @media (max-width: 1279px) {
   .heading,
   .note,

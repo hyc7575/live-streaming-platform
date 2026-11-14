@@ -16,9 +16,9 @@ export const DEFAULT_SWEEP_INTERVAL_MS = 30_000;
 
 const uuid = z.uuid();
 
-// PRD §7.4 zombie cleanup (T8). OME's `closing` can go missing or arrive
-// after the reconnect it belongs before, so the API periodically reconciles
-// the LIVE broadcasts with the streams OME is actually receiving.
+// PRD §7.4 좀비 정리(T8). OME의 `closing`은 빠지거나, 그보다 먼저 와야 할
+// 재연결보다 늦게 올 수 있다. 그래서 API가 주기적으로 LIVE 방송을
+// OME가 실제로 받고 있는 스트림과 맞춘다.
 @Injectable()
 export class PublishSweeper implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PublishSweeper.name);
@@ -55,7 +55,7 @@ export class PublishSweeper implements OnModuleInit, OnModuleDestroy {
   async sweep(now: Date): Promise<void> {
     let listed: string[];
     try {
-      // Postgres rejects a non-uuid in an `in` filter on a uuid column.
+      // Postgres는 uuid 컬럼의 `in` 필터에 uuid가 아닌 값이 있으면 거부한다.
       listed = (await this.ome.listStreams()).filter(
         (name) => uuid.safeParse(name).success,
       );
@@ -67,8 +67,8 @@ export class PublishSweeper implements OnModuleInit, OnModuleDestroy {
       where: {
         status: 'LIVE',
         id: { in: listed },
-        // A drop at or after `now` may be newer than the list, which was
-        // fetched after `now` was read. The next sweep settles it.
+        // `now` 이후의 끊김은 목록보다 새로울 수 있다. 목록은
+        // `now`를 읽은 뒤에 가져왔기 때문이다. 다음 sweep이 정리한다.
         disconnectedAt: { lt: now },
       },
       data: { disconnectedAt: null },
@@ -77,8 +77,8 @@ export class PublishSweeper implements OnModuleInit, OnModuleDestroy {
       where: { status: 'LIVE', id: { notIn: listed }, disconnectedAt: null },
       data: { disconnectedAt: now },
     });
-    // No OME DELETE as in end(): these streams are absent from the list just
-    // fetched, and the webhook refuses a later reconnect once ENDED is saved.
+    // end()와 달리 OME DELETE를 보내지 않는다. 이 스트림들은 방금 가져온
+    // 목록에 없고, ENDED가 저장되면 웹훅이 이후 재연결을 거부한다.
     const ended = await this.prisma.broadcast.updateManyAndReturn({
       where: {
         status: 'LIVE',

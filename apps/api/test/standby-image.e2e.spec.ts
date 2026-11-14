@@ -32,7 +32,7 @@ const jpeg = (size = 64, fill = 0x11) =>
   image([0xff, 0xd8, 0xff, 0xe0], size, fill);
 const png = (size = 64, fill = 0x22) =>
   image([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], size, fill);
-// RIFF, a 4-byte length, then WEBP.
+// RIFF, 4바이트 길이, 그다음 WEBP.
 const webp = (size = 64, fill = 0x33) =>
   image(
     [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50],
@@ -71,8 +71,8 @@ describe('channel standby image', () => {
       ? (await readdir(folder(user))).filter((n) => !n.endsWith('.tmp'))
       : [];
 
-  // The file a viewer's browser gets for the URL: the static server's root is
-  // the thumbnails folder, with the /thumbnails prefix stripped.
+  // 시청자 브라우저가 이 URL로 받는 파일. 정적 서버의 루트는
+  // thumbnails 폴더이고, /thumbnails 접두사는 떼어 낸다.
   const served = (url: string) =>
     readFile(
       join(dir, new URL(url, 'http://x').pathname.replace(/^\/thumbnails/, '')),

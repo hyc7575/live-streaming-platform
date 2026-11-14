@@ -91,7 +91,7 @@
   font-weight: 600;
 }
 
-/* A .submit button outside a .form (the donation result pages). */
+/* .form 밖의 .submit 버튼 (후원 결과 페이지). */
 .block {
   display: block;
   width: 100%;

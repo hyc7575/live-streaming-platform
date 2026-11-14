@@ -10,10 +10,10 @@ const BITS = 30;
 const CLOCK_WIDTH = 640;
 const CLOCK_HEIGHT = 360;
 
-// The fake camera shows no clock, so the publisher's camera is swapped for a
-// canvas that writes Date.now() as black and white blocks. Publisher and
-// viewer share this machine's clock, so decoding the frame on the viewer
-// gives glass-to-glass latency without OCR.
+// 가짜 카메라에는 시계가 없어, 송출자의 카메라를 Date.now()를 흑백 블록으로 쓰는
+// canvas로 바꾼다. 송출자와 시청자가 이 기기의 시계를 함께 쓰므로,
+// 시청자 쪽에서 프레임을 디코드하면 OCR 없이
+// glass-to-glass 지연을 얻는다.
 async function publishClock(page: Page) {
   await page.addInitScript(
     ({ bits, width, height }) => {

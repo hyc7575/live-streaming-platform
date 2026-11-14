@@ -2,14 +2,14 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 import type { LoginPageState } from '../pages/LoginPage';
 import { useAuth } from './auth-context';
 
-// Route wrapper for pages that need a login. An anonymous visitor goes to the
-// login page, which sends them back here once they log in.
+// 로그인이 필요한 페이지를 감싸는 라우트다. 비로그인 방문자는
+// 로그인 페이지로 가고, 로그인하면 다시 여기로 돌아온다.
 export function RequireAuth() {
   const { state } = useAuth();
   const location = useLocation();
 
-  // `error` is not logged out: logging in would hit the same failure, so the
-  // page waits for the header's retry.
+  // `error`는 로그아웃이 아니다. 로그인해도 같은 실패를 만나므로
+  // 페이지는 헤더의 재시도를 기다린다.
   if (state.status === 'loading' || state.status === 'error') return null;
   if (state.status === 'anonymous') {
     const next: LoginPageState = {

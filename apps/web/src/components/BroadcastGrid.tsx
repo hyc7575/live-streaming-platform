@@ -8,18 +8,18 @@ function watchPath(b: Broadcast): string {
   return `/broadcasts/${b.id}`;
 }
 
-// The card's picture and title open `linkTo`; the streamer's nickname under
-// them is its own link to their channel page, since a link cannot sit
-// inside another.
+// 카드의 썸네일과 제목은 `linkTo`를 연다. 그 아래 스트리머 닉네임은
+// 채널 페이지로 가는 별도 링크다. 링크 안에 링크를 넣을 수
+// 없기 때문이다.
 export function BroadcastGrid({
   broadcasts,
   linkTo = watchPath,
   showStreamer = true,
 }: {
   broadcasts: Broadcast[];
-  // Where each card goes. Defaults to the watch page, as on the public list.
+  // 각 카드가 여는 곳. 기본값은 공개 목록처럼 시청 페이지다.
   linkTo?: (b: Broadcast) => string;
-  // Off where every card is the same streamer's: a channel page, the studio.
+  // 모든 카드가 같은 스트리머의 것인 곳(채널 페이지, 스튜디오)에서는 끈다.
   showStreamer?: boolean;
 }) {
   return (

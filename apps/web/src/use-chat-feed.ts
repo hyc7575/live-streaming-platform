@@ -23,14 +23,14 @@ const initial = (broadcastId: string): Tagged => ({
   status: 'loading',
 });
 
-// What `tagged` holds for `broadcastId`: nothing yet if it is another's.
+// `tagged`가 `broadcastId`에 대해 가진 값이다. 다른 방송의 값이면 아직 아무것도 없다.
 const heldFor = (tagged: Tagged, broadcastId: string): Tagged =>
   tagged.broadcastId === broadcastId ? tagged : initial(broadcastId);
 
-// Reads a broadcast's chat with the `after` cursor (PRD §8.2: no realtime
-// push). A full page is followed at once; otherwise the next poll waits
-// `pollMs`. With `pollMs: null` it reads to the end once and stops.
-// `added` shows the viewer's own post right away.
+// 방송 채팅을 `after` cursor로 읽는다(PRD §8.2: 실시간
+// push 없음). 꽉 찬 페이지 뒤에는 바로 이어 읽고, 아니면 다음 폴링까지
+// `pollMs`를 기다린다. `pollMs: null`이면 끝까지 한 번 읽고 멈춘다.
+// `added`는 시청자가 직접 쓴 글을 바로 보여 준다.
 export function useChatFeed(
   broadcastId: string,
   { pollMs }: { pollMs: number | null },
@@ -40,8 +40,8 @@ export function useChatFeed(
   added: (message: ChatMessage) => void;
 } {
   const [state, setState] = useState(() => initial(broadcastId));
-  // The poll loop needs the cursor of the latest feed, not the one its
-  // closure saw, so every change also lands here.
+  // 폴링 루프에는 closure가 본 cursor가 아니라 최신 feed의 cursor가
+  // 필요하다. 그래서 바뀔 때마다 여기에도 반영한다.
   const latest = useRef(state);
 
   const update = useCallback(
@@ -73,7 +73,7 @@ export function useChatFeed(
         );
       } catch {
         if (cancelled) return;
-        // A failed re-read keeps what is on screen and tries again.
+        // 다시 읽기에 실패하면 화면의 내용을 두고 다시 시도한다.
         if (heldFor(latest.current, broadcastId).status === 'loading') {
           update(null, 'failed');
         }

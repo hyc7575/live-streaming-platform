@@ -5,7 +5,7 @@ export type PcCaptureState =
       status: 'live';
       hasScreenAudio: boolean;
       micMuted: boolean;
-      /** The mic device went away (unplugged, or revoked by the OS). */
+      /** 마이크 장치가 사라졌다(뽑혔거나 OS가 권한을 회수했다). */
       micLost: boolean;
       audioRunning: boolean;
     }
@@ -17,16 +17,16 @@ export interface AudioLevels {
 }
 
 export interface PcCapture {
-  /** One video track plus one mixed audio track. A publisher sends exactly this. */
+  /** 영상 트랙 하나와 섞인 오디오 트랙 하나다. 송출자는 정확히 이것을 보낸다. */
   readonly stream: MediaStream;
   getState: () => PcCaptureState;
   subscribe: (listener: () => void) => () => void;
-  /** Call synchronously inside the "방송 시작" click handler. */
+  /** "방송 시작" 클릭 핸들러 안에서 동기로 호출한다. */
   resumeAudio: () => Promise<void>;
   setMicMuted: (muted: boolean) => void;
-  /** RMS 0..1. `mic` is measured after the mute gain. */
+  /** RMS 0..1. `mic`은 음소거 gain을 거친 뒤에 잰다. */
   readLevels: () => AudioLevels;
-  /** Replaces the video track in `stream`; the mixed audio track stays the same. */
+  /** `stream`의 영상 트랙을 바꾼다. 섞인 오디오 트랙은 그대로 둔다. */
   reselectScreen: () => Promise<void>;
   stop: () => void;
 }
@@ -41,7 +41,7 @@ export class PcCaptureError extends Error {
   }
 }
 
-// TypeScript's DOM lib does not declare Chrome's systemAudio and selfBrowserSurface options yet.
+// TypeScript의 DOM lib은 아직 Chrome의 systemAudio, selfBrowserSurface 옵션을 선언하지 않는다.
 const DISPLAY_OPTIONS: DisplayMediaStreamOptions & {
   systemAudio: 'include' | 'exclude';
   selfBrowserSurface: 'include' | 'exclude';

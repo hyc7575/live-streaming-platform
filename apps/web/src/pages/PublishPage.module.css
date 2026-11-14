@@ -35,7 +35,7 @@
   min-width: 0;
 }
 
-/* How to publish: from this browser, or from OBS with an issued URL. */
+/* 송출 방법: 이 브라우저에서, 또는 발급한 URL로 OBS에서. */
 .tabs {
   display: flex;
   gap: var(--space-4);
@@ -80,7 +80,7 @@
   display: none;
 }
 
-/* Side by side so the checks and the start button stay above the fold. */
+/* 나란히 두어 점검 항목과 시작 버튼이 첫 화면 안에 머물게 한다. */
 @media (min-width: 960px) {
   .studio {
     grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
@@ -99,12 +99,12 @@
   object-fit: contain;
 }
 
-/* Front cameras look natural to the streamer only when mirrored, like a selfie view. Viewers get the unmirrored picture. */
+/* 전면 카메라는 셀카처럼 좌우 반전해야 스트리머가 보기에 자연스럽다. 시청자는 반전하지 않은 화면을 받는다. */
 .preview[data-mirrored='true'] {
   transform: scaleX(-1);
 }
 
-/* A phone held upright: a taller preview, and the main buttons pinned to the bottom within thumb reach on a 360px-wide screen. */
+/* 세로로 든 휴대폰: 미리보기를 더 길게 하고, 360px 너비 화면에서 엄지가 닿도록 주요 버튼을 아래에 고정한다. */
 @media (max-width: 959px) {
   .preview[data-source='camera'] {
     max-height: 50vh;
@@ -206,11 +206,11 @@
   border-radius: var(--radius-md);
 }
 
-/* Holds a move away from a page that is publishing until the streamer picks. */
+/* 송출 중인 페이지를 떠나는 이동을 스트리머가 고를 때까지 붙잡아 둔다. */
 .backdrop {
   position: fixed;
   inset: 0;
-  /* Above the sticky header (10). */
+  /* sticky 헤더(10)보다 위에 둔다. */
   z-index: 20;
   display: flex;
   align-items: center;

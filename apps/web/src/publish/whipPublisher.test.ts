@@ -55,8 +55,8 @@ const kit = vi.hoisted(() => {
   };
 });
 
-// Like OvenLiveKit, the connection takes the stream's tracks as they are
-// when streaming starts.
+// OvenLiveKit처럼, 연결은 송출을 시작하는 순간의
+// 스트림 트랙을 가져간다.
 vi.mock('ovenlivekit', () => ({
   default: {
     create: (options: { callbacks: Callbacks }) => {
@@ -315,7 +315,7 @@ describe('when ICE never connects', () => {
     const { stream, clones } = fakeStream();
     const onEvent = vi.fn();
     startWhipPublish(stream, '/app/b1?direction=whip', onEvent);
-    // vi.waitFor would move the fake clock while it polls.
+    // vi.waitFor를 쓰면 폴링하는 동안 가짜 시계가 움직인다.
     await vi.advanceTimersByTimeAsync(0);
     expect(kit.startStreaming).toHaveBeenCalled();
 
@@ -331,7 +331,7 @@ describe('when ICE never connects', () => {
     const { stream } = fakeStream();
     const onEvent = vi.fn();
     startWhipPublish(stream, '/app/b1?direction=whip', onEvent);
-    // vi.waitFor would move the fake clock while it polls.
+    // vi.waitFor를 쓰면 폴링하는 동안 가짜 시계가 움직인다.
     await vi.advanceTimersByTimeAsync(0);
     expect(kit.startStreaming).toHaveBeenCalled();
 
@@ -349,7 +349,7 @@ describe('when ICE never connects', () => {
       '/app/b1?direction=whip',
       onEvent,
     );
-    // vi.waitFor would move the fake clock while it polls.
+    // vi.waitFor를 쓰면 폴링하는 동안 가짜 시계가 움직인다.
     await vi.advanceTimersByTimeAsync(0);
     expect(kit.startStreaming).toHaveBeenCalled();
 

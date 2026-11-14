@@ -16,20 +16,20 @@ model User {
   nickname              String
   passwordHash          String
   createdAt             DateTime  @default(now())
-  // The channel's standby image, thumbnails/users/<id>/standby.<ext>, shown
-  // on the streamer's broadcasts before they go live. Both are null, or
-  // both are set: the extension names the file and the time busts caches.
+  // 채널의 기본 대기 이미지. thumbnails/users/<id>/standby.<ext>에 두고,
+  // 스트리머의 방송이 라이브 전일 때 보여 준다. 둘 다 null이거나
+  // 둘 다 값이 있다. 확장자는 파일 이름을 정하고, 시각은 캐시를 깬다.
   standbyImageExt       String?
   standbyImageUpdatedAt DateTime?
-  // The profile image, thumbnails/users/<id>/avatar.<ext>, stored like the
-  // standby image: both null, or both set.
+  // 프로필 이미지. thumbnails/users/<id>/avatar.<ext>에 두고,
+  // 기본 대기 이미지처럼 저장한다. 둘 다 null이거나 둘 다 값이 있다.
   avatarExt             String?
   avatarUpdatedAt       DateTime?
-  // A short introduction on the channel page, 0-200 characters.
+  // 채널 페이지에 보이는 짧은 소개. 0-200자.
   bio                   String    @default("")
-  // Lime the user holds (1 lime = 1 won). Only a conditional UPDATE that
-  // adds or subtracts in SQL changes it, in the same transaction as the
-  // LimeLedger row, so the ledger's deltas always sum to it.
+  // 사용자가 가진 라임(1 라임 = 1원). SQL에서 더하거나 빼는 조건부 UPDATE만
+  // 이 값을 바꾸고, LimeLedger 행과 같은 트랜잭션에서 바꾸므로
+  // 원장 변동분의 합은 언제나 이 값과 같다.
   limeBalance           Int       @default(0)
 
   broadcasts        Broadcast[]
@@ -49,8 +49,8 @@ enum BroadcastStatus {
   ENDED
 }
 
-// Only the server moves status forward (READY -> LIVE -> ENDED), from the
-// publish admission flow. startedAt and endedAt record those transitions.
+// status는 서버만 앞으로 옮긴다(READY -> LIVE -> ENDED). 송출 허가 흐름에서
+// 옮긴다. startedAt과 endedAt은 그 전이 시각을 기록한다.
 model Broadcast {
   id                 String          @id @default(uuid()) @db.Uuid
   streamerId         String          @db.Uuid
@@ -61,16 +61,16 @@ model Broadcast {
   startedAt          DateTime?
   endedAt            DateTime?
   disconnectedAt     DateTime?
-  // Finalized recording files relative to the recordings root, oldest
-  // first. The reconciler keeps this in step with the disk.
+  // 확정된 녹화 파일. 녹화 루트 기준 상대 경로이고 오래된 것이
+  // 먼저 온다. reconciler가 디스크와 맞춰 둔다.
   recordingFiles     String[]        @default([])
-  // When the video at 0 s of each recording file was recorded, read from
-  // OME's info XML. Empty, or one per recordingFiles entry in the same order
-  // (a CHECK in the migration holds this): a start that cannot be read
-  // leaves the whole list empty.
+  // 각 녹화 파일의 0초 지점 영상이 녹화된 시각. OME의
+  // info XML에서 읽는다. 비어 있거나, recordingFiles 항목마다 같은 순서로 하나씩 있다
+  // (마이그레이션의 CHECK가 이를 지킨다). 시작 시각을 하나라도 읽지 못하면
+  // 목록 전체를 비운다.
   recordingStartedAt DateTime[]      @default([])
-  // When the streamer's browser last uploaded thumbnails/<id>/live.jpg.
-  // Null means the broadcast has no thumbnail.
+  // 스트리머 브라우저가 thumbnails/<id>/live.jpg를 마지막으로 올린 시각.
+  // null이면 방송에 썸네일이 없다.
   thumbnailUpdatedAt DateTime?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
@@ -79,15 +79,15 @@ model Broadcast {
   chatMessages ChatMessage[]
   donations    Donation[]
 
-  // PRD §7.4 one LIVE broadcast per streamer, held by the database so two
-  // admissions racing for different broadcasts cannot both win.
+  // PRD §7.4 스트리머당 LIVE 방송 하나. 데이터베이스가 지켜서, 서로 다른 방송을
+  // 두고 경쟁하는 두 송출 허가가 함께 이길 수 없다.
   @@unique([streamerId], map: "Broadcast_one_live_per_streamer", where: raw("status = 'LIVE'"))
   @@index([status, createdAt])
   @@index([streamerId, createdAt])
 }
 
-// Deleting a broadcast or a user takes their comments with it. Comments have
-// no soft delete either: an author's delete removes the row.
+// 방송이나 사용자를 지우면 그 댓글도 함께 지워진다. 댓글에도
+// soft delete는 없다. 작성자가 지우면 행이 삭제된다.
 model Comment {
   id          String    @id @default(uuid()) @db.Uuid
   broadcastId String    @db.Uuid
@@ -101,9 +101,9 @@ model Comment {
   @@index([broadcastId, createdAt])
 }
 
-// A line of chat sent while the broadcast is READY or LIVE. Chat is never
-// edited, so it has no updatedAt. Deleting a broadcast or a user takes their
-// chat with it, and an author's delete removes the row.
+// 방송이 READY나 LIVE일 때 보낸 채팅 한 줄. 채팅은 수정하지 않으므로
+// updatedAt이 없다. 방송이나 사용자를 지우면 그 채팅도 함께 지워지고,
+// 작성자가 지우면 행이 삭제된다.
 model ChatMessage {
   id          String    @id @default(uuid()) @db.Uuid
   broadcastId String    @db.Uuid
@@ -116,8 +116,8 @@ model ChatMessage {
   @@index([broadcastId, createdAt])
 }
 
-// A viewer following a streamer. Both ends are users, and deleting either
-// user takes the follow with it.
+// 시청자가 스트리머를 팔로우한 관계. 양쪽 모두 사용자이고, 어느 쪽
+// 사용자를 지워도 팔로우가 함께 지워진다.
 model Follow {
   followerId String   @db.Uuid
   streamerId String   @db.Uuid
@@ -134,33 +134,33 @@ enum DonationStatus {
   PAID
 }
 
-// TOSS donations are paid card by card through Toss. LIME donations spend
-// the donor's lime balance.
+// TOSS 후원은 Toss를 거쳐 건마다 카드로 결제한다. LIME 후원은
+// 후원자의 라임 잔액을 쓴다.
 enum DonationMethod {
   TOSS
   LIME
 }
 
-// An order becomes a donation when Toss approves it, and only PAID rows count
-// toward a broadcast's total. A PENDING row is an order the donor has not paid
-// for yet, or whose confirm failed and may still be retried.
+// 주문은 Toss가 승인하면 후원이 되고, PAID 행만 방송 합계에
+// 들어간다. PENDING 행은 후원자가 아직 결제하지 않은 주문이거나,
+// 승인에 실패했지만 아직 재시도할 수 있는 주문이다.
 //
-// A donation is a record of money, so it outlives the broadcast (#114):
-// deleting the broadcast only clears broadcastId. A lime donation's
-// LimeLedger row keeps pointing at it, and a PENDING card order whose
-// broadcast is gone can no longer be confirmed.
+// 후원은 돈의 기록이라 방송보다 오래 남는다(#114).
+// 방송을 지우면 broadcastId만 비운다. 라임 후원의
+// LimeLedger 행은 계속 이 후원을 가리키고, 방송이 사라진 PENDING 카드 주문은
+// 더는 승인할 수 없다.
 model Donation {
   id          String         @id @default(uuid()) @db.Uuid
-  // Sent to Toss as its orderId, which allows 6-64 of [A-Za-z0-9-_=].
+  // Toss에 orderId로 보낸다. Toss는 [A-Za-z0-9-_=] 6~64자를 허용한다.
   orderId     String         @unique
-  // Null once the broadcast has been deleted.
+  // 방송이 삭제되면 null이다.
   broadcastId String?        @db.Uuid
   broadcast   Broadcast?     @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
   donorId     String         @db.Uuid
   donor       User           @relation("DonationDonor", fields: [donorId], references: [id], onDelete: Cascade)
-  // The streamer the donation went to, copied from the broadcast when it is
-  // made so it survives the broadcast's deletion. Null only on donations
-  // whose broadcast was deleted before this column existed.
+  // 후원을 받은 스트리머. 후원을 만들 때 방송에서 복사해 두어
+  // 방송이 삭제돼도 남는다. 이 컬럼이 생기기 전에 방송이 삭제된
+  // 후원에서만 null이다.
   recipientId String?        @db.Uuid
   recipient   User?          @relation("DonationRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
   amount      Int
@@ -176,19 +176,19 @@ model Donation {
   @@index([donorId, status, approvedAt])
 }
 
-// FAILED means Toss refused the last confirm. Like a PENDING order, it may
-// still be confirmed by a retry. Only APPROVED orders have credited lime.
+// FAILED는 Toss가 마지막 승인을 거절했다는 뜻이다. PENDING 주문처럼
+// 재시도로 아직 승인될 수 있다. APPROVED 주문만 라임을 적립했다.
 enum LimeChargeStatus {
   PENDING
   APPROVED
   FAILED
 }
 
-// A lime top-up paid through Toss. It credits the buyer's balance once,
-// when it turns APPROVED.
+// Toss로 결제한 라임 충전. APPROVED가 될 때
+// 구매자 잔액에 한 번 적립한다.
 model LimeCharge {
   id         String           @id @default(uuid()) @db.Uuid
-  // Sent to Toss as its orderId, which allows 6-64 of [A-Za-z0-9-_=].
+  // Toss에 orderId로 보낸다. Toss는 [A-Za-z0-9-_=] 6~64자를 허용한다.
   orderId    String           @unique
   userId     String           @db.Uuid
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -206,14 +206,14 @@ enum LimeLedgerKind {
   DONATION
 }
 
-// Every change to User.limeBalance, written in the same transaction. refId
-// is the LimeCharge or Donation id behind it, and (kind, refId) is unique so
-// one charge or donation can never move the balance twice.
+// User.limeBalance의 모든 변경. 같은 트랜잭션에서 쓴다. refId는
+// 그 변경의 근거인 LimeCharge 또는 Donation id이고, (kind, refId)가 유일해서
+// 충전이나 후원 하나가 잔액을 두 번 움직일 수 없다.
 model LimeLedger {
   id           String         @id @default(uuid()) @db.Uuid
   userId       String         @db.Uuid
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // Positive for a charge, negative for a donation.
+  // 충전이면 양수, 후원이면 음수.
   delta        Int
   kind         LimeLedgerKind
   refId        String         @db.Uuid
@@ -224,8 +224,8 @@ model LimeLedger {
   @@index([userId, createdAt])
 }
 
-// connect-pg-simple reads and writes this table. Its shape follows the
-// library's table.sql so the session store and the migrations agree.
+// connect-pg-simple이 이 테이블을 읽고 쓴다. 구조는 라이브러리의
+// table.sql을 따라서, 세션 저장소와 마이그레이션이 일치한다.
 model Session {
   sid    String   @id @db.VarChar
   sess   Json     @db.Json

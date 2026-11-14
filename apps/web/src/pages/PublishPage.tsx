@@ -68,7 +68,7 @@ export function PublishPage() {
     );
   }
   const b = broadcast.data;
-  // RequireAuth guarantees a user here; the API checks ownership again.
+  // 여기서는 RequireAuth가 사용자를 보장한다. 소유권은 API가 다시 확인한다.
   if (state.status !== 'authenticated' || state.user.id !== b.streamer.id) {
     return (
       <section className={styles.page}>
@@ -113,8 +113,8 @@ function Heading({ broadcast }: { broadcast: Broadcast }) {
   );
 }
 
-// The same pace as the watch page: OBS or another tab may start, drop or end
-// the broadcast, and only the server knows.
+// 시청 페이지와 같은 주기다. OBS나 다른 탭이 방송을 시작하거나 끊거나 끝낼 수
+// 있고, 그건 서버만 안다.
 const POLL_MS = 5000;
 
 type EndedBy = 'me' | 'elsewhere';
@@ -136,8 +136,8 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
   );
   const broadcast = polled.data.status === 'loaded' ? polled.data.data : opened;
   const { reload } = polled;
-  // Without this, a publish of this page that just dropped would read as
-  // someone else's until the next poll.
+  // 이게 없으면 방금 끊긴 이 페이지의 송출이 다음 폴링까지
+  // 다른 쪽 송출로 읽힌다.
   useEffect(() => {
     reload();
   }, [session.state.kind, reload]);
@@ -146,29 +146,29 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
   const sources = offeredSources(support);
   const videoRef = useRef<HTMLVideoElement>(null);
   useThumbnailCapture(broadcast.id, videoRef, session.state.kind === 'live');
-  // A capture that resolves after the page is gone must still be stopped, or
-  // the browser keeps showing that the screen or camera is in use.
+  // 페이지가 사라진 뒤에 resolve된 캡처도 멈춰야 한다. 그러지 않으면
+  // 브라우저가 화면이나 카메라를 쓰는 중이라고 계속 표시한다.
   const alive = useRef(false);
   const ended = endedBy(session.state, broadcast.status);
-  // The server keeps the broadcast LIVE after a publish drops, and OBS or a
-  // page opened on a LIVE broadcast publishes without this page: either way
-  // the streamer still needs a way to end it.
+  // 송출이 끊겨도 서버는 방송을 LIVE로 유지하고, OBS나 LIVE 방송에서 연
+  // 페이지는 이 페이지 없이 송출한다. 어느 쪽이든
+  // 스트리머에게는 방송을 끝낼 방법이 필요하다.
   const [onAir, setOnAir] = useState(broadcast.status === 'LIVE');
   if ((session.state.kind === 'live' || broadcast.status === 'LIVE') && !onAir)
     setOnAir(true);
-  // One broadcast takes one publish. A LIVE broadcast whose publish dropped
-  // (disconnectedAt) is in its reconnect grace, which this page may fill.
+  // 방송 하나는 송출 하나만 받는다. 송출이 끊긴 LIVE 방송
+  // (disconnectedAt)은 유예 시간 중이고, 이 페이지가 그 자리를 채울 수 있다.
   const publishingElsewhere =
     broadcast.status === 'LIVE' &&
     broadcast.disconnectedAt === null &&
     session.state.kind === 'idle';
-  // OBS keeps reconnecting after the broadcast ends (#88), so the ended
-  // screen reminds the streamer to stop it when OBS may have been in use: a
-  // URL issued here, or a publish this page did not make.
+  // OBS는 방송이 끝난 뒤에도 재연결을 계속한다(#88). 그래서 OBS를 썼을 수
+  // 있으면 종료 화면이 스트리머에게 OBS를 멈추라고 알린다. 여기서 URL을
+  // 발급했거나, 이 페이지가 하지 않은 송출이 있었던 경우다.
   const [obsMayPublish, setObsMayPublish] = useState(false);
   if (publishingElsewhere && !obsMayPublish) setObsMayPublish(true);
-  // Once the broadcast has ended, the capture has no further use: dropping
-  // it here stops its tracks through the effect below.
+  // 방송이 끝나면 캡처는 더 쓸 데가 없다. 여기서 버리면
+  // 아래 effect가 트랙을 멈춘다.
   const active: ActiveCapture | null =
     slot.kind === 'on' && ended === null ? slot : null;
   const capture = active?.capture ?? null;
@@ -216,8 +216,8 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
       }
     };
     const unsubscribe = capture.subscribe(check);
-    // The capture may end between the render that shows it and this effect,
-    // and that change was announced before anyone listened.
+    // 캡처를 보여 준 렌더와 이 effect 사이에 캡처가 끝날 수 있고,
+    // 그 변화는 아무도 듣기 전에 알려졌다.
     check();
     return () => {
       unsubscribe();
@@ -249,8 +249,8 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
   }
 
   function startPublish(next: ActiveCapture) {
-    // T7: the mixer's AudioContext may only resume inside the click, or the
-    // publish goes out silent.
+    // T7: 믹서의 AudioContext는 클릭 안에서만 resume할 수 있다. 그러지 않으면
+    // 소리 없이 송출된다.
     if (next.source === 'screen') void next.capture.resumeAudio();
     session.start(next.capture.stream);
   }
@@ -359,8 +359,8 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
                     <CameraSwitch
                       capture={active.capture}
                       state={camera}
-                      // A switch while the publish is being built could leave it
-                      // with no camera track to replace.
+                      // 송출을 만드는 도중에 전환하면 송출에
+                      // 바꿔 끼울 카메라 트랙이 없을 수 있다.
                       allowed={
                         session.state.kind === 'idle' ||
                         session.state.kind === 'live'
@@ -434,9 +434,9 @@ const PUBLISH_TABS = [
 
 type PublishTab = (typeof PUBLISH_TABS)[number]['key'];
 
-// WAI-ARIA tabs with automatic activation, as in BroadcastSidePanel. Both
-// panels stay mounted so an issued OBS URL and the browser controls survive
-// switching.
+// BroadcastSidePanel처럼 자동 활성화하는 WAI-ARIA 탭이다. 두 패널 모두
+// 마운트된 채로 두어, 탭을 바꿔도 발급한 OBS URL과 브라우저 조작이
+// 남는다.
 function PublishTabs({ browser, obs }: { browser: ReactNode; obs: ReactNode }) {
   const [selected, setSelected] = useState<PublishTab>('browser');
   const panels: Record<PublishTab, ReactNode> = { browser, obs };
@@ -500,10 +500,10 @@ const publishTabId = (tab: PublishTab) => `publish-tab-${tab}`;
 const publishPanelId = (tab: PublishTab) => `publish-panel-${tab}`;
 
 /**
- * While `onAir`, asks before the streamer leaves: unmounting this page drops
- * the publish, and the server ends the broadcast after its grace period.
- * A reload or a closed tab gets the browser's own prompt; a move within the
- * app (header links, back) is held for {@link LeaveConfirm}.
+ * `onAir`인 동안 스트리머가 떠나기 전에 묻는다. 이 페이지가 언마운트되면
+ * 송출이 끊기고, 서버는 유예 시간이 지나면 방송을 끝낸다.
+ * 새로고침이나 탭 닫기에는 브라우저 자체 확인 창이 뜬다. 앱 안의 이동
+ * (헤더 링크, 뒤로 가기)은 {@link LeaveConfirm}을 위해 붙잡아 둔다.
  */
 function useLeaveGuard(onAir: boolean): Blocker {
   useEffect(() => {
@@ -514,9 +514,9 @@ function useLeaveGuard(onAir: boolean): Blocker {
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [onAir]);
-  // useBlocker hands a changed function to the router only in a passive
-  // effect, which can run a frame after the page shows that it is
-  // publishing. A ref set at commit closes that gap.
+  // useBlocker는 바뀐 함수를 passive effect에서만 라우터에 넘긴다.
+  // 그 effect는 페이지가 송출 중이라고 보인 뒤 한 프레임 늦게
+  // 돌 수 있다. commit 때 설정하는 ref가 그 틈을 메운다.
   const blocking = useRef(onAir);
   useLayoutEffect(() => {
     blocking.current = onAir;
@@ -584,7 +584,7 @@ function useCameraState(
   );
 }
 
-/** Controls that only one capture source has. */
+/** 캡처 소스 한 가지에만 있는 조작. */
 function SourcePanel({
   active,
   cameraState,
@@ -646,8 +646,8 @@ function CameraSwitch({
       .switchCamera()
       .catch(() => setFailed(true))
       .finally(() => {
-        // Even a failed switch reopens the previous camera, which goes out
-        // again; a capture that could not reopen any has ended the broadcast.
+        // 전환에 실패해도 이전 카메라를 다시 열고, 그 카메라가 다시
+        // 송출된다. 어떤 카메라도 다시 열지 못한 캡처는 이미 방송을 끝냈다.
         const video = capture.stream.getVideoTracks()[0];
         if (video) onReplaceTrack(video);
       });

@@ -2,11 +2,11 @@ import { NavLink, useLocation } from 'react-router';
 import styles from './SectionNav.module.css';
 import { isMenuPage, type Section } from './sections';
 
-// The area's menu: a column on the left from 1024px up, a row of tabs above
-// the page below that. Narrow screens show the row only on the menu's own
-// pages, so a deeper page (the phone publish screen) keeps its height.
-// NavLink marks the open item with aria-current="page"; `end` keeps /studio
-// from matching /studio/channel.
+// 영역 메뉴: 1024px 이상에서는 왼쪽 열, 그 아래에서는 페이지 위의
+// 탭 줄. 좁은 화면은 메뉴 자체 페이지에서만 탭 줄을 보여서,
+// 더 깊은 페이지(휴대폰 송출 화면)가 높이를 지킨다.
+// NavLink는 열린 항목에 aria-current="page"를 단다. `end`는 /studio가
+// /studio/channel과 맞지 않게 한다.
 export function SectionNav({ section }: { section: Section }) {
   const { pathname } = useLocation();
   return (

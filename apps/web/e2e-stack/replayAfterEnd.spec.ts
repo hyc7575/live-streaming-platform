@@ -7,9 +7,9 @@ import {
   watchUntilPlaying,
 } from './support';
 
-// A viewer who keeps the watch page open through the end gets the replay
-// without reloading, once the reconciler (30 s interval) settles the file.
-// The page waits up to 90 s after endedAt (BroadcastPage REPLAY_WAIT_MS).
+// 종료 때까지 시청 페이지를 열어 둔 시청자는 reconciler(30초 주기)가 파일을
+// 확정하면 새로고침 없이 다시보기를 받는다.
+// 페이지는 endedAt 뒤 최대 90초 기다린다(BroadcastPage REPLAY_WAIT_MS).
 test('a viewer who stays on the page gets the replay after the end', async ({
   page,
   browser,
@@ -24,19 +24,19 @@ test('a viewer who stays on the page gets the replay after the end', async ({
   const viewer = await viewerContext.newPage();
   await viewer.goto(`/broadcasts/${id}`);
   await watchUntilPlaying(viewer);
-  // OME writes the file only once the stream is up and a keyframe passed.
+  // OME는 스트림이 뜨고 키프레임이 지나야 파일을 쓴다.
   await viewer.waitForTimeout(8000);
 
   const end = await api.post(`/api/broadcasts/${id}/end`);
   expect(end.status(), await end.text()).toBe(200);
   const endedAt = Date.now();
 
-  // The replay notice also starts with this sentence, so it matches both.
+  // 다시보기 안내도 이 문장으로 시작하므로 둘 다 맞는다.
   await expect(viewer.getByText(/^방송이 끝났습니다\./)).toBeVisible({
     timeout: 15_000,
   });
-  // When the reconciler ticks before the page's next read, the page goes
-  // straight to the replay and never shows the waiting line.
+  // 페이지가 다음에 읽기 전에 reconciler가 돌면, 페이지는 곧바로 다시보기로 가고
+  // 기다림 안내 줄을 보이지 않는다.
   const preparing = viewer.getByText('다시보기를 준비하는 중입니다.');
   if (await preparing.isVisible()) await screenshot(viewer, 'replay-preparing');
 

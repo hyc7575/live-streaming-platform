@@ -96,7 +96,7 @@ const ORDER: DonationOrder = {
   customerKey: viewer.id,
 };
 
-// A non-2xx answer with a JSON body.
+// JSON 본문이 있는 2xx가 아닌 응답이다.
 class Reply {
   constructor(
     readonly status: number,
@@ -104,9 +104,9 @@ class Reply {
   ) {}
 }
 
-// Answers each `METHOD /api/path` from the table; anything else is a 404.
-// An entry may be a function of the request, to fail or hold a call.
-// `bodies` keeps what each call sent, keyed the same way.
+// 각 `METHOD /api/path`에 표의 값으로 답하고, 나머지는 404다.
+// 항목은 요청을 받는 함수일 수 있다. 호출을 실패시키거나 붙잡을 때 쓴다.
+// `bodies`는 호출마다 보낸 값을 같은 키로 모아 둔다.
 function stubApi(routes: Record<string, unknown>) {
   const calls: string[] = [];
   const bodies: Record<string, unknown> = {};
@@ -193,7 +193,7 @@ it('opens 후원하기 in a new tab the payment can close again', async () => {
   fireEvent.click(
     await within(panel).findByRole('button', { name: '후원하기' }),
   );
-  // No `noopener`, or the payment tab could not window.close() itself.
+  // `noopener`가 없어야 결제 탭이 window.close()로 스스로 닫을 수 있다.
   expect(open).toHaveBeenCalledWith('/broadcasts/b1/donate', '_blank');
   expect(
     await screen.findByRole('heading', { level: 1, name: '저녁 방송' }),
@@ -201,7 +201,7 @@ it('opens 후원하기 in a new tab the payment can close again', async () => {
 });
 
 it('re-reads the donations as soon as the payment tab reports one', async () => {
-  // stubApi reads the table on every call, so changing it changes the answer.
+  // stubApi는 호출마다 표를 읽으므로, 표를 바꾸면 응답도 바뀐다.
   const routes: Record<string, unknown> = {
     'GET /api/auth/me': viewer,
     'GET /api/broadcasts/b1': broadcast(),
@@ -219,11 +219,11 @@ it('re-reads the donations as soon as the payment tab reports one', async () => 
     donations: [donation()],
   });
   const other = new BroadcastChannel('donations');
-  // Another broadcast's donation changes nothing here.
+  // 다른 방송의 후원은 여기서 아무것도 바꾸지 않는다.
   other.postMessage({ type: 'donated', broadcastId: 'b2' });
   other.postMessage({ type: 'donated', broadcastId: 'b1' });
   other.close();
-  // Well inside the 5 s poll, so only the message can have caused it.
+  // 5 s 폴링보다 한참 이르므로, 메시지 말고는 원인이 될 수 없다.
   expect(
     await within(panel).findByText('5,000원', { selector: 'strong' }),
   ).toBeDefined();
@@ -458,11 +458,11 @@ it('closes the payment tab on 방송으로 돌아가기', async () => {
   );
   expect(close).toHaveBeenCalledOnce();
   expect(screen.getByRole('heading', { name: '후원했습니다.' })).toBeDefined();
-  // jsdom keeps the override otherwise.
+  // 이렇게 하지 않으면 jsdom이 덮어쓴 값을 계속 갖고 있다.
   delete (window as { closed?: boolean }).closed;
 });
 
-// #114: the donation outlives a broadcast deleted after the payment.
+// #114: 결제 뒤 방송을 지워도 후원은 남는다.
 it('points to the broadcast list when the paid donation’s broadcast is gone', async () => {
   stubApi({
     'GET /api/auth/me': viewer,
@@ -518,9 +518,9 @@ it('shows the API’s message when the confirm fails', async () => {
   ).toBeDefined();
 });
 
-// #114: the order outlived its deleted broadcast. The tab that placed it
-// still knows the broadcast, but there is nothing to go back to. Another
-// 409 keeps the button.
+// #114: 주문은 지워진 방송보다 오래 남았다. 주문한 탭은
+// 아직 방송을 알지만 돌아갈 곳이 없다. 다른
+// 409라면 버튼이 남는다.
 it('offers no way back to a broadcast the confirm says was deleted', async () => {
   sessionStorage.setItem(`donation-order:${ORDER.orderId}`, 'b1');
   stubApi({
@@ -592,7 +592,7 @@ it('shows Toss’s message when the payment failed', async () => {
   ).toBeDefined();
 });
 
-// Lime donations from the watch page (PRD-lime 7.3, #110).
+// 시청 페이지에서 하는 라임 후원(PRD-lime 7.3, #110).
 
 const LIME = 'GET /api/me/lime';
 const LIME_POST = 'POST /api/broadcasts/b1/lime-donations';
@@ -665,7 +665,7 @@ it('donates lime from the balance and shows it without leaving the page', async 
   expect(within(form).getByLabelText<HTMLInputElement>(/메시지/).value).toBe(
     '',
   );
-  // Still the watch page.
+  // 여전히 시청 페이지다.
   expect(
     screen.getByRole('heading', { level: 1, name: '저녁 방송' }),
   ).toBeDefined();
@@ -717,7 +717,7 @@ it('re-reads the balance as soon as a charge tab reports a top-up', async () => 
   const charge = new BroadcastChannel('donations');
   charge.postMessage({ type: 'charged' });
   charge.close();
-  // Well inside the 30 s poll, so only the message can have caused it.
+  // 30 s 폴링보다 한참 이르므로, 메시지 말고는 원인이 될 수 없다.
   expect(
     await within(form).findByText('10,000라임', { selector: 'strong' }),
   ).toBeDefined();
@@ -766,9 +766,9 @@ it('resends a lost attempt with its key and gives the next donation a new one', 
   expect(next).not.toBe(lost);
 });
 
-// The donation went through but its answer was lost. The form must not
-// claim it failed, must re-read what changed, and must still let the same
-// key be resent although the re-read balance is now short.
+// 후원은 처리됐지만 응답을 잃었다. 폼은 실패했다고
+// 말하면 안 되고, 바뀐 값을 다시 읽어야 하며, 다시 읽은 잔액이 모자라도
+// 같은 키로 다시 보낼 수 있게 해야 한다.
 it('re-reads after a lost answer and keeps the resend open when the balance fell short', async () => {
   const sent: RequestInit[] = [];
   const routes: Record<string, unknown> = {
@@ -780,7 +780,7 @@ it('re-reads after a lost answer and keeps the resend open when the balance fell
   routes[LIME_POST] = (init: RequestInit) => {
     sent.push(init);
     if (sent.length === 1) {
-      // Committed on the server, then the connection dropped.
+      // 서버에서 커밋된 뒤 연결이 끊겼다.
       routes[LIME] = { balance: 0 };
       routes[DONATIONS] = summary({
         total: 5_000,
@@ -801,20 +801,20 @@ it('re-reads after a lost answer and keeps the resend open when the balance fell
   expect((await within(form).findByRole('alert')).textContent).toBe(
     '후원 결과를 확인하지 못했습니다. 금액과 메시지를 그대로 두고 다시 누르면 두 번 후원되지 않습니다.',
   );
-  // Re-read at once, well inside both polls.
+  // 두 폴링보다 한참 이르게 바로 다시 읽는다.
   await within(form).findByText('0라임', { selector: 'strong' });
   const panel = await donationPanel();
   expect(
     await within(panel).findByText('5,000원', { selector: 'strong' }),
   ).toBeDefined();
-  // 0 lime is short of 5,000, but this attempt may be resent.
+  // 0 라임은 5,000에 모자라지만, 이 시도는 다시 보낼 수 있다.
   expect(within(form).queryByRole('button', { name: '충전하기' })).toBeNull();
   fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
   await waitFor(() => expect(sent).toHaveLength(2));
   const [lost, resent] = sentKeys(sent);
   expect(resent).toBe(lost);
   await waitFor(() => expect(within(form).queryByRole('alert')).toBeNull());
-  // Settled: another amount is a new attempt, and now it is short.
+  // 결론이 났다. 다른 금액은 새 시도이고, 이제는 잔액이 모자라다.
   fireEvent.click(within(form).getByRole('button', { name: '1,000라임' }));
   expect(
     await within(form).findByRole('button', { name: '충전하기' }),
@@ -894,7 +894,7 @@ it('shows the API’s message when the server refuses the donation', async () =>
   expect((await within(form).findByRole('alert')).textContent).toBe(
     '라임이 부족합니다.',
   );
-  // The balance moved under us, so it is read again.
+  // 그사이 잔액이 바뀌어서 다시 읽는다.
   await waitFor(() =>
     expect(calls.filter((c) => c === LIME).length).toBeGreaterThan(
       balanceReads,

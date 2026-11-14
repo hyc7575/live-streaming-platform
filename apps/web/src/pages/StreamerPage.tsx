@@ -13,12 +13,12 @@ import { useDocumentTitle } from '../use-document-title';
 import listStyles from './ListPage.module.css';
 import styles from './StreamerPage.module.css';
 
-// Same cadence as the follow panel.
+// 팔로우 패널과 같은 주기다.
 const PROFILE_POLL_MS = 30_000;
 
-// /channels/:id: anyone's view of a streamer, reached from a nickname
-// (PRD-mypage 7.3). Their LIVE broadcast first, then the rest of what the
-// public list shows of them.
+// /channels/:id: 누구나 보는 스트리머 페이지. 닉네임을 눌러 들어온다
+// (PRD-mypage 7.3). LIVE 방송을 먼저 보이고, 이어서 공개 목록에 나오는
+// 그 스트리머의 나머지 방송을 보인다.
 export function StreamerPage() {
   const { id = '' } = useParams();
   const profilePath = `/streamers/${encodeURIComponent(id)}`;
@@ -30,7 +30,7 @@ export function StreamerPage() {
   const loaded = profile.data.status === 'loaded' ? profile.data.data : null;
   useDocumentTitle(loaded?.nickname ?? null);
 
-  // The follower count moves when the visitor follows or unfollows here.
+  // 방문자가 여기서 팔로우하거나 취소하면 팔로워 수가 바뀐다.
   useEffect(() => {
     reloadProfile();
   }, [following, reloadProfile]);

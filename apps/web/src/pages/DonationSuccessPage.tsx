@@ -23,8 +23,8 @@ interface ConfirmRequest {
 type Confirmation =
   | { status: 'confirming' }
   | { status: 'done'; donation: ConfirmedDonation }
-  // `broadcastGone`: the confirm was refused because the broadcast was
-  // deleted (#114), so there is no broadcast to go back to.
+  // `broadcastGone`: 방송이 지워져 confirm이 거절됐다
+  // (#114). 그래서 돌아갈 방송이 없다.
   | { status: 'failed'; message: string; broadcastGone?: boolean };
 
 function parseQuery(
@@ -39,7 +39,7 @@ function parseQuery(
   return { paymentKey, orderId, amount };
 }
 
-// The API's code for a confirm refused because the broadcast was deleted.
+// 방송이 지워져 confirm이 거절됐을 때 API가 주는 코드.
 const BROADCAST_DELETED_CODE = 'BROADCAST_DELETED';
 
 function confirmErrorMessage(err: unknown): string {
@@ -59,8 +59,8 @@ function confirmErrorMessage(err: unknown): string {
   return '결제를 확인하지 못했습니다. 페이지를 새로 고쳐 다시 시도해 주세요.';
 }
 
-// Toss redirects here after the buyer approves. Only the API's confirm turns
-// the order into a donation.
+// 구매자가 승인하면 Toss가 이곳으로 리디렉션한다. 주문을 후원으로 바꾸는
+// 것은 API의 confirm뿐이다.
 export function DonationSuccessPage() {
   useDocumentTitle('후원하기');
   const [params] = useSearchParams();
@@ -80,9 +80,9 @@ export function DonationSuccessPage() {
     key: string;
     confirmation: Confirmation;
   } | null>(null);
-  // StrictMode runs this effect twice on mount; the ref survives that, so
-  // each payment is confirmed once per mount. A refresh is a new mount and
-  // confirms again, which the API answers with the same donation.
+  // StrictMode는 마운트할 때 이 effect를 두 번 돌린다. ref는 그래도 남으므로
+  // 결제마다 마운트당 한 번만 confirm한다. 새로고침은 새 마운트라
+  // 다시 confirm하고, API는 같은 후원으로 응답한다.
   const sentFor = useRef<string | null>(null);
   const loginPath = location.pathname + location.search;
 
@@ -145,7 +145,7 @@ export function DonationSuccessPage() {
   );
 
   if (confirmation.status === 'failed') {
-    // Known only in the tab that placed the order.
+    // 주문한 탭에서만 안다.
     const broadcastId =
       orderId && !confirmation.broadcastGone ? broadcastOfOrder(orderId) : null;
     return (
@@ -172,7 +172,7 @@ export function DonationSuccessPage() {
       {donation.broadcastId ? (
         backButton(donation.broadcastId)
       ) : (
-        // The broadcast was deleted after the payment (#114).
+        // 결제한 뒤에 방송이 지워졌다 (#114).
         <p className={form.footer}>
           <Link to="/">방송 목록으로 가기</Link>
         </p>

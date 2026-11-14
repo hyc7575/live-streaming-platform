@@ -20,7 +20,7 @@ import {
   type CommentView,
 } from './comments.service.js';
 
-// Unknown keys such as `authorId` are stripped.
+// `authorId` 같은 모르는 키는 제거한다.
 const bodySchema = z.object({
   body: z.string().trim().min(1).max(COMMENT_MAX_LENGTH),
 });

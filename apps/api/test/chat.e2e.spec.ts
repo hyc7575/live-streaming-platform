@@ -17,7 +17,7 @@ import {
   type TestUser,
 } from './support/app.js';
 
-// A chat message as it arrives over HTTP, with its date as an ISO string.
+// HTTP로 받은 채팅 메시지. 날짜는 ISO 문자열이다.
 type ChatJson = Omit<ChatMessageView, 'createdAt'> & { createdAt: string };
 
 const UNKNOWN_ID = '00000000-0000-4000-8000-000000000000';
@@ -49,8 +49,8 @@ describe('chat', () => {
       },
     });
 
-  // Inserts `count` messages one second apart, or all at one instant with
-  // `tied`, and returns their ids in (createdAt, id) order.
+  // 메시지 `count`개를 1초 간격으로, `tied`면 모두 같은 시각으로 넣고,
+  // (createdAt, id) 순서의 id를 돌려준다.
   async function seedMessages(
     count: number,
     { tied = false, from = START } = {},
@@ -154,7 +154,7 @@ describe('chat', () => {
     );
   });
 
-  // Chat is not edited or deleted by its author; moderation may come later.
+  // 채팅은 작성자가 수정하거나 삭제하지 않는다. 모더레이션은 나중에 생길 수 있다.
   it('has no way to edit or delete a message', async () => {
     const id = (
       (await post(viewer.agent, { body: '남는 채팅' })).body as ChatJson
@@ -207,7 +207,7 @@ describe('chat', () => {
       await seedMessages(2);
       await seedMessages(5, { tied: true, from: START + 10_000 });
       const ids = await seedMessages(2, { from: START + 20_000 });
-      // ids[2..6] share one createdAt; the cursor sits in the middle of them.
+      // ids[2..6]은 createdAt이 같다. 커서는 그 가운데에 있다.
       expect((await list(ids[4])).map((m) => m.id)).toEqual(ids.slice(5));
     });
 

@@ -17,7 +17,7 @@ import {
   type TestUser,
 } from './support/app.js';
 
-// A comment as it arrives over HTTP, with its dates as ISO strings.
+// HTTP로 받은 댓글. 날짜는 ISO 문자열이다.
 type CommentJson = Omit<CommentView, 'createdAt' | 'updatedAt'> & {
   createdAt: string;
   updatedAt: string;

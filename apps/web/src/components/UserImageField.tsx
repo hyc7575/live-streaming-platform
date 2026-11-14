@@ -5,14 +5,14 @@ import { type AuthUser, useAuth } from '../auth/auth-context';
 import type { LoginPageState } from '../pages/LoginPage';
 import styles from './UserImageField.module.css';
 
-// The same limits the API checks for both slots, so a wrong file is refused
-// before it is sent.
+// 두 슬롯 모두 API가 검사하는 것과 같은 제한. 잘못된 파일은
+// 보내기 전에 거부한다.
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_BYTES = 2 * 1024 * 1024;
 const INVALID_FILE = '2MB 이하의 JPEG·PNG·WebP 이미지만 올릴 수 있습니다.';
 
-// Each per-user image the API keeps: where it is sent and which field of the
-// user names it.
+// API가 보관하는 사용자별 이미지마다: 보낼 곳과, 그 이미지를 가리키는
+// user 필드.
 const SLOTS = {
   standby: {
     path: '/me/standby-image',
@@ -30,8 +30,8 @@ export type UserImageSlot = keyof typeof SLOTS;
 
 type Busy = 'upload' | 'delete' | null;
 
-// Upload, replace or delete one of the caller's images. The answer is the
-// updated user, put into the auth state so every screen sees it at once.
+// 호출자의 이미지 하나를 올리거나 바꾸거나 지운다. 응답은
+// 갱신된 user이고, auth 상태에 넣어 모든 화면이 바로 보게 한다.
 export function UserImageField({
   slot,
   preview,
@@ -44,10 +44,10 @@ export function UserImageField({
   preview: ReactNode;
   previewClassName: string;
   confirmText: string;
-  // Where the login page sends the user back after a 401.
+  // 401 뒤 로그인 페이지가 사용자를 돌려보낼 곳.
   returnTo: string;
-  // A preview with a size of its own (the avatar circle) sits right beside
-  // the buttons instead of taking the standby preview's wide column.
+  // 자기 크기가 있는 미리보기(아바타 원)는 기본 대기 이미지 미리보기의 넓은 열을
+  // 차지하지 않고 버튼 바로 옆에 놓인다.
   compact?: boolean;
 }) {
   const { state, setUser } = useAuth();
@@ -57,7 +57,7 @@ export function UserImageField({
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Only screens under RequireAuth render this field.
+  // RequireAuth 아래 화면만 이 필드를 렌더한다.
   if (state.status !== 'authenticated') return null;
   const user = state.user;
   const { path, url, cleared } = SLOTS[slot];
@@ -93,7 +93,7 @@ export function UserImageField({
 
   function upload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    // Cleared so picking the same file again still fires a change.
+    // 같은 파일을 다시 골라도 change가 일어나도록 비운다.
     event.target.value = '';
     if (!file) return;
     if (!ACCEPTED_TYPES.includes(file.type) || file.size > MAX_BYTES) {

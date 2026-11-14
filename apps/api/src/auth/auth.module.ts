@@ -15,7 +15,7 @@ import {
 } from './test-accounts.js';
 
 @Module({
-  // Each route sets its own limit with @Throttle; this default is unused.
+  // 라우트마다 @Throttle로 자기 한도를 정한다. 이 기본값은 쓰이지 않는다.
   imports: [ThrottlerModule.forRoot([{ limit: 100, ttl: 60_000 }])],
   controllers: [AuthController, TestAccountsController],
   providers: [
@@ -32,7 +32,7 @@ import {
 export class AuthModule implements OnModuleDestroy {
   constructor(@Inject(SESSION_STORE) private readonly store: SessionStore) {}
 
-  // Stops the expired-session prune timer before the shared pool closes.
+  // 공유 풀이 닫히기 전에 만료 세션 정리 타이머를 멈춘다.
   onModuleDestroy(): void {
     this.store.close();
   }

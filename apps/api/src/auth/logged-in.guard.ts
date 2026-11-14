@@ -9,8 +9,8 @@ import type { Request } from 'express';
 import { PrismaService } from '../database/database.module.js';
 import { authUserSelect, toAuthUser, type AuthUser } from './auth-user.js';
 
-// Rejects requests without a live session with 401 and puts the session's
-// user on `req.user` for `@CurrentUser()`. Ownership checks run after this.
+// 살아 있는 세션이 없는 요청을 401로 거부하고, 세션의 사용자를
+// `@CurrentUser()`용으로 `req.user`에 넣는다. 소유권 확인은 이 뒤에 돈다.
 @Injectable()
 export class LoggedInGuard implements CanActivate {
   constructor(private readonly prisma: PrismaService) {}

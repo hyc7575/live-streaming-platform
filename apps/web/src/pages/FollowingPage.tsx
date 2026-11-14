@@ -4,7 +4,7 @@ import { useFollows } from '../follows/follows-context';
 import { useDocumentTitle } from '../use-document-title';
 import styles from './ListPage.module.css';
 
-// The left panel's list for screens too narrow to show the panel.
+// 왼쪽 패널을 보일 수 없는 좁은 화면에서 쓰는 패널 목록.
 export function FollowingPage() {
   useDocumentTitle('팔로잉');
   const { follows } = useFollows();

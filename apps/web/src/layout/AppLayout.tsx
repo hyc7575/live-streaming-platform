@@ -14,8 +14,8 @@ function AccountMenu() {
 
   if (state.status === 'loading') return null;
 
-  // /auth/me failed without a 401: the session may still be fine, so the
-  // header offers a retry instead of a login button.
+  // /auth/me가 401이 아닌 이유로 실패했다. 세션은 아직 괜찮을 수 있으므로
+  // 헤더는 로그인 버튼 대신 재시도를 보인다.
   if (state.status === 'error') {
     return (
       <div className={styles.account}>
@@ -45,13 +45,13 @@ function AccountMenu() {
   return <UserMenu user={state.user} onLogOut={logOut} />;
 }
 
-// The nickname opens a small menu (PRD-mypage 7.3). A disclosure, not an
-// ARIA menu: Tab moves through its items like any links. Escape, a click
-// outside and focus moving to something outside all close it; Escape
-// returns focus to the nickname. Safari and macOS Firefox do not focus a
-// clicked link, so a click on an item blurs with no relatedTarget; closing
-// then would hide the item before the click lands, so only a known outside
-// target closes the menu and the pointerdown listener handles clicks.
+// 닉네임을 누르면 작은 메뉴가 열린다(PRD-mypage 7.3). ARIA menu가 아니라
+// disclosure다: Tab은 일반 링크처럼 항목 사이를 옮긴다. Escape, 바깥
+// 클릭, 바깥으로 옮기는 포커스가 모두 메뉴를 닫는다. Escape는
+// 포커스를 닉네임으로 돌려준다. Safari와 macOS Firefox는 클릭한 링크에
+// 포커스를 주지 않아, 항목을 클릭하면 relatedTarget 없이 blur된다. 그때
+// 닫으면 클릭이 닿기 전에 항목이 사라진다. 그래서 바깥으로 확인된
+// 대상만 메뉴를 닫고, 클릭은 pointerdown 리스너가 처리한다.
 function UserMenu({
   user,
   onLogOut,
@@ -143,9 +143,9 @@ function UserMenu({
   );
 }
 
-// "Lime" with a dotless ı; the dot is a separate lime circle that bounces once
-// on load and again on hover or focus. Removing the class on animationend lets
-// the next hover restart it.
+// 점 없는 ı로 쓴 "Lime". 점은 따로 그린 라임색 원이고, 로드 때 한 번,
+// hover나 focus 때 다시 튄다. animationend에서 class를 지워야
+// 다음 hover가 애니메이션을 다시 시작한다.
 function Logo() {
   const [bouncing, setBouncing] = useState(true);
   return (
@@ -171,8 +171,8 @@ function Logo() {
   );
 }
 
-// Watching pages keep the follow panel on the left; the studio and my page
-// are the user's own workspace and show their menu there instead.
+// 시청 페이지는 왼쪽에 팔로우 패널을 둔다. 스튜디오와 마이페이지는
+// 사용자 자신의 작업 공간이라 그 자리에 자기 메뉴를 보인다.
 export function AppLayout() {
   const loggedIn = useAuth().state.status === 'authenticated';
   const section = sectionOf(useLocation().pathname);

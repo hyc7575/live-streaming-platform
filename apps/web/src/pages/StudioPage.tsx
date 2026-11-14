@@ -5,8 +5,8 @@ import { useApi } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
 import styles from './ListPage.module.css';
 
-// A broadcast that has not started opens the publish page, since sending is
-// the next step; LIVE and ENDED ones open the watch page like the public list.
+// 시작 전 방송은 다음 단계가 송출이므로 송출 페이지를 연다.
+// LIVE와 ENDED 방송은 공개 목록처럼 시청 페이지를 연다.
 function cardPath(b: Broadcast): string {
   return b.status === 'READY'
     ? `/studio/broadcasts/${b.id}`

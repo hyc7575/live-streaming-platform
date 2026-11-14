@@ -4,13 +4,13 @@ export interface RecordingFile {
   name: string;
   bytes: number;
   mtimeMs: number;
-  // When the video at 0 s was recorded, for a finished .mp4 whose info XML
-  // and video track could be read. Null otherwise.
+  // 영상의 0초 지점이 녹화된 시각. info XML과 영상 트랙을 읽을 수 있었던
+  // 완성된 .mp4에만 있다. 그 밖에는 null이다.
   startedAt: Date | null;
 }
 
-// One broadcast's directory under the recordings root. OME names it after
-// the stream, which is the broadcast id.
+// 녹화 루트 아래 방송 하나의 디렉터리. OME가 스트림 이름을 따서
+// 짓고, 스트림 이름은 방송 id이다.
 export interface RecordingDir {
   broadcastId: string;
   files: RecordingFile[];
@@ -25,25 +25,25 @@ export interface RecordingRow {
 }
 
 export interface RecordingPlan {
-  // ENDED broadcasts whose recordings go to stay under the cap, oldest end
-  // first. Their columns are cleared before the directory is deleted.
+  // 상한 아래로 내려가려고 녹화를 지울 ENDED 방송들. 가장 먼저 끝난 것부터.
+  // 디렉터리를 지우기 전에 컬럼을 비운다.
   evict: string[];
-  // Directories whose broadcast no longer exists.
+  // 방송이 더 이상 없는 디렉터리들.
   remove: string[];
-  // startedAt holds one start per file, or none when any start is unknown:
-  // lining chat up across parts needs all of them.
+  // startedAt은 파일마다 시작 시각 하나를 담는다. 하나라도 모르면 비운다.
+  // 파트들에 걸쳐 채팅을 맞추려면 전부 필요하기 때문이다.
   setFiles: { id: string; files: string[]; startedAt: Date[] }[];
-  // Bytes still over the cap once every evictable directory is counted out.
+  // 지울 수 있는 디렉터리를 모두 빼고도 상한을 넘는 바이트 수.
   overCapBytes: number;
 }
 
-// OME writes into tmp_<random> and renames it to the final .mp4 once the
-// file is complete.
+// OME는 tmp_<random>에 쓰다가 파일이 완성되면 최종 .mp4로
+// 이름을 바꾼다.
 const WRITING_PREFIX = 'tmp_';
 
-// The disk is the source of truth and Broadcast.recordingFiles and
-// recordingStartedAt a projection of it, so the plan only ever moves the
-// columns toward what the disk holds.
+// 디스크가 기준이고 Broadcast.recordingFiles와
+// recordingStartedAt은 그 투영이다. 그래서 계획은 컬럼을
+// 디스크 내용 쪽으로만 옮긴다.
 export function planRecordings(
   dirs: RecordingDir[],
   rows: RecordingRow[],
@@ -118,7 +118,7 @@ function isWriting(dir: RecordingDir): boolean {
   return dir.files.some((file) => file.name.startsWith(WRITING_PREFIX));
 }
 
-// In recording order.
+// 녹화 순서대로.
 function finishedFiles(dir: RecordingDir): RecordingFile[] {
   return dir.files
     .filter((file) => file.name.endsWith('.mp4'))

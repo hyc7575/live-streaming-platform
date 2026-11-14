@@ -6,8 +6,8 @@ import styles from './History.module.css';
 import { HistoryTime } from './HistoryParts';
 import listStyles from './ListPage.module.css';
 
-// /studio/followers: who follows the streamer. Only the streamer sees the
-// list; others will only ever see the count (PRD-mypage 7.2).
+// /studio/followers: 스트리머를 팔로우하는 사람들. 목록은 스트리머만
+// 본다. 다른 사람은 수만 보게 된다 (PRD-mypage 7.2).
 export function FollowersPage() {
   useDocumentTitle('팔로워');
   const followers = useApi<FollowerList>('/me/followers');

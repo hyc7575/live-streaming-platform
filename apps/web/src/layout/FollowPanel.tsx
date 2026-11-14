@@ -14,7 +14,7 @@ import { useFollows } from '../follows/follows-context';
 import { usePolledApi } from '../use-api';
 import styles from './FollowPanel.module.css';
 
-// An anonymous visitor sees a few LIVE broadcasts in the same place.
+// 비로그인 방문자는 같은 자리에서 LIVE 방송 몇 개를 본다.
 const ANONYMOUS_LIVE_LIMIT = 5;
 
 function Panel({
@@ -49,8 +49,8 @@ function FollowedPanel() {
   );
 }
 
-// `offerLogin` is false while the session check failed (`error`): the visitor
-// may be logged in, and logging in would hit the same failure.
+// 세션 확인이 실패한 동안(`error`) `offerLogin`은 false다. 방문자가
+// 이미 로그인했을 수 있고, 로그인해도 같은 실패를 겪는다.
 function LivePanel({ offerLogin }: { offerLogin: boolean }) {
   const location = useLocation();
   const { data } = usePolledApi<Broadcast[]>(
@@ -80,8 +80,8 @@ function LivePanel({ offerLogin }: { offerLogin: boolean }) {
   );
 }
 
-// Left of every page. Hidden below 1024px, where the header's 팔로잉 link
-// opens the same list as a page.
+// 모든 페이지의 왼쪽. 1024px 아래에서는 숨기고, 헤더의 팔로잉 링크가
+// 같은 목록을 페이지로 연다.
 export function FollowPanel() {
   const { state } = useAuth();
   if (state.status === 'loading') return <aside className={styles.panel} />;

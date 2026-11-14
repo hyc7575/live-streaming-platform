@@ -14,7 +14,7 @@ export function whipUrl(id: string, token: string | null): string {
   return `http://127.0.0.1:3333/app/${id}?direction=whip&transport=all${query}`;
 }
 
-// The shape OME v0.21 posts, as recorded in the #2 spike.
+// OME v0.21이 보내는 형태. #2 스파이크에서 기록했다.
 export function admissionBody(
   url: string,
   overrides: { direction?: string; status?: string } = {},

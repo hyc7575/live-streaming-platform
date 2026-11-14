@@ -46,7 +46,7 @@ async function openBroadcast(
   await page.route('**/api/broadcasts/b1/donations', (route) =>
     route.fulfill({ json: { total: 0, count: 0, donations: [] } }),
   );
-  // Chat polls with an `after` cursor; only the first read has messages.
+  // 채팅은 `after` 커서로 폴링한다. 첫 읽기에만 메시지가 있다.
   await page.route('**/api/broadcasts/b1/chat**', (route) =>
     route.fulfill({
       json: route.request().url().includes('after=') ? [] : messages(count),
@@ -61,7 +61,7 @@ async function openBroadcast(
   ).toBeVisible();
 }
 
-// Each view of the panel: the region holding the list and the form.
+// 패널의 각 화면: 목록을 담은 영역과 폼.
 const VIEWS = [
   { name: 'live chat', status: 'LIVE', tab: null, form: '채팅 쓰기' },
   { name: 'comments', status: 'ENDED', tab: '댓글', form: '댓글 쓰기' },

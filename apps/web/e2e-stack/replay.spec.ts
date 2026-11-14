@@ -12,8 +12,8 @@ interface Replay {
   recordingFiles: string[];
 }
 
-// The reconciler settles finished files every 30 s, so a replay shows up
-// within one interval plus the time OME takes to finalize the file.
+// reconciler가 30초마다 끝난 파일을 확정하므로, 다시보기는 한 주기에 OME가
+// 파일을 마무리하는 시간을 더한 만큼 안에 나타난다.
 const SETTLE_MS = 75_000;
 
 async function replays(request: APIRequestContext): Promise<Replay[]> {
@@ -22,11 +22,11 @@ async function replays(request: APIRequestContext): Promise<Replay[]> {
   return (await res.json()) as Replay[];
 }
 
-// OME starts writing a file only once its output stream is up (the same
-// moment the LL-HLS playlist appears) and the first keyframe passes, a few
-// seconds after admission and later still under load. A connection that
-// drops before that leaves no file, so each one is held until it has been
-// recording for a while.
+// OME는 출력 스트림이 뜨고(LL-HLS playlist가 나타나는 순간과 같다) 첫 키프레임이
+// 지나야 파일을 쓰기 시작한다. 송출 허가 뒤 몇 초가 걸리고, 부하가 있으면
+// 더 늦다. 그 전에 끊긴 연결은 파일을 남기지 않으므로, 연결마다
+// 한동안 녹화될 때까지
+// 유지한다.
 async function holdUntilRecorded(request: APIRequestContext, id: string) {
   await expect
     .poll(async () => (await request.get(`/app/${id}/llhls.m3u8`)).status(), {
@@ -54,8 +54,8 @@ test('an ended broadcast is listed as a replay and plays every part', async ({
 
   await startPublishing(page, id);
   await holdUntilRecorded(api, id);
-  // A reload within the grace period reconnects the same broadcast. OME
-  // keeps the recording task and writes the second connection to a new file.
+  // 유예 시간 안에 새로고침하면 같은 방송에 다시 연결된다. OME는
+  // 녹화 작업을 유지하고 두 번째 연결을 새 파일에 쓴다.
   await page.reload();
   await page.getByRole('button', { name: '카메라 켜기' }).click();
   await page.getByRole('button', { name: '방송 시작' }).click();
@@ -111,7 +111,7 @@ test('an ended broadcast is listed as a replay and plays every part', async ({
   expect(size[0]).toBeGreaterThan(0);
   await screenshot(viewer, 'replay-playing');
 
-  // Seeking near the end lets the player advance to part 2 on its own.
+  // 끝 근처로 seek하면 플레이어가 스스로 part 2로 넘어간다.
   await video.evaluate((v: HTMLVideoElement) => {
     v.currentTime = Math.max(0, v.duration - 0.5);
   });
@@ -139,8 +139,8 @@ test('a broadcast that never sent media is not listed as a replay', async ({
   const title = `녹화 없음 ${Date.now()}`;
   const id = await createBroadcast(api, title);
 
-  // The admission webhook admits the token and the broadcast goes LIVE, but
-  // OME gets no usable offer, so no stream and no file ever exist.
+  // Admission Webhook이 토큰을 허가해 방송은 LIVE가 되지만, OME가 쓸 수 있는
+  // offer를 받지 못해 스트림도 파일도 끝내 생기지 않는다.
   const ticket = await api.post(`/api/broadcasts/${id}/publish-token`);
   expect(ticket.status(), await ticket.text()).toBe(201);
   const { publishUrl } = (await ticket.json()) as { publishUrl: string };
@@ -154,7 +154,7 @@ test('a broadcast that never sent media is not listed as a replay', async ({
   console.log(`broadcast after the WHIP request: ${status}`);
   if (status === 'LIVE') await endBroadcast(api, id);
 
-  // One full reconcile interval after the end, with nothing to settle.
+  // 확정할 것이 없는 채로 종료 뒤 reconcile 한 주기를 다 기다린다.
   await page.waitForTimeout(40_000);
   expect((await replays(api)).map((r) => r.id)).not.toContain(id);
   await page.goto('/?status=REPLAY');

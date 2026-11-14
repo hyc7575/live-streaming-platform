@@ -47,11 +47,11 @@ import { FakeTossPayments, TEST_TOSS_CONFIG } from './fake-toss-payments.js';
 export const TEST_SESSION_SECRET = 'test-session-secret';
 export const TEST_OME_WEBHOOK_SECRET = 'test-ome-webhook-secret';
 
-// Runs the real AppModule against DATABASE_URL (migrations already applied).
-// Test accounts stay off unless a test passes a config, whatever .env says.
-// Toss always gets fake keys and a fake API; pass `toss: null` for an app
-// whose keys are missing. Thumbnails go to a fresh temporary folder unless a
-// test passes one.
+// 실제 AppModule을 DATABASE_URL에 대고 실행한다(마이그레이션은 이미 적용됨).
+// 테스트 계정은 .env와 상관없이, 테스트가 설정을 넘기지 않으면 꺼져 있다.
+// Toss는 늘 가짜 키와 가짜 API를 받는다. 키가 없는 앱이 필요하면 `toss: null`을 넘긴다.
+// 썸네일은 테스트가 폴더를 넘기지 않으면 새 임시 폴더에
+// 저장한다.
 export async function createTestApp(
   options: {
     cookieSecure?: boolean;
@@ -126,7 +126,7 @@ export function reconcilerOf(app: NestExpressApplication): RecordingReconciler {
   return app.get(RecordingReconciler);
 }
 
-// Empties every table except Prisma's migration history.
+// Prisma 마이그레이션 기록을 뺀 모든 테이블을 비운다.
 export async function resetDatabase(
   app: NestExpressApplication,
 ): Promise<void> {
@@ -141,8 +141,8 @@ export async function resetDatabase(
 
 let clientCounter = 0;
 
-// Each client gets its own forwarded IP so rate limits, which count per IP,
-// do not leak between unrelated callers in one test file.
+// 클라이언트마다 고유한 전달 IP를 줘서, IP별로 세는 요청 제한이
+// 한 테스트 파일 안의 서로 무관한 호출자 사이에 새지 않게 한다.
 export function newClientIp(): string {
   clientCounter += 1;
   return `10.0.${Math.floor(clientCounter / 250)}.${(clientCounter % 250) + 1}`;
@@ -171,7 +171,7 @@ export async function signUp(
   return { ...(res.body as AuthUser), password: input.password };
 }
 
-// A supertest agent keeps cookies across requests, like a browser tab.
+// supertest agent는 브라우저 탭처럼 요청 사이에 쿠키를 유지한다.
 export async function logIn(
   app: NestExpressApplication,
   user: Pick<TestUser, 'email' | 'password'>,
@@ -186,8 +186,8 @@ export async function logIn(
   return agent;
 }
 
-// The usual starting point for authorization tests: a fresh user who is
-// logged in. Call it twice for an owner and another user.
+// 인가 테스트의 흔한 출발점: 로그인한 새 사용자.
+// 두 번 호출하면 소유자와 타인이 된다.
 export async function signUpAndLogIn(
   app: NestExpressApplication,
   overrides: Partial<Omit<TestUser, 'id'>> = {},

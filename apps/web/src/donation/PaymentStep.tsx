@@ -8,7 +8,7 @@ import {
   type RequestPayment,
 } from './tossWidget';
 
-// What the Toss widget needs from an order, card donation or lime charge.
+// Toss 위젯이 주문에서 필요로 하는 값이다. 카드 후원이든 라임 충전이든 같다.
 export interface PaymentOrder {
   orderId: string;
   orderName: string;
@@ -22,8 +22,8 @@ type WidgetState =
   | { status: 'ready'; requestPayment: RequestPayment }
   | { status: 'failed' };
 
-// Step 2 of a payment: renders the Toss widget for the saved order and
-// sends the buyer to Toss, which redirects to successPath or failPath.
+// 결제 2단계다. 저장한 주문으로 Toss 위젯을 그리고, 구매자를
+// Toss로 보낸다. Toss는 successPath나 failPath로 리다이렉트한다.
 export function PaymentStep({
   order,
   summary,
@@ -66,7 +66,7 @@ export function PaymentStep({
         failUrl: `${window.location.origin}${failPath}`,
       });
     } catch (err) {
-      // Toss errors carry a Korean message meant for the buyer.
+      // Toss 오류에는 구매자에게 보여 줄 한국어 메시지가 들어 있다.
       const tossMessage =
         err instanceof Error && err.message ? err.message : null;
       setError(tossMessage ?? '결제를 요청하지 못했습니다.');

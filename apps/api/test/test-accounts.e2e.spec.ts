@@ -24,7 +24,7 @@ import {
   resetDatabase,
 } from './support/app.js';
 
-// Generated per run so no password is ever written into the repository.
+// 실행마다 새로 만들어서 비밀번호가 저장소에 기록되지 않는다.
 function seedEnv(): Record<string, string> {
   return {
     TEST_ACCOUNT_A_PASSWORD: randomBytes(12).toString('base64url'),

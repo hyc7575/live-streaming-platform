@@ -1,7 +1,7 @@
 import type { ByteReader } from '../../src/recording/recording-info.js';
 
-// Just enough ISO BMFF to stand in for an OME recording: box headers, and
-// the hdlr and mdhd fields the duration is read from.
+// OME 녹화를 대신할 만큼만 만든 ISO BMFF. 박스 헤더와
+// 재생 시간을 읽는 hdlr, mdhd 필드만 있다.
 
 export function box(type: string, ...children: Buffer[]): Buffer {
   const body = Buffer.concat(children);
@@ -11,7 +11,7 @@ export function box(type: string, ...children: Buffer[]): Buffer {
   return Buffer.concat([head, body]);
 }
 
-// A box with a 64-bit size, as an mdat over 4 GB has.
+// 크기가 64비트인 박스. 4 GB가 넘는 mdat가 이렇다.
 export function largeBox(type: string, ...children: Buffer[]): Buffer {
   const body = Buffer.concat(children);
   const head = Buffer.alloc(16);
@@ -21,7 +21,7 @@ export function largeBox(type: string, ...children: Buffer[]): Buffer {
   return Buffer.concat([head, body]);
 }
 
-// A box whose size is 0, which runs to the end of the file.
+// 크기가 0인 박스. 파일 끝까지 이어진다.
 export function boxToEnd(type: string, body: Buffer): Buffer {
   const head = Buffer.alloc(8);
   head.write(type, 4, 'latin1');
@@ -52,7 +52,7 @@ export function trak(
   );
 }
 
-// ftyp, free, moov, mdat, the order OME writes.
+// ftyp, free, moov, mdat. OME가 쓰는 순서다.
 export function omeMp4(videoSeconds: number): Buffer {
   return Buffer.concat([
     box('ftyp', Buffer.from('isom\0\0\x02\0isomiso2avc1mp41', 'latin1')),

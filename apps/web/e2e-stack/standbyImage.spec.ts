@@ -110,8 +110,8 @@ test('the standby image shows on READY broadcasts until the live frame replaces 
   await expect(viewer.getByText(READY_NOTICE)).toBeHidden({ timeout: 10_000 });
   await watchUntilPlaying(viewer);
 
-  // The first capture uploads right after the publish connects. The list
-  // refetches every 30 s, so a reload reads the new thumbnailUrl now.
+  // 첫 캡처는 송출이 연결된 직후 올라간다. 목록은 30초마다 다시 받으므로
+  // 새로고침해서 새 thumbnailUrl을 바로 읽는다.
   await expect
     .poll(
       async () => {

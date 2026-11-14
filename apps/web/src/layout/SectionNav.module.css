@@ -1,4 +1,4 @@
-/* Narrow: a row of tabs under the header, like the old page tabs. */
+/* 좁은 화면: 헤더 아래 탭 줄. 예전 페이지 탭과 같다. */
 .nav {
   padding: 0 var(--space-4);
   background: var(--color-surface);
@@ -42,7 +42,7 @@
   }
 }
 
-/* Wide: a column where the follow panel would be. */
+/* 넓은 화면: 팔로우 패널이 있을 자리의 열. */
 @media (min-width: 1024px) {
   .nav {
     position: sticky;

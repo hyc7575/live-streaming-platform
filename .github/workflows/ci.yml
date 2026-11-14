@@ -48,6 +48,6 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Uses the Google Chrome preinstalled on the runner image (channel: 'chrome').
+      # 러너 이미지에 미리 설치된 Google Chrome을 쓴다(channel: 'chrome').
       - run: google-chrome --version
       - run: pnpm --filter @lsp/web e2e
