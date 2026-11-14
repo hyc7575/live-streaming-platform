@@ -19,7 +19,6 @@ afterEach(() => {
 
 const EMPTY: SearchResult = { streamers: [], broadcasts: [], past: [] };
 
-// 비로그인으로 연다. 검색 API는 늘 빈 결과, 나머지는 404다.
 function stubApi() {
   const calls: string[] = [];
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {

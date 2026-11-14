@@ -25,11 +25,8 @@ if (!root) throw new Error('#root element is missing from index.html');
 
 createRoot(root).render(
   <StrictMode>
-    {/* 원래 이유(키 입력마다 ?q=를 쓰던 홈 검색창)는 #139로 사라졌다. 기본값
-        (transition)으로 바꾸면 모든 이동의 렌더 시점이 바뀌므로 송출 이탈 확인
-        회귀를 확인한 뒤 따로 바꾼다. renderInDataRouter는 이미 기본값으로 그리고
-        이탈 확인 테스트가 거기서 통과한다. URL을 키 입력마다 쓰는 입력창을 다시
-        만들면 이 설정이 필요하다. */}
+    {/* 이유였던 홈 ?q= 입력창은 #139로 사라졌다. 기본값(transition)으로 바꾸는
+        일은 송출 이탈 확인 회귀를 확인한 뒤 따로 한다. */}
     <RouterProvider router={router} useTransitions={false} />
   </StrictMode>,
 );

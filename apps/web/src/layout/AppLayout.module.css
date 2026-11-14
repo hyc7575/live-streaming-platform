@@ -18,8 +18,6 @@
   white-space: nowrap;
 }
 
-/* 로고와 메뉴는 줄지 않는다. 폭이 모자라면 검색 슬롯과 계정 메뉴(닉네임
-   말줄임)가 먼저 줄어, 넘침이 헤더 밖 가로 스크롤이 되지 않게 한다. */
 .logo,
 .nav {
   flex-shrink: 0;
@@ -224,8 +222,6 @@
   color: var(--color-text);
 }
 
-/* 남는 폭을 차지한다. 좁으면 돋보기를 계정 메뉴 바로 왼쪽에, 넓으면
-   입력창을 가운데에 둔다. */
 .search {
   display: flex;
   flex: 1 1 0;
@@ -297,14 +293,12 @@
 /* range 문법을 쓴다. max-width: 1023px는 확대 배율에서 1023.5px 같은 틈이
    생겨 어느 쪽에도 걸리지 않는다. */
 @media (width < 1024px) {
-  /* 입력줄이 열리면 같은 56px 줄을 입력칸과 닫기가 채운다. 줄을 하나 더
-     만들면 --header-height로 높이를 계산하는 화면들이 어긋난다. */
+  /* 두 번째 줄을 만들면 --header-height로 높이를 계산하는 화면들이 어긋난다. */
   .header:has(.search[data-open]) > :not(.search) {
     display: none;
   }
 
-  /* 닉네임은 최대 20자라 481px에서도 넘친다. 첫 글자 원으로 세션을 보여 준다.
-     시각적으로만 숨기므로 메뉴 버튼은 닉네임을 이름으로 유지한다. */
+  /* 20자 닉네임은 1024px 미만 어느 폭에서도 넘칠 수 있어 첫 글자 원만 남긴다. */
   .nickname {
     position: absolute;
     width: 1px;
@@ -313,7 +307,6 @@
     clip-path: inset(50%);
   }
 
-  /* 좁은 헤더에는 너무 길다. 재시도 버튼은 남는다. */
   .authError {
     display: none;
   }
@@ -367,8 +360,7 @@
   padding: var(--space-6) var(--space-4);
 }
 
-/* 파일 끝에 둔다. 같은 특이도의 기본 규칙(.nav, .account)보다 앞에 있으면
-   그 규칙이 이겨 간격이 줄지 않는다. */
+/* 파일 끝에 둔다. 같은 특이도의 .nav·.account보다 앞에 있으면 간격이 줄지 않는다. */
 @media (max-width: 480px) {
   .header {
     gap: var(--space-2);
@@ -383,7 +375,6 @@
     gap: var(--space-3);
   }
 
-  /* 돋보기 자리를 만든다. 버튼 이름(닉네임)과 aria-expanded는 그대로다. */
   .caret {
     display: none;
   }

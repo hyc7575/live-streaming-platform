@@ -2,7 +2,6 @@ import { expect, test, type Page } from '@playwright/test';
 
 const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR;
 const AT = '2026-11-11T10:00:00.000Z';
-// 닉네임은 최대 20자다. 한글이 가장 넓다.
 const VIEWER = {
   id: 'u-viewer',
   nickname: '가나다라마바사아자차카타파하거너더러머버',
@@ -52,7 +51,6 @@ async function stubApi(page: Page, who: Who) {
 async function openPage(page: Page, who: Who, path = '/search') {
   await stubApi(page, who);
   await page.goto(path);
-  // 계정 자리는 로그인 상태를 읽은 뒤에 그려진다. 그 전에 재면 폭이 모자라지 않아 보인다.
   await expect(
     who === 'anonymous'
       ? header(page).getByRole('link', { name: '로그인', exact: true })
@@ -80,7 +78,6 @@ async function measureHeader(page: Page) {
       oneRow: new Set(middles).size === 1,
       headerFits: el.scrollWidth <= el.clientWidth,
       pageWidth: document.scrollingElement!.scrollWidth,
-      // 좁은 화면에서 검색 슬롯은 남는 폭을 모두 가져간다. 돋보기를 뺀 나머지가 여유다.
       slack:
         slot.getBoundingClientRect().width - icon.getBoundingClientRect().width,
     };

@@ -156,9 +156,9 @@ function UserMenu({
   );
 }
 
-// 헤더 검색(PRD-search 7.3). 위치마다 SearchRow를 새로 그린다. 그래서
-// 이동하면 좁은 화면 입력줄이 닫히고 입력칸은 주소의 검색어로 돌아간다.
-// 송출 화면의 이탈 확인이 이동을 막으면 위치가 그대로라 입력과 열린 줄이 남는다.
+// 이동하면 key가 바뀌어 입력줄이 닫히고 입력칸이 주소의 검색어로 돌아간다.
+// 송출 이탈 확인에서 머무르면 위치가 그대로라 입력이 남아야 하므로, 제출할 때
+// 따로 닫지 않는다.
 function HeaderSearch() {
   const location = useLocation();
   const current =
@@ -168,8 +168,6 @@ function HeaderSearch() {
   return <SearchRow key={location.key} current={current} />;
 }
 
-// 입력칸은 DOM에 하나뿐이고, 넓은 화면(입력창)과 좁은 화면(돋보기와 입력줄)의
-// 차이는 CSS만 정한다. 기준 폭을 TS와 CSS 두 곳에 맞추지 않으려는 것이다.
 function SearchRow({ current }: { current: string }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -189,21 +187,16 @@ function SearchRow({ current }: { current: string }) {
     magnifierRef.current?.focus();
   }
 
-  // Enter는 폼의 암묵적 제출에 맡긴다. 크롬 한글 IME는 조합 중 Enter에 keydown을
-  // 두 번(229, 조합 확정 뒤 13) 보내고 두 번째가 완성된 글자로 한 번 제출한다.
-  // ChatPanel처럼 229를 막으면 사파리에서 Enter를 두 번 눌러야 한다.
-  // 줄을 닫는 일은 이동으로 바뀐 key가 한다. 여기서 닫으면 이탈 확인에서
-  // 머무를 때 줄이 닫힌 채 남는다.
+  // Enter는 폼 제출에 맡긴다. ChatPanel처럼 keyCode 229를 막지 않는다. 크롬
+  // 한글 IME의 조합 중 Enter는 확정 뒤 완성된 글자로 한 번만 제출된다(e2e).
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const query = normalizeSearchQuery(inputRef.current?.value ?? null);
     if (!query) return;
-    // 같은 검색어를 다시 내면 뒤로 가기에 같은 결과가 두 번 쌓이지 않게 한다.
-    void navigate(searchPath(query), { replace: query === current });
+    const resubmittingSameQuery = query === current;
+    void navigate(searchPath(query), { replace: resubmittingSameQuery });
   }
 
-  // 열린 입력줄에서만 Esc가 닫기다. 닫혀 있으면 type="search"의 기본 동작
-  // (입력 지우기)을 둔다. 조합 중의 Esc는 조합 취소라 건드리지 않는다.
   function handleKeyDown(event: ReactKeyboardEvent<HTMLFormElement>) {
     if (!open || event.key !== 'Escape' || event.nativeEvent.isComposing)
       return;

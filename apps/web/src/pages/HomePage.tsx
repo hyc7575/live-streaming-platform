@@ -97,9 +97,7 @@ function Intro() {
   );
 }
 
-// 2단계 전의 홈 검색 주소(`/?q=`)를 받는다(PRD-search 7.3). 이 게이트는 훅을
-// 하나만 부르고 목록의 훅(폴링 포함)은 HomeList 안에 있다. 그래서 떠날 화면에서
-// GET /api/broadcasts를 부르지 않는다.
+// 목록의 훅(30초 조회)이 돌기 전에 예전 `/?q=` 주소를 결과 화면으로 보낸다.
 export function HomePage() {
   const [params] = useSearchParams();
   if (params.has('q'))
@@ -107,8 +105,6 @@ export function HomePage() {
   return <HomeList />;
 }
 
-// 비거나 공백뿐인 q는 예전에도 "거르지 않음"이었다. 그래서 결과 화면의
-// "검색어를 입력하세요."가 아니라 q만 뺀 같은 홈 목록으로 보낸다.
 function legacyQueryTarget(params: URLSearchParams): string {
   const query = normalizeSearchQuery(params.get('q'));
   if (query) return searchPath(query);
@@ -135,7 +131,6 @@ function HomeList() {
   useRevealCurrent(statusRowRef, filter);
   useRevealCurrent(categoryRowRef, category);
 
-  // 상태 탭과 카테고리 칩은 서로의 값을 이어받는다.
   function listPath(status: string | null, picked: BroadcastCategory | null) {
     const next = new URLSearchParams();
     if (status) next.set('status', status);
