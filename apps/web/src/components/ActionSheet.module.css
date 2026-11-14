@@ -60,6 +60,14 @@
   gap: var(--space-3);
 }
 
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
 .title {
   margin: 0;
   font-size: var(--font-size-lg);

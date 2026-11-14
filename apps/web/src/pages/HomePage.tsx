@@ -1,8 +1,16 @@
 import { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useAuth, type TestAccountKey } from '../auth/auth-context';
+import { viewList } from '../broadcast-list';
 import type { Broadcast } from '../broadcasts';
+import {
+  CATEGORIES,
+  CATEGORY_LABEL,
+  parseCategory,
+  type BroadcastCategory,
+} from '../categories';
 import { BroadcastGrid } from '../components/BroadcastGrid';
+import chips from '../components/CategoryChips.module.css';
 import { usePolledApi } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
 import home from './HomePage.module.css';
@@ -42,15 +50,6 @@ const FILTERS = [
     empty: '다시 볼 수 있는 방송이 없습니다.',
   },
 ] as const;
-
-// 이미 받은 목록을 거르므로, 최신 PUBLIC_LIST_LIMIT개 방송만
-// 걸린다. 목록이 그보다 커지면 서버 검색으로 바꾼다.
-function matches(broadcast: Broadcast, needle: string) {
-  return (
-    broadcast.title.toLowerCase().includes(needle) ||
-    broadcast.streamer.nickname.toLowerCase().includes(needle)
-  );
-}
 
 const LIST_REFRESH_MS = 30_000;
 
@@ -107,8 +106,8 @@ export function HomePage() {
     filter.path,
     LIST_REFRESH_MS,
   ).data;
+  const category = parseCategory(params.get('category'));
   const query = params.get('q') ?? '';
-  const needle = query.trim().toLowerCase();
   const searchRef = useRef<HTMLInputElement>(null);
 
   function setQuery(value: string) {
@@ -123,19 +122,28 @@ export function HomePage() {
     );
   }
 
-  function tabPath(status: string | null) {
+  // 상태 탭과 카테고리 칩은 서로의 값과 검색어를 이어받는다.
+  function listPath(status: string | null, picked: BroadcastCategory | null) {
     const next = new URLSearchParams();
     if (status) next.set('status', status);
+    if (picked) next.set('category', picked);
     if (query) next.set('q', query);
     const search = next.toString();
     return search ? `/?${search}` : '/';
   }
 
   function renderList(list: Broadcast[]) {
-    if (list.length === 0)
+    const view = viewList(list, category, query);
+    if (view.kind === 'empty')
       return <p className={styles.empty}>{filter.empty}</p>;
-    const shown = list.filter((b) => matches(b, needle));
-    if (shown.length === 0) {
+    if (view.kind === 'noCategoryMatch') {
+      return (
+        <p className={styles.empty}>
+          &apos;{CATEGORY_LABEL[view.category]}&apos; 방송이 없습니다.
+        </p>
+      );
+    }
+    if (view.kind === 'noQueryMatch') {
       return (
         <div className={styles.noMatch}>
           <p className={styles.empty}>
@@ -154,7 +162,7 @@ export function HomePage() {
         </div>
       );
     }
-    return <BroadcastGrid broadcasts={shown} />;
+    return <BroadcastGrid broadcasts={view.broadcasts} />;
   }
 
   return (
@@ -183,11 +191,23 @@ export function HomePage() {
         {FILTERS.map((f) => (
           <Link
             key={f.label}
-            to={tabPath(f.status)}
+            to={listPath(f.status, category)}
             className={styles.filter}
             aria-current={f === filter ? 'page' : undefined}
           >
             {f.label}
+          </Link>
+        ))}
+      </nav>
+      <nav className={`${chips.row} ${home.categories}`} aria-label="카테고리">
+        {[null, ...CATEGORIES].map((c) => (
+          <Link
+            key={c ?? 'ALL'}
+            to={listPath(filter.status, c)}
+            className={chips.chip}
+            aria-current={c === category ? 'page' : undefined}
+          >
+            {c ? CATEGORY_LABEL[c] : '전체'}
           </Link>
         ))}
       </nav>

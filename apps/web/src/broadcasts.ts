@@ -1,3 +1,4 @@
+import type { BroadcastCategory } from './categories';
 import type { BroadcastStatus } from './components/StatusBadge';
 
 // apps/api/src/broadcasts/broadcasts.service.ts의 BroadcastView와 같은 모양이다.
@@ -5,6 +6,7 @@ export interface Broadcast {
   id: string;
   title: string;
   description: string;
+  category: BroadcastCategory;
   status: BroadcastStatus;
   startedAt: string | null;
   endedAt: string | null;

@@ -22,6 +22,7 @@ const endedBroadcast: Broadcast = {
   id: 'b1',
   title: '지난 방송',
   description: '',
+  category: 'ETC',
   status: 'ENDED',
   startedAt: null,
   endedAt: null,

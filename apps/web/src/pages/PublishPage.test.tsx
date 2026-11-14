@@ -63,6 +63,7 @@ const broadcast: Broadcast = {
   id: 'b1',
   title: '첫 방송',
   description: '',
+  category: 'ETC',
   status: 'READY',
   startedAt: null,
   endedAt: null,

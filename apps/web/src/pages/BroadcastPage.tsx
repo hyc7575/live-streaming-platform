@@ -5,6 +5,7 @@ import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import { ActionSheet } from '../components/ActionSheet';
 import { BroadcastSidePanel } from '../components/BroadcastSidePanel';
+import { CategoryBadge } from '../components/CategoryBadge';
 import type { BroadcastStatus } from '../components/StatusBadge';
 import { DonationPanel } from '../components/DonationPanel';
 import { ElapsedTime } from '../components/ElapsedTime';
@@ -262,7 +263,10 @@ export function BroadcastPage() {
             {notes}
             <div className={styles.info}>
               <div className={styles.status}>{status}</div>
-              <h1 className={styles.title}>{b.title}</h1>
+              <div className={styles.titleRow}>
+                <h1 className={styles.title}>{b.title}</h1>
+                <CategoryBadge category={b.category} />
+              </div>
               <div className={styles.streamerRow}>
                 {streamer}
                 {follow}
@@ -280,6 +284,8 @@ export function BroadcastPage() {
             <ActionSheet
               label="더 보기"
               title={b.title}
+              // 360px 요약 줄은 제목 자리가 모자라 배지는 시트의 전체 제목 옆에만 단다.
+              titleAside={<CategoryBadge category={b.category} />}
               open={sheetOpen}
               onOpenChange={setSheetOpen}
             >

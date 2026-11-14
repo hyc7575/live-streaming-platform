@@ -18,3 +18,7 @@
   color: var(--color-danger);
   font-size: var(--font-size-sm);
 }
+
+.categories {
+  margin-bottom: var(--space-6);
+}

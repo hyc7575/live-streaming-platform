@@ -1,0 +1,50 @@
+/* 홈의 카테고리 칩(링크)과 방송 폼의 카테고리 칩(라디오)이 함께 쓴다.
+   모서리를 둥글게 해 네모난 상태 탭과 구분한다. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.chip {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip:hover {
+  color: var(--color-text);
+  border-color: var(--color-brand-strong);
+}
+
+.chip[aria-current='page'],
+.radio:checked + .chip {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand-strong);
+  color: var(--color-on-brand);
+}
+
+/* 실제 라디오는 화면에서만 숨기고 키보드·스크린리더는 그대로 쓴다. */
+.radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.radio:focus-visible + .chip {
+  outline: 2px solid var(--color-brand-strong);
+  outline-offset: 2px;
+}

@@ -83,7 +83,11 @@ export function EditBroadcastPage() {
     <section className={styles.card}>
       <h1 className={styles.title}>방송 수정</h1>
       <BroadcastForm
-        initial={{ title: b.title, description: b.description }}
+        initial={{
+          title: b.title,
+          description: b.description,
+          category: b.category,
+        }}
         submitLabel="저장"
         onSubmit={save}
       />

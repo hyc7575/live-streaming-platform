@@ -26,6 +26,19 @@
   font-weight: 600;
 }
 
+/* fieldset은 기본 테두리·여백을 지우고 label 필드처럼 보이게 한다. */
+fieldset.field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
 .input {
   padding: var(--space-2) var(--space-3);
   background: var(--color-bg);

@@ -1,0 +1,13 @@
+/* 상태 배지와 같은 크기지만, 면은 상태색이 아닌 옅은 라임이라 섞이지 않는다. */
+.badge {
+  display: inline-block;
+  flex: none;
+  padding: 2px var(--space-2);
+  background: var(--color-brand-soft);
+  border-radius: var(--radius-sm);
+  color: var(--color-on-brand);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
+}
