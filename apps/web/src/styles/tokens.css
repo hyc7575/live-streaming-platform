@@ -68,7 +68,6 @@
   --shadow-menu: 0 4px 16px rgba(0, 0, 0, 0.12);
   --content-max-width: 1440px;
   --form-card-width: 400px;
-  --list-search-max-width: 400px;
   /* 게임 이름이 붙은 카테고리 배지가 제목 옆에서 차지할 수 있는 최대 폭. */
   --category-badge-max-width: 240px;
   /* 방송 폼의 게임 후보 목록 높이. 넘치면 목록 안에서 스크롤한다. */

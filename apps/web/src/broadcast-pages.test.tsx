@@ -13,6 +13,7 @@ import { AuthProvider } from './auth/AuthProvider';
 import type { Broadcast, RecordingPart } from './broadcasts';
 import { CHAT_PAGE_LIMIT, type ChatMessage } from './chat';
 import type { Comment } from './comments';
+import { searchPath } from './search';
 import { renderInDataRouter } from './testing/renderInDataRouter';
 
 beforeEach(() => {
@@ -106,7 +107,7 @@ it('lists public broadcasts and refetches when a status filter is picked', async
   expect(calls).toContain('GET /api/broadcasts?status=ENDED');
 });
 
-it('lists READY broadcasts under the 방송 준비 중 tab, searchable, linking to the watch page', async () => {
+it('lists READY broadcasts under the 방송 준비 중 tab, linking to the watch page', async () => {
   const calls = stubApi({
     'GET /api/auth/me': 401,
     'GET /api/broadcasts': [],
@@ -115,12 +116,11 @@ it('lists READY broadcasts under the 방송 준비 중 tab, searchable, linking 
       broadcast({ id: 'b4', title: '저녁 방송', status: 'READY' }),
     ],
   });
-  renderAt('/?q=곧');
+  renderAt('/');
   fireEvent.click(await screen.findByRole('link', { name: '방송 준비 중' }));
   const card = await screen.findByRole('link', { name: /곧 시작/ });
   expect(within(card).getByText('방송 준비 중')).toBeDefined();
   expect(card.getAttribute('href')).toBe('/broadcasts/b3');
-  expect(screen.queryByRole('link', { name: /저녁 방송/ })).toBeNull();
   expect(calls).toContain('GET /api/broadcasts?status=READY');
 });
 
@@ -163,88 +163,11 @@ it('says so when there is nothing to replay', async () => {
   ).toBeDefined();
 });
 
-const searchable = [
-  broadcast({ id: 'b1', title: 'Minecraft 생존', status: 'LIVE' }),
-  broadcast({
-    id: 'b2',
-    title: '저녁 라디오',
-    status: 'LIVE',
-    streamer: { id: 'u2', nickname: 'MoonLight' },
-  }),
-  broadcast({ id: 'b3', title: '어제 minecraft 건축', status: 'ENDED' }),
-];
-
 function shownTitles() {
   return screen
     .queryAllByRole('listitem')
     .map((item) => within(item).getAllByRole('paragraph')[0].textContent);
 }
-
-it('filters the list by title or streamer nickname, ignoring case and spaces', async () => {
-  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': searchable });
-  renderAt('/');
-  await screen.findByText('저녁 라디오');
-  const search = screen.getByRole('searchbox', { name: '방송 검색' });
-
-  fireEvent.change(search, { target: { value: '  MINECRAFT ' } });
-  expect(shownTitles()).toEqual(['Minecraft 생존', '어제 minecraft 건축']);
-
-  fireEvent.change(search, { target: { value: 'moon' } });
-  expect(shownTitles()).toEqual(['저녁 라디오']);
-
-  fireEvent.change(search, { target: { value: '' } });
-  expect(shownTitles()).toHaveLength(3);
-});
-
-it('restores the search from ?q= and keeps it across status tabs', async () => {
-  const calls = stubApi({
-    'GET /api/auth/me': 401,
-    'GET /api/broadcasts': searchable,
-    'GET /api/broadcasts?status=ENDED': [searchable[2]],
-  });
-  renderAt('/?q=minecraft');
-  await screen.findByText('Minecraft 생존');
-  expect(
-    screen.getByRole<HTMLInputElement>('searchbox', { name: '방송 검색' })
-      .value,
-  ).toBe('minecraft');
-  expect(shownTitles()).toEqual(['Minecraft 생존', '어제 minecraft 건축']);
-
-  const ended = screen.getByRole('link', { name: '방송 종료' });
-  expect(ended.getAttribute('href')).toBe('/?status=ENDED&q=minecraft');
-  fireEvent.click(ended);
-  await screen.findByText('어제 minecraft 건축');
-  expect(calls).toContain('GET /api/broadcasts?status=ENDED');
-  expect(shownTitles()).toEqual(['어제 minecraft 건축']);
-  expect(
-    screen.getByRole<HTMLInputElement>('searchbox', { name: '방송 검색' })
-      .value,
-  ).toBe('minecraft');
-});
-
-it('says nothing matched and clears the search on request', async () => {
-  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': searchable });
-  renderAt('/?q=%20피아노%20');
-  expect(
-    await screen.findByText("'피아노'와 맞는 방송이 없습니다."),
-  ).toBeDefined();
-  expect(shownTitles()).toEqual([]);
-
-  fireEvent.click(screen.getByRole('button', { name: '검색어 지우기' }));
-  expect(shownTitles()).toHaveLength(3);
-  const search = screen.getByRole<HTMLInputElement>('searchbox', {
-    name: '방송 검색',
-  });
-  expect(search.value).toBe('');
-  expect(document.activeElement).toBe(search);
-});
-
-it('keeps the empty-list notice when there is nothing to search', async () => {
-  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': [] });
-  renderAt('/?q=minecraft');
-  expect(await screen.findByText('아직 공개된 방송이 없습니다.')).toBeDefined();
-  expect(screen.queryByRole('button', { name: '검색어 지우기' })).toBeNull();
-});
 
 const categorized = [
   broadcast({ id: 'b1', title: 'Minecraft 생존', category: 'GAME' }),
@@ -258,13 +181,13 @@ const categoryChip = (name: string) =>
     { name },
   );
 
-it('filters by the category chip and keeps it with the status tab and search', async () => {
+it('filters by the category chip and keeps it with the status tab', async () => {
   stubApi({
     'GET /api/auth/me': 401,
     'GET /api/broadcasts': categorized,
     'GET /api/broadcasts?status=ENDED': [],
   });
-  renderAt('/?q=minecraft');
+  renderAt('/');
   await screen.findByText('Minecraft 생존');
   expect(
     within(screen.getByRole('navigation', { name: '카테고리' }))
@@ -274,14 +197,14 @@ it('filters by the category chip and keeps it with the status tab and search', a
   expect(categoryChip('전체').getAttribute('aria-current')).toBe('page');
 
   const game = categoryChip('게임');
-  expect(game.getAttribute('href')).toBe('/?category=GAME&q=minecraft');
+  expect(game.getAttribute('href')).toBe('/?category=GAME');
   fireEvent.click(game);
   expect(shownTitles()).toEqual(['Minecraft 생존', '어제 minecraft 건축']);
   expect(categoryChip('게임').getAttribute('aria-current')).toBe('page');
-  expect(categoryChip('전체').getAttribute('href')).toBe('/?q=minecraft');
+  expect(categoryChip('전체').getAttribute('href')).toBe('/');
   expect(
     screen.getByRole('link', { name: '방송 종료' }).getAttribute('href'),
-  ).toBe('/?status=ENDED&category=GAME&q=minecraft');
+  ).toBe('/?status=ENDED&category=GAME');
 });
 
 it('badges each card with its category above the title, except 기타', async () => {
@@ -336,11 +259,10 @@ it('treats an unknown ?category= as 전체', async () => {
   );
 });
 
-it('says the picked category has no broadcast before blaming the search', async () => {
+it('says the picked category has no broadcast', async () => {
   stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': categorized });
-  renderAt('/?category=MUSIC&q=minecraft');
+  renderAt('/?category=MUSIC');
   expect(await screen.findByText("'음악' 방송이 없습니다.")).toBeDefined();
-  expect(screen.queryByRole('button', { name: '검색어 지우기' })).toBeNull();
 });
 
 it('names the picked category even when the tab has no broadcast at all', async () => {
@@ -385,12 +307,60 @@ it('keeps only the picked category after moving to the 방송 종료 tab', async
   expect(categoryChip('게임').getAttribute('aria-current')).toBe('page');
 });
 
-it('blames the search when the category has broadcasts but none match', async () => {
-  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': categorized });
-  renderAt('/?category=TALK&q=minecraft');
+function renderHomeInDataRouter(path: string) {
+  return renderInDataRouter(
+    [path],
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>,
+  ).router;
+}
+
+it('replaces an old home search address with the results page, without reading the list', async () => {
+  const calls = stubApi({
+    'GET /api/auth/me': 401,
+    [`GET /api${searchPath('리그')}`]: {
+      streamers: [],
+      broadcasts: [],
+      past: [],
+    },
+  });
+  const router = renderHomeInDataRouter('/?q=%EB%A6%AC%EA%B7%B8');
+
+  await screen.findByRole('heading', { level: 1, name: "'리그' 검색 결과" });
+  expect(router.state.location.pathname + router.state.location.search).toBe(
+    searchPath('리그'),
+  );
+  expect(router.state.historyAction).toBe('REPLACE');
+  expect(calls).not.toContain('GET /api/broadcasts');
+});
+
+it('drops a blank old search from the home address, keeping the tab', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts?status=LIVE': [
+      broadcast({ id: 'b1', title: '지금 방송', status: 'LIVE' }),
+    ],
+  });
+  const router = renderHomeInDataRouter('/?q=%20%20&status=LIVE');
+
   expect(
-    await screen.findByText("'minecraft'와 맞는 방송이 없습니다."),
+    await within(screen.getByRole('main')).findByText('지금 방송'),
   ).toBeDefined();
+  expect(router.state.location.pathname + router.state.location.search).toBe(
+    '/?status=LIVE',
+  );
+  expect(router.state.historyAction).toBe('REPLACE');
+});
+
+it('leaves searching to the header, with no search box on the home list', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': categorized });
+  renderAt('/');
+  await screen.findByText('저녁 라디오');
+
+  expect(
+    screen.getAllByRole('searchbox').map((box) => box.closest('header')),
+  ).toEqual([screen.getByRole('banner')]);
 });
 
 it('plays the recording of an ENDED broadcast under the ended notice', async () => {
