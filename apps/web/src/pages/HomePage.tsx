@@ -181,7 +181,7 @@ export function HomePage() {
             ref={searchRef}
             type="search"
             className={styles.searchInput}
-            placeholder="제목이나 스트리머 닉네임으로 검색"
+            placeholder="제목, 스트리머, 게임으로 검색"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />

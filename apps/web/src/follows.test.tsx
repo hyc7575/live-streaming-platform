@@ -31,6 +31,7 @@ function broadcast(overrides: Partial<Broadcast> = {}): Broadcast {
     title: '불씨의 방송',
     description: '',
     category: 'ETC',
+    game: null,
     status: 'LIVE',
     startedAt: '2026-11-10T00:00:00.000Z',
     endedAt: null,

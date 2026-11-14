@@ -7,12 +7,14 @@ function card(
   title: string,
   category: BroadcastCategory,
   nickname = '불씨',
+  game: Broadcast['game'] = null,
 ): Broadcast {
   return {
     id: title,
     title,
     description: '',
     category,
+    game,
     status: 'LIVE',
     startedAt: null,
     endedAt: null,
@@ -52,6 +54,23 @@ it('narrows the category further by title or nickname, ignoring case and spaces'
     '어제 minecraft 건축',
   ]);
   expect(titles(pickListView(list, null, 'moon'))).toEqual(['저녁 라디오']);
+});
+
+it('finds a game broadcast by its game title too', () => {
+  const lol = card('오늘도 랭크', 'GAME', '불씨', {
+    qid: 'Q223341',
+    name: '리그 오브 레전드',
+  });
+  const typed = card('신작 해 봄', 'GAME', '불씨', {
+    qid: null,
+    name: '카트라이더 슈퍼러쉬',
+  });
+  expect(titles(pickListView([...list, lol, typed], null, ' 리그 '))).toEqual([
+    '오늘도 랭크',
+  ]);
+  expect(titles(pickListView([...list, lol, typed], 'GAME', '카트'))).toEqual([
+    '신작 해 봄',
+  ]);
 });
 
 it('says the tab is empty when no category is picked and the fetched list is empty', () => {

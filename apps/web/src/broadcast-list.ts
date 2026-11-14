@@ -15,7 +15,8 @@ export type ListView =
 function matches(broadcast: Broadcast, needle: string) {
   return (
     broadcast.title.toLowerCase().includes(needle) ||
-    broadcast.streamer.nickname.toLowerCase().includes(needle)
+    broadcast.streamer.nickname.toLowerCase().includes(needle) ||
+    (broadcast.game?.name.toLowerCase().includes(needle) ?? false)
   );
 }
 

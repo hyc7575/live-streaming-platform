@@ -23,6 +23,7 @@ const endedBroadcast: Broadcast = {
   title: '지난 방송',
   description: '',
   category: 'ETC',
+  game: null,
   status: 'ENDED',
   startedAt: null,
   endedAt: null,
