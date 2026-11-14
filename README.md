@@ -1248,7 +1248,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X DELETE $API/me/avatar  
 - 카테고리는 제목처럼 READY·LIVE·ENDED 어느 상태에서나 바꿀 수 있다. 시청 화면은 5초마다 방송을 다시 읽으므로, LIVE 중에 바꾸면 새로고침 없이 배지가 바뀐다.
 - "기타"는 배지를 달지 않는다. 카드에서는 제목 위, 시청 화면에서는 제목 옆에 배지가 있다. 좁은 화면에서는 요약 줄 대신 `···` 시트의 제목 옆에 있다.
 - 홈 필터는 검색과 같이 받아 온 목록을 브라우저에서 거른다. API에는 카테고리 쿼리가 없다. `?category=`는 `status`·`q`와 함께 주소에 남아, 탭을 바꾸거나 주소를 새 탭에서 열어도 유지된다. 모르는 값은 "전체"로 다룬다.
-- 빈 결과 문구는 받아 온 목록이 비었으면 탭의 빈 문구, 고른 카테고리에 방송이 없으면 "'게임' 방송이 없습니다.", 카테고리에는 있는데 검색어와 맞는 방송이 없으면 검색의 문구다.
+- 빈 결과 문구는 카테고리를 골랐고 그 카테고리에 방송이 없으면(탭 목록 자체가 비어도) "'게임' 방송이 없습니다.", 카테고리를 고르지 않았고 목록이 비면 탭의 빈 문구, 카테고리에는 있는데 검색어와 맞는 방송이 없으면 검색의 문구다.
 
 | 행동 | 비로그인 | 로그인(타인) | 본인 |
 |---|---|---|---|
@@ -1281,7 +1281,7 @@ curl -s -b a-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/
 - `apps/api/test/authorization-matrix.e2e.spec.ts`: "방송 수정" 행이 카테고리까지 바꾼다(비로그인 401 / 타인 403 / 본인 200 × READY·LIVE·ENDED). 모르는 카테고리도 401 → 403 → 400 순서.
 - `apps/api/test/broadcast-category-migration.spec.ts`: 마이그레이션 전에 있던 READY·ENDED 방송이 `ETC`가 된다.
 - `apps/web/src/broadcast-list.test.ts`: 카테고리·검색어 거르기와 빈 문구 우선순위.
-- `apps/web/src/broadcast-pages.test.tsx`: 칩 순서와 링크(`status`·`q` 유지), 모르는 `?category=`, 빈 문구, 생성·수정 폼의 칩과 보내는 값, 카드 배지(기타 없음), 시청 화면 배지와 LIVE 중 변경 반영.
+- `apps/web/src/broadcast-pages.test.tsx`: 칩 순서와 링크(`status`·`q` 유지), 탭을 바꾼 뒤에도 고른 카테고리만 남음, 모르는 `?category=`, 빈 문구, 생성·수정 폼의 칩과 보내는 값, 카드 배지(기타 없음), 시청 화면 배지와 LIVE 중 변경 반영.
 
 ## 지원 환경
 

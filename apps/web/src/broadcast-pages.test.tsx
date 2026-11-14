@@ -342,6 +342,48 @@ it('says the picked category has no broadcast before blaming the search', async 
   expect(screen.queryByRole('button', { name: '검색어 지우기' })).toBeNull();
 });
 
+it('names the picked category even when the tab has no broadcast at all', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts?status=READY': [],
+  });
+  renderAt('/?status=READY&category=GAME');
+  expect(await screen.findByText("'게임' 방송이 없습니다.")).toBeDefined();
+  expect(screen.queryByText('준비 중인 방송이 없습니다.')).toBeNull();
+});
+
+it('keeps only the picked category after moving to the 방송 종료 tab', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts': categorized,
+    'GET /api/broadcasts?status=ENDED': [
+      broadcast({
+        id: 'e1',
+        title: '끝난 게임',
+        status: 'ENDED',
+        category: 'GAME',
+      }),
+      broadcast({
+        id: 'e2',
+        title: '끝난 수다',
+        status: 'ENDED',
+        category: 'TALK',
+      }),
+    ],
+  });
+  renderAt('/?category=GAME');
+  await screen.findByText('Minecraft 생존');
+  fireEvent.click(screen.getByRole('link', { name: '방송 종료' }));
+  await screen.findByText('끝난 게임');
+  expect(shownTitles()).toEqual(['끝난 게임']);
+  expect(
+    screen
+      .getByRole('link', { name: '방송 종료' })
+      .getAttribute('aria-current'),
+  ).toBe('page');
+  expect(categoryChip('게임').getAttribute('aria-current')).toBe('page');
+});
+
 it('blames the search when the category has broadcasts but none match', async () => {
   stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': categorized });
   renderAt('/?category=TALK&q=minecraft');

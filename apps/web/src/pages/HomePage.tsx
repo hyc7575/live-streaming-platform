@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useAuth, type TestAccountKey } from '../auth/auth-context';
-import { viewList } from '../broadcast-list';
+import { pickListView } from '../broadcast-list';
 import type { Broadcast } from '../broadcasts';
 import {
   CATEGORIES,
@@ -133,7 +133,7 @@ export function HomePage() {
   }
 
   function renderList(list: Broadcast[]) {
-    const view = viewList(list, category, query);
+    const view = pickListView(list, category, query);
     if (view.kind === 'empty')
       return <p className={styles.empty}>{filter.empty}</p>;
     if (view.kind === 'noCategoryMatch') {
