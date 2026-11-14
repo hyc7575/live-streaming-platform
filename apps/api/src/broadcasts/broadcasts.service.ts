@@ -242,6 +242,21 @@ export class BroadcastsService {
     return rows.map(toView);
   }
 
+  // 검색처럼 id와 순서를 따로 고른 곳이 방송 응답 모양을 얻는다. 받은 순서를
+  // 지키고, 그사이 지워진 방송은 빠진다.
+  async viewsByIds(ids: string[]): Promise<BroadcastView[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.broadcast.findMany({
+      where: { id: { in: ids } },
+      select: broadcastSelect,
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return ids.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [toView(row)] : [];
+    });
+  }
+
   async listByStreamer(streamerId: string): Promise<BroadcastView[]> {
     const rows = await this.prisma.broadcast.findMany({
       where: { streamerId },

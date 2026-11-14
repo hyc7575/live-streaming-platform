@@ -103,6 +103,7 @@ const MATRIX = {
   '프로필 이미지 삭제': [401,  204,          204],
   '채널 방송 목록': [200,      200,          200],
   '게임 검색':      [401,      200,          200],
+  '방송 검색':      [200,      200,          200],
 } satisfies Record<string, [Cell, Cell, Cell | '—']>;
 // §7.4에는 READY → ENDED 전이가 없어서, READY 방송은 종료할 수 없고
 // 삭제만 할 수 있다. ENDED 방송은 다시 LIVE가 되지 않으므로 송출
@@ -787,6 +788,16 @@ describe('authorization matrix (PRD §7.5)', () => {
         expect(ids(res.body)).toEqual(
           actor === 'owner' ? [w.targetId] : [w.othersId],
         );
+      },
+    },
+    '방송 검색': {
+      send: (client) => client.get('/api/search').query({ q: '원래' }),
+      verifyAllowed: (res, w) => {
+        const body = res.body as {
+          broadcasts: { id: string }[];
+          past: { id: string }[];
+        };
+        expect(ids([...body.broadcasts, ...body.past])).toEqual([w.targetId]);
       },
     },
     '게임 검색': {
