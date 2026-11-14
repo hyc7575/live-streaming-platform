@@ -49,31 +49,43 @@ enum BroadcastStatus {
   ENDED
 }
 
+// 방송의 대분류(PRD-category 7.1). 화면 이름은 게임·소통·음악·공부/작업·스포츠·기타다.
+// null을 두지 않고 기본값을 ETC로 해서 목록 필터가 단순하다.
+enum BroadcastCategory {
+  GAME
+  TALK
+  MUSIC
+  STUDY
+  SPORTS
+  ETC
+}
+
 // status는 서버만 앞으로 옮긴다(READY -> LIVE -> ENDED). 송출 허가 흐름에서
 // 옮긴다. startedAt과 endedAt은 그 전이 시각을 기록한다.
 model Broadcast {
-  id                 String          @id @default(uuid()) @db.Uuid
-  streamerId         String          @db.Uuid
-  streamer           User            @relation(fields: [streamerId], references: [id], onDelete: Cascade)
+  id                 String            @id @default(uuid()) @db.Uuid
+  streamerId         String            @db.Uuid
+  streamer           User              @relation(fields: [streamerId], references: [id], onDelete: Cascade)
   title              String
-  description        String          @default("")
-  status             BroadcastStatus @default(READY)
+  description        String            @default("")
+  category           BroadcastCategory @default(ETC)
+  status             BroadcastStatus   @default(READY)
   startedAt          DateTime?
   endedAt            DateTime?
   disconnectedAt     DateTime?
   // 확정된 녹화 파일. 녹화 루트 기준 상대 경로이고 오래된 것이
   // 먼저 온다. reconciler가 디스크와 맞춰 둔다.
-  recordingFiles     String[]        @default([])
+  recordingFiles     String[]          @default([])
   // 각 녹화 파일의 0초 지점 영상이 녹화된 시각. OME의
   // info XML에서 읽는다. 비어 있거나, recordingFiles 항목마다 같은 순서로 하나씩 있다
   // (마이그레이션의 CHECK가 이를 지킨다). 시작 시각을 하나라도 읽지 못하면
   // 목록 전체를 비운다.
-  recordingStartedAt DateTime[]      @default([])
+  recordingStartedAt DateTime[]        @default([])
   // 스트리머 브라우저가 thumbnails/<id>/live.jpg를 마지막으로 올린 시각.
   // null이면 방송에 썸네일이 없다.
   thumbnailUpdatedAt DateTime?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   comments     Comment[]
   chatMessages ChatMessage[]

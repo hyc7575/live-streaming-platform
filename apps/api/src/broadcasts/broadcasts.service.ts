@@ -9,7 +9,11 @@ import {
 import { z } from 'zod';
 import { CLOCK, type Clock } from '../clock.js';
 import { PrismaService } from '../database/database.module.js';
-import { Prisma, type BroadcastStatus } from '../generated/prisma/client.js';
+import {
+  Prisma,
+  type BroadcastCategory,
+  type BroadcastStatus,
+} from '../generated/prisma/client.js';
 import {
   ImageStore,
   userImageUrl,
@@ -20,11 +24,13 @@ import { OME_API, type OmeApi } from '../ome/ome-api.js';
 export interface CreateBroadcastInput {
   title: string;
   description: string;
+  category?: BroadcastCategory | undefined;
 }
 
 export interface UpdateBroadcastInput {
   title?: string | undefined;
   description?: string | undefined;
+  category?: BroadcastCategory | undefined;
 }
 
 export const END_READY_MESSAGE =
@@ -42,6 +48,7 @@ const broadcastSelect = {
   id: true,
   title: true,
   description: true,
+  category: true,
   status: true,
   startedAt: true,
   endedAt: true,
@@ -219,8 +226,8 @@ export class BroadcastsService {
     return broadcast.streamerId;
   }
 
-  // 제목과 설명은 status 생애주기에 속하지 않는다. 그래서 LIVE를 포함한
-  // 모든 status에서 수정을 받는다.
+  // 제목·설명·카테고리는 status 생애주기에 속하지 않는다. 그래서 LIVE를
+  // 포함한 모든 status에서 수정을 받는다.
   async update(
     id: string,
     input: UpdateBroadcastInput,
