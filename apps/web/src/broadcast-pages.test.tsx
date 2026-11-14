@@ -33,6 +33,7 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
     id: 'b1',
     title: '방송',
     description: '',
+    category: 'ETC',
     status: 'LIVE',
     startedAt: null,
     endedAt: null,
@@ -242,6 +243,153 @@ it('keeps the empty-list notice when there is nothing to search', async () => {
   renderAt('/?q=minecraft');
   expect(await screen.findByText('아직 공개된 방송이 없습니다.')).toBeDefined();
   expect(screen.queryByRole('button', { name: '검색어 지우기' })).toBeNull();
+});
+
+const categorized = [
+  broadcast({ id: 'b1', title: 'Minecraft 생존', category: 'GAME' }),
+  broadcast({ id: 'b2', title: '저녁 라디오', category: 'TALK' }),
+  broadcast({ id: 'b3', title: '어제 minecraft 건축', category: 'GAME' }),
+];
+
+const categoryChip = (name: string) =>
+  within(screen.getByRole('navigation', { name: '카테고리' })).getByRole(
+    'link',
+    { name },
+  );
+
+it('filters by the category chip and keeps it with the status tab and search', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts': categorized,
+    'GET /api/broadcasts?status=ENDED': [],
+  });
+  renderAt('/?q=minecraft');
+  await screen.findByText('Minecraft 생존');
+  expect(
+    within(screen.getByRole('navigation', { name: '카테고리' }))
+      .getAllByRole('link')
+      .map((link) => link.textContent),
+  ).toEqual(['전체', '게임', '소통', '음악', '공부/작업', '스포츠', '기타']);
+  expect(categoryChip('전체').getAttribute('aria-current')).toBe('page');
+
+  const game = categoryChip('게임');
+  expect(game.getAttribute('href')).toBe('/?category=GAME&q=minecraft');
+  fireEvent.click(game);
+  expect(shownTitles()).toEqual(['Minecraft 생존', '어제 minecraft 건축']);
+  expect(categoryChip('게임').getAttribute('aria-current')).toBe('page');
+  expect(categoryChip('전체').getAttribute('href')).toBe('/?q=minecraft');
+  expect(
+    screen.getByRole('link', { name: '방송 종료' }).getAttribute('href'),
+  ).toBe('/?status=ENDED&category=GAME&q=minecraft');
+});
+
+it('badges each card with its category above the title, except 기타', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts': [
+      broadcast({ id: 'b1', title: '랭크 게임', category: 'GAME' }),
+      broadcast({ id: 'b2', title: '그냥 방송', category: 'ETC' }),
+    ],
+  });
+  renderAt('/');
+  const game = await screen.findByRole('link', { name: /랭크 게임/ });
+  expect(within(game).getByText('게임')).toBeDefined();
+  const etc = screen.getByRole('link', { name: /그냥 방송/ });
+  expect(within(etc).queryByText('기타')).toBeNull();
+});
+
+it('keeps the status tab when a category chip is picked', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/replays': [
+      broadcast({
+        id: 'b2',
+        title: '녹화된 게임',
+        status: 'ENDED',
+        category: 'GAME',
+      }),
+      broadcast({
+        id: 'b3',
+        title: '녹화된 수다',
+        status: 'ENDED',
+        category: 'TALK',
+      }),
+    ],
+  });
+  renderAt('/?status=REPLAY');
+  await screen.findByText('녹화된 수다');
+  const talk = categoryChip('소통');
+  expect(talk.getAttribute('href')).toBe('/?status=REPLAY&category=TALK');
+  fireEvent.click(talk);
+  expect(shownTitles()).toEqual(['녹화된 수다']);
+});
+
+it('treats an unknown ?category= as 전체', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': categorized });
+  renderAt('/?category=COOKING');
+  await screen.findByText('저녁 라디오');
+  expect(shownTitles()).toHaveLength(3);
+  expect(categoryChip('전체').getAttribute('aria-current')).toBe('page');
+  expect(screen.getByRole('link', { name: 'LIVE' }).getAttribute('href')).toBe(
+    '/?status=LIVE',
+  );
+});
+
+it('says the picked category has no broadcast before blaming the search', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': categorized });
+  renderAt('/?category=MUSIC&q=minecraft');
+  expect(await screen.findByText("'음악' 방송이 없습니다.")).toBeDefined();
+  expect(screen.queryByRole('button', { name: '검색어 지우기' })).toBeNull();
+});
+
+it('names the picked category even when the tab has no broadcast at all', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts?status=READY': [],
+  });
+  renderAt('/?status=READY&category=GAME');
+  expect(await screen.findByText("'게임' 방송이 없습니다.")).toBeDefined();
+  expect(screen.queryByText('준비 중인 방송이 없습니다.')).toBeNull();
+});
+
+it('keeps only the picked category after moving to the 방송 종료 tab', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts': categorized,
+    'GET /api/broadcasts?status=ENDED': [
+      broadcast({
+        id: 'e1',
+        title: '끝난 게임',
+        status: 'ENDED',
+        category: 'GAME',
+      }),
+      broadcast({
+        id: 'e2',
+        title: '끝난 수다',
+        status: 'ENDED',
+        category: 'TALK',
+      }),
+    ],
+  });
+  renderAt('/?category=GAME');
+  await screen.findByText('Minecraft 생존');
+  fireEvent.click(screen.getByRole('link', { name: '방송 종료' }));
+  await screen.findByText('끝난 게임');
+  expect(shownTitles()).toEqual(['끝난 게임']);
+  expect(
+    screen
+      .getByRole('link', { name: '방송 종료' })
+      .getAttribute('aria-current'),
+  ).toBe('page');
+  expect(categoryChip('게임').getAttribute('aria-current')).toBe('page');
+});
+
+it('blames the search when the category has broadcasts but none match', async () => {
+  stubApi({ 'GET /api/auth/me': 401, 'GET /api/broadcasts': categorized });
+  renderAt('/?category=TALK&q=minecraft');
+  expect(
+    await screen.findByText("'minecraft'와 맞는 방송이 없습니다."),
+  ).toBeDefined();
 });
 
 it('plays the recording of an ENDED broadcast under the ended notice', async () => {
@@ -464,11 +612,23 @@ it('goes to the new broadcast’s publish page, and back skips the form', async 
   fireEvent.change(await screen.findByLabelText('제목'), {
     target: { value: '새 방송' },
   });
+  const category = screen.getByRole('group', { name: '카테고리' });
+  expect(
+    within(category)
+      .getAllByRole('radio')
+      .map((r) => r.closest('label')?.textContent),
+  ).toEqual(['게임', '소통', '음악', '공부/작업', '스포츠', '기타']);
+  expect(
+    within(category).getByRole<HTMLInputElement>('radio', { name: '기타' })
+      .checked,
+  ).toBe(true);
+  fireEvent.click(within(category).getByRole('radio', { name: '게임' }));
   fireEvent.click(screen.getByRole('button', { name: '만들기' }));
   expect(await screen.findByRole('heading', { name: '새 방송' })).toBeDefined();
   expect(at).toBe('/studio/broadcasts/b9');
   expect(calls.bodies['POST /api/broadcasts']).toMatchObject({
     title: '새 방송',
+    category: 'GAME',
   });
 
   await act(() => go(-1));
@@ -610,7 +770,9 @@ it('counts a LIVE broadcast’s running time up every second beside the badge', 
     const elapsed = await screen.findByText('1:00:02');
     expect(elapsed.getAttribute('dateTime')).toBe('2026-11-10T10:59:58.000Z');
     expect(elapsed.closest('[aria-live]')).toBeNull();
-    const info = screen.getByRole('heading', { level: 1 }).parentElement;
+    // 제목은 카테고리 배지와 한 줄(titleRow)에 있고, 그 위가 정보 영역이다.
+    const info = screen.getByRole('heading', { level: 1 }).parentElement
+      ?.parentElement;
     expect(within(info!).getByText('1:00:02')).toBe(elapsed);
 
     await act(() => vi.advanceTimersByTimeAsync(1000));
@@ -767,13 +929,14 @@ it('goes to 내 방송 when the broadcast was already deleted elsewhere', async 
   expect(await screen.findByRole('heading', { name: '내 방송' })).toBeDefined();
 });
 
-it('edits the title and description from the detail page', async () => {
+it('edits the title, description and category from the detail page', async () => {
   const calls = stubApi({
     'GET /api/auth/me': streamer,
     'GET /api/broadcasts/b1': broadcast({
       status: 'ENDED',
       title: '원래 제목',
       description: '원래 설명',
+      category: 'MUSIC',
     }),
     'PATCH /api/broadcasts/b1': broadcast({ title: '고친 제목' }),
   });
@@ -785,7 +948,11 @@ it('edits the title and description from the detail page', async () => {
   expect(screen.getByLabelText<HTMLTextAreaElement>('설명 (선택)').value).toBe(
     '원래 설명',
   );
+  expect(
+    screen.getByRole<HTMLInputElement>('radio', { name: '음악' }).checked,
+  ).toBe(true);
   fireEvent.change(title, { target: { value: '고친 제목' } });
+  fireEvent.click(screen.getByRole('radio', { name: '공부/작업' }));
   fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
   // stub은 예전 상세를 다시 내준다. 바뀌어야 하는 것은 PATCH 본문이다.
@@ -796,6 +963,7 @@ it('edits the title and description from the detail page', async () => {
   expect(calls.bodies['PATCH /api/broadcasts/b1']).toEqual({
     title: '고친 제목',
     description: '원래 설명',
+    category: 'STUDY',
   });
 });
 
@@ -846,7 +1014,9 @@ it('switches a viewer to 방송이 끝났습니다 once a status poll says ENDED
     await act(() => vi.advanceTimersByTimeAsync(5000));
     expect(screen.getByLabelText('방송 화면')).toBeDefined();
     // 제목 옆 배지다. 플레이어에는 따로 LIVE 표시가 있다.
-    const info = screen.getByRole('heading', { level: 1 }).parentElement;
+    // 제목은 카테고리 배지와 한 줄(titleRow)에 있고, 그 위가 정보 영역이다.
+    const info = screen.getByRole('heading', { level: 1 }).parentElement
+      ?.parentElement;
     expect(within(info!).getByText('LIVE')).toBeDefined();
 
     routes['GET /api/broadcasts/b1'] = broadcast({ status: 'ENDED' });
@@ -1596,4 +1766,64 @@ it('plays the part picked in the sheet and closes it', async () => {
   fireEvent.click(within(sheet()!).getByRole('button', { name: '2부' }));
   expect(video.getAttribute('src')).toBe('/recordings/b1/1_1.mp4');
   expect(sheet()).toBeNull();
+});
+
+it('badges the title with its category and follows a change made while LIVE', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  try {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': broadcast({ title: '랭크', category: 'GAME' }),
+    };
+    stubApi(routes);
+    renderAt('/broadcasts/b1');
+    const title = await screen.findByRole('heading', { name: '랭크' });
+    const row = title.parentElement as HTMLElement;
+    expect(within(row).getByText('게임')).toBeDefined();
+
+    routes['GET /api/broadcasts/b1'] = broadcast({
+      title: '랭크',
+      category: 'TALK',
+    });
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(within(row).getByText('소통')).toBeDefined();
+    expect(within(row).queryByText('게임')).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('keeps the category badge out of the narrow summary line and beside the full title in the sheet', async () => {
+  narrowScreen();
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({
+      title: '공부 방송',
+      category: 'STUDY',
+    }),
+  });
+  renderAt('/broadcasts/b1');
+  await screen.findByRole('heading', { level: 1, name: '공부 방송' });
+  // 닫힌 시트도 DOM에 남으므로 시트 밖의 배지만 센다.
+  expect(
+    screen.queryAllByText('공부/작업').filter((el) => !el.closest('dialog')),
+  ).toEqual([]);
+
+  fireEvent.click(screen.getByRole('button', { name: '더 보기' }));
+  const opened = screen.getByRole('dialog', { name: '공부 방송' });
+  const full = within(opened).getByRole('heading', { name: '공부 방송' });
+  expect(full.nextElementSibling?.textContent).toBe('공부/작업');
+});
+
+it('draws no badge on the watch page for 기타', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({
+      title: '그냥 방송',
+      category: 'ETC',
+    }),
+  });
+  renderAt('/broadcasts/b1');
+  await screen.findByRole('heading', { name: '그냥 방송' });
+  expect(screen.queryByText('기타')).toBeNull();
 });

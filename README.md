@@ -1238,6 +1238,51 @@ curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X DELETE $API/me/avatar  
 - `apps/api/test/authorization-matrix.e2e.spec.ts`: "프로필 수정"·"프로필 이미지 등록"·"프로필 이미지 삭제" 행.
 - `apps/web/src/profile-page.test.tsx`: 저장과 헤더 갱신, 테스트 계정 403 문구, 빈 닉네임은 요청 없이 거절, 프로필 이미지 올리기와 헤더 원, 채널 페이지의 소개·이미지.
 
+### 15. 방송 카테고리 (#132)
+
+방송에 대분류 카테고리(게임·소통·음악·공부/작업·스포츠·기타)를 붙이고, 홈 목록에서 카테고리로 거른다([PRD-category](docs/PRD-category.md) 1단계, PRD §8.3 시나리오 22·23). 게임 타이틀은 다음 단계(#133)다.
+
+규칙:
+
+- 값은 `GAME`·`TALK`·`MUSIC`·`STUDY`·`SPORTS`·`ETC`이고 기본값은 `ETC`(기타)다. 마이그레이션은 기존 방송을 모두 `ETC`로 채운다. null은 없다.
+- 카테고리는 제목처럼 READY·LIVE·ENDED 어느 상태에서나 바꿀 수 있다. 시청 화면은 5초마다 방송을 다시 읽으므로, LIVE 중에 바꾸면 새로고침 없이 배지가 바뀐다.
+- "기타"는 배지를 달지 않는다. 카드에서는 제목 위, 시청 화면에서는 제목 옆에 배지가 있다. 좁은 화면에서는 요약 줄 대신 `···` 시트의 제목 옆에 있다.
+- 홈 필터는 검색과 같이 받아 온 목록을 브라우저에서 거른다. API에는 카테고리 쿼리가 없다. `?category=`는 `status`·`q`와 함께 주소에 남아, 탭을 바꾸거나 주소를 새 탭에서 열어도 유지된다. 모르는 값은 "전체"로 다룬다.
+- 빈 결과 문구는 카테고리를 골랐고 그 카테고리에 방송이 없으면(탭 목록 자체가 비어도) "'게임' 방송이 없습니다.", 카테고리를 고르지 않았고 목록이 비면 탭의 빈 문구, 카테고리에는 있는데 검색어와 맞는 방송이 없으면 검색의 문구다.
+
+| 행동 | 비로그인 | 로그인(타인) | 본인 |
+|---|---|---|---|
+| `POST /broadcasts` `{title, description?, category?}` | 401 | — | 허용 |
+| `PATCH /broadcasts/:id` `{title?, description?, category?}` | 401 | 403 | 허용. 모르는 `category`는 400 |
+| `GET /broadcasts`, `/broadcasts/:id`, `/replays`, `/me/broadcasts` 응답의 `category` | 허용 | 허용 | 허용 |
+
+화면에서 확인:
+
+1. 시나리오 22: "스트리머 A"로 로그인 → "방송 만들기". 제목 아래 카테고리 칩 6개가 있고 "기타"가 골라져 있다. "소통"을 고르고 만든다. 홈 카드의 제목 위와 시청 화면의 제목 옆에 "소통" 배지가 있다. 카테고리를 고르지 않은 방송(시드의 끝난 방송 포함)에는 배지가 없다.
+2. 같은 방법으로 "게임" 방송을 하나 더 만든다. 이미 있는 방송은 "수정"에서 카테고리를 바꿀 수 있다.
+3. 시나리오 23: 로그아웃하고 홈 → 상태 탭 아래 "게임" 칩. 게임 방송만 남고 주소에 `category=GAME`이 붙는다. 그 주소를 새 탭에서 열어도 같다.
+4. 이어서 "방송 종료" 탭을 누른다. "게임" 칩이 골라진 채로 방송 종료 중 게임 방송만 보인다. 게임 방송이 없으면 "'게임' 방송이 없습니다."
+5. 검색창에 글자를 넣으면 고른 카테고리 안에서 다시 거른다.
+6. LIVE 중인 방송을 A가 "수정"에서 다른 카테고리로 바꾸면, 다른 탭에 열어 둔 시청 화면의 배지가 5초 안에 바뀐다.
+
+API로 확인(2절의 `a-jar.txt`·`b-jar.txt`, `ID`는 A의 방송):
+
+```sh
+API=http://localhost:3000/api
+curl -s -o /dev/null -w '%{http_code}\n' -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/json' -d '{"category":"GAME"}'                 # 401
+curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/json' -d '{"category":"GAME"}'  # 403
+curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/json' -d '{"category":"COOKING"}' # 400
+curl -s -b a-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/json' -d '{"category":"GAME"}'                                     # 200, "category":"GAME"
+```
+
+자동 테스트:
+
+- `apps/api/test/broadcasts.e2e.spec.ts`: 생성 기본값 `ETC`와 지정값, 모르는 값·소문자·숫자 400, `category`만 보내는 LIVE 방송 수정, 조회 네 곳의 응답.
+- `apps/api/test/authorization-matrix.e2e.spec.ts`: "방송 수정" 행이 카테고리까지 바꾼다(비로그인 401 / 타인 403 / 본인 200 × READY·LIVE·ENDED). 모르는 카테고리도 401 → 403 → 400 순서.
+- `apps/api/test/broadcast-category-migration.spec.ts`: 마이그레이션 전에 있던 READY·ENDED 방송이 `ETC`가 된다.
+- `apps/web/src/broadcast-list.test.ts`: 카테고리·검색어 거르기와 빈 문구 우선순위.
+- `apps/web/src/broadcast-pages.test.tsx`: 칩 순서와 링크(`status`·`q` 유지), 탭을 바꾼 뒤에도 고른 카테고리만 남음, 모르는 `?category=`, 빈 문구, 생성·수정 폼의 칩과 보내는 값, 카드 배지(기타 없음), 시청 화면 배지와 LIVE 중 변경 반영.
+
 ## 지원 환경
 
 송출·시청 기능 이슈에서 실제로 확인한 환경만 적는다.

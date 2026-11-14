@@ -15,6 +15,7 @@ import {
 import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
+import { BroadcastCategory } from '../generated/prisma/client.js';
 import {
   ImageUpload,
   UploadedImage,
@@ -36,13 +37,22 @@ export const DESCRIPTION_MAX_LENGTH = 2000;
 
 const title = z.string().trim().min(1).max(TITLE_MAX_LENGTH);
 const description = z.string().trim().max(DESCRIPTION_MAX_LENGTH);
+const category = z.enum(BroadcastCategory);
 
-const createSchema = z.object({ title, description: description.default('') });
+const createSchema = z.object({
+  title,
+  description: description.default(''),
+  category: category.optional(),
+});
 
 // `status` 같은 모르는 키는 제거한다. status는 서버만 바꾼다.
 const updateSchema = z
-  .object({ title: title.optional(), description: description.optional() })
-  .refine((b) => b.title !== undefined || b.description !== undefined, {
+  .object({
+    title: title.optional(),
+    description: description.optional(),
+    category: category.optional(),
+  })
+  .refine((b) => Object.values(b).some((v) => v !== undefined), {
     message: 'Nothing to update',
   });
 

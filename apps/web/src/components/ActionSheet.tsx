@@ -7,12 +7,15 @@ import styles from './ActionSheet.module.css';
 export function ActionSheet({
   label,
   title,
+  titleAside,
   open,
   onOpenChange,
   children,
 }: {
   label: string;
   title: string;
+  // 제목 바로 옆에 붙는 것(카테고리 배지). dialog 이름에는 들어가지 않는다.
+  titleAside?: ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
@@ -57,9 +60,12 @@ export function ActionSheet({
       >
         <div className={styles.content}>
           <div className={styles.header}>
-            <h2 id={headingId} className={styles.title}>
-              {title}
-            </h2>
+            <div className={styles.heading}>
+              <h2 id={headingId} className={styles.title}>
+                {title}
+              </h2>
+              {titleAside}
+            </div>
             <button
               type="button"
               className={styles.close}

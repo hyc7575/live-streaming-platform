@@ -62,6 +62,7 @@ function broadcast(overrides: Partial<Broadcast> = {}): Broadcast {
     id: 'b1',
     title: '저녁 방송',
     description: '',
+    category: 'ETC',
     status: 'LIVE',
     startedAt: null,
     endedAt: null,

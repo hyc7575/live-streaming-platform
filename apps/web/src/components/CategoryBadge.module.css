@@ -1,0 +1,15 @@
+/* 상태 배지와 같은 크기지만, 면은 상태색이 아닌 옅은 라임이라 섞이지 않는다.
+   composes로 상태 배지를 물려받으면 CSS 로드 순서에 따라 상태 배지의
+   흰 글자색이 이겨서, 같은 값을 여기 따로 적는다. */
+.badge {
+  display: inline-block;
+  flex: none;
+  padding: var(--badge-padding-block) var(--space-2);
+  background: var(--color-brand-soft);
+  border-radius: var(--radius-sm);
+  color: var(--color-on-brand);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
+}

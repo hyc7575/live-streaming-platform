@@ -82,11 +82,7 @@ export function EditBroadcastPage() {
   return (
     <section className={styles.card}>
       <h1 className={styles.title}>방송 수정</h1>
-      <BroadcastForm
-        initial={{ title: b.title, description: b.description }}
-        submitLabel="저장"
-        onSubmit={save}
-      />
+      <BroadcastForm initial={b} submitLabel="저장" onSubmit={save} />
       <p className={styles.footer}>
         <Link to={`/broadcasts/${b.id}`}>방송으로 돌아가기</Link>
       </p>

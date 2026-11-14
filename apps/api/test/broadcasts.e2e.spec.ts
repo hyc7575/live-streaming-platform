@@ -87,6 +87,7 @@ describe('broadcasts', () => {
         id: expect.any(String) as string,
         title: '첫 방송',
         description: '화면 공유 테스트',
+        category: 'ETC',
         status: 'READY',
         startedAt: null,
         endedAt: null,
@@ -98,6 +99,15 @@ describe('broadcasts', () => {
         standbyImageUrl: null,
         streamer: { id: user.id, nickname: '불씨' },
       });
+    });
+
+    it('stores the category sent', async () => {
+      const { agent } = await signUpAndLogIn(app);
+      const res = await agent
+        .post('/api/broadcasts')
+        .send({ title: '노래 방송', category: 'MUSIC' });
+      expect(res.status).toBe(201);
+      expect((res.body as BroadcastView).category).toBe('MUSIC');
     });
 
     it('defaults the description to an empty string', async () => {
@@ -115,6 +125,9 @@ describe('broadcasts', () => {
         'a description over 2000 characters',
         { title: 'ok', description: 'a'.repeat(2001) },
       ],
+      ['an unknown category', { title: 'ok', category: 'COOKING' }],
+      ['a lowercase category', { title: 'ok', category: 'music' }],
+      ['a non-string category', { title: 'ok', category: 1 }],
     ])('rejects %s with 400', async (_case, body) => {
       const { agent } = await signUpAndLogIn(app);
       const res = await agent.post('/api/broadcasts').send(body);
@@ -296,6 +309,26 @@ describe('broadcasts', () => {
     });
   });
 
+  it.each([
+    ['GET /api/broadcasts', () => '/api/broadcasts'],
+    ['GET /api/broadcasts/:id', (id: string) => `/api/broadcasts/${id}`],
+    ['GET /api/replays', () => '/api/replays'],
+    ['GET /api/me/broadcasts', () => '/api/me/broadcasts'],
+  ])('%s shows the broadcast’s category', async (_case, path) => {
+    const { user, agent } = await signUpAndLogIn(app);
+    const id = await seed(user, '축구 중계', 'ENDED');
+    await prisma.broadcast.update({
+      where: { id },
+      data: { category: 'SPORTS', recordingFiles: [`${id}/1_0.mp4`] },
+    });
+
+    const res = await agent.get(path(id));
+    expect(res.status).toBe(200);
+    const body = res.body as BroadcastView | BroadcastView[];
+    const found = Array.isArray(body) ? body.find((b) => b.id === id) : body;
+    expect(found?.category).toBe('SPORTS');
+  });
+
   // PATCH와 DELETE를 누가 호출할 수 있는지는 authorization-matrix.e2e.spec.ts에서 다룬다.
   describe('PATCH /api/broadcasts/:id', () => {
     it('changes only the fields sent and trims them like create', async () => {
@@ -321,6 +354,22 @@ describe('broadcasts', () => {
       expect(cleared.body).toMatchObject({ title: '새 제목', description: '' });
     });
 
+    it('changes only the category when that is all that is sent', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const id = await seed(user, '원래 제목', 'LIVE');
+
+      const res = await agent
+        .patch(`/api/broadcasts/${id}`)
+        .send({ category: 'GAME' });
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        title: '원래 제목',
+        description: '',
+        category: 'GAME',
+        status: 'LIVE',
+      });
+    });
+
     it.each([
       ['an empty body', {}],
       ['only unknown fields', { status: 'ENDED' }],
@@ -328,6 +377,8 @@ describe('broadcasts', () => {
       ['a title over 100 characters', { title: 'a'.repeat(101) }],
       ['a description over 2000 characters', { description: 'a'.repeat(2001) }],
       ['a non-string title', { title: 42 }],
+      ['an unknown category', { category: 'COOKING' }],
+      ['a non-string category', { category: 1 }],
     ])('rejects %s with 400 and changes nothing', async (_case, body) => {
       const { user, agent } = await signUpAndLogIn(app);
       const id = await seed(user, '원래 제목', 'READY');

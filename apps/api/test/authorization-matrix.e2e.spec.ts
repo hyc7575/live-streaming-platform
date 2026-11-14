@@ -163,7 +163,11 @@ const ACTOR_LABEL: Record<Actor, string> = {
   owner: '소유자',
 };
 
-const EDITED = { title: '고친 제목', description: '고친 설명' };
+const EDITED = {
+  title: '고친 제목',
+  description: '고친 설명',
+  category: 'TALK',
+};
 const ORIGINAL_COMMENT = '원래 댓글';
 const ORIGINAL_CHAT = '원래 채팅';
 const PAID_AMOUNT = 1000;
@@ -987,6 +991,14 @@ describe('authorization matrix (PRD §7.5)', () => {
 
     it('rejects a non-owner before looking at the body', async () => {
       const bad = { title: '' };
+      const url = `/api/broadcasts/${world.targetId}`;
+      expect((await world.as.anonymous.patch(url).send(bad)).status).toBe(401);
+      expect((await world.as.other.patch(url).send(bad)).status).toBe(403);
+      expect((await world.as.owner.patch(url).send(bad)).status).toBe(400);
+    });
+
+    it('rejects a non-owner before looking at an unknown category', async () => {
+      const bad = { category: 'COOKING' };
       const url = `/api/broadcasts/${world.targetId}`;
       expect((await world.as.anonymous.patch(url).send(bad)).status).toBe(401);
       expect((await world.as.other.patch(url).send(bad)).status).toBe(403);

@@ -3,6 +3,7 @@ import type { Broadcast } from '../broadcasts';
 import { channelPath } from '../streamers';
 import styles from './BroadcastGrid.module.css';
 import { BroadcastThumbnail } from './BroadcastThumbnail';
+import { CategoryBadge } from './CategoryBadge';
 
 function watchPath(b: Broadcast): string {
   return `/broadcasts/${b.id}`;
@@ -30,6 +31,7 @@ export function BroadcastGrid({
             <div className={styles.thumbnail}>
               <BroadcastThumbnail broadcast={b} />
             </div>
+            <CategoryBadge category={b.category} className={styles.category} />
             <p className={styles.title}>{b.title}</p>
           </Link>
           {showStreamer && (

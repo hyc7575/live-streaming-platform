@@ -30,6 +30,7 @@ function broadcast(overrides: Partial<Broadcast> = {}): Broadcast {
     id: 'b1',
     title: '불씨의 방송',
     description: '',
+    category: 'ETC',
     status: 'LIVE',
     startedAt: '2026-11-10T00:00:00.000Z',
     endedAt: null,
