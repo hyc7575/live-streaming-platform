@@ -13,6 +13,7 @@ import { HealthController } from './health.controller.js';
 import { LimeModule } from './lime/lime.module.js';
 import { PublishModule } from './publish/publish.module.js';
 import { RecordingsModule } from './recording/recordings.module.js';
+import { SearchModule } from './search/search.module.js';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { RecordingsModule } from './recording/recordings.module.js';
     LimeModule,
     PublishModule,
     RecordingsModule,
+    SearchModule,
   ],
   controllers: [HealthController],
 })

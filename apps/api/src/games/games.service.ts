@@ -11,7 +11,7 @@ export interface GameView {
 export const GAME_SEARCH_LIMIT = 10;
 
 // LIKE 패턴에서 글자 그대로 찾게 한다. 쿼리가 ESCAPE '\'를 명시한다.
-function escapeLike(text: string): string {
+export function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, '\\$&');
 }
 

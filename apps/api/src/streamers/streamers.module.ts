@@ -7,5 +7,6 @@ import { StreamersService } from './streamers.service.js';
   imports: [BroadcastsModule],
   controllers: [StreamersController],
   providers: [StreamersService],
+  exports: [StreamersService],
 })
 export class StreamersModule {}

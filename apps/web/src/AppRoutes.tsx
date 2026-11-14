@@ -20,6 +20,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { PublishPage } from './pages/PublishPage';
 import { ReceivedDonationsPage } from './pages/ReceivedDonationsPage';
+import { SearchPage } from './pages/SearchPage';
 import { SentDonationsPage } from './pages/SentDonationsPage';
 import { SignupPage } from './pages/SignupPage';
 import { StreamerPage } from './pages/StreamerPage';
@@ -34,6 +35,7 @@ export function AppRoutes() {
         <Route path="signup" element={<SignupPage />} />
         <Route path="broadcasts/:id" element={<BroadcastPage />} />
         <Route path="channels/:id" element={<StreamerPage />} />
+        <Route path="search" element={<SearchPage />} />
         <Route path="donations/fail" element={<DonationFailPage />} />
         <Route path="lime/charge/fail" element={<LimeChargeFailPage />} />
         <Route element={<RequireAuth />}>

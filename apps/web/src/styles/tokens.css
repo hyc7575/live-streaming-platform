@@ -82,6 +82,9 @@
   --follow-avatar-size: 32px;
   --section-nav-width: 200px;
   --channel-avatar-size: 72px;
+  /* 검색 결과의 스트리머 항목. 넓으면 가로로 늘어놓고 좁으면 한 줄에 하나다. */
+  --search-streamer-min-width: 240px;
+  --search-avatar-size: 48px;
   --standby-preview-width: 480px;
 
   --player-control-size: 40px;
