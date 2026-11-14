@@ -4,8 +4,8 @@ import type { Broadcast } from '../broadcasts';
 import { BroadcastGrid } from '../components/BroadcastGrid';
 import { UserAvatar } from '../components/UserAvatar';
 import {
+  normalizeSearchQuery,
   SEARCH_BROADCAST_LIMIT,
-  SEARCH_QUERY_MAX_LENGTH,
   searchPath,
   type SearchResult,
   type SearchStreamer,
@@ -20,10 +20,7 @@ import styles from './SearchPage.module.css';
 // (PRD-search 7.3). 결과는 한 번만 읽는다.
 export function SearchPage() {
   const [params] = useSearchParams();
-  // API는 50자를 넘으면 400이다. 주소창에 직접 친 긴 검색어는 잘라서 찾는다.
-  const query = (params.get('q') ?? '')
-    .trim()
-    .slice(0, SEARCH_QUERY_MAX_LENGTH);
+  const query = normalizeSearchQuery(params.get('q'));
   useDocumentTitle(query ? `'${query}' 검색 결과` : '검색');
 
   if (!query) {

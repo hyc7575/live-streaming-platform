@@ -329,30 +329,6 @@ it('keeps the picked game when the edit form is saved unchanged', async () => {
   });
 });
 
-it('finds a broadcast on the home search by its game title', async () => {
-  stubApi({
-    'GET /api/auth/me': 401,
-    'GET /api/broadcasts': [
-      broadcast({
-        id: 'b1',
-        title: '오늘도 랭크',
-        category: 'GAME',
-        game: LOL,
-      }),
-      broadcast({ id: 'b2', title: '저녁 라디오', category: 'TALK' }),
-    ],
-  });
-  renderAt('/');
-  await screen.findByText('저녁 라디오');
-  const search = screen.getByRole('searchbox', { name: '방송 검색' });
-  expect(search.getAttribute('placeholder')).toBe(
-    '제목, 스트리머, 게임으로 검색',
-  );
-  fireEvent.change(search, { target: { value: '리그' } });
-  expect(screen.getByRole('link', { name: /오늘도 랭크/ })).toBeDefined();
-  expect(screen.queryByText('저녁 라디오')).toBeNull();
-});
-
 it('drops the previous candidates as soon as the search text changes', async () => {
   const calls = await openCreateFormWithGame({
     [gamesPath('롤')]: [LOL_HIT],

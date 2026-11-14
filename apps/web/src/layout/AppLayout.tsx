@@ -1,7 +1,20 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
+import { flushSync } from 'react-dom';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth, type AuthUser } from '../auth/auth-context';
 import { UserAvatar } from '../components/UserAvatar';
+import {
+  normalizeSearchQuery,
+  SEARCH_QUERY_MAX_LENGTH,
+  searchPath,
+} from '../search';
 import { channelPath } from '../streamers';
 import { FollowsProvider } from '../follows/FollowsProvider';
 import styles from './AppLayout.module.css';
@@ -143,6 +156,117 @@ function UserMenu({
   );
 }
 
+// 이동하면 key가 바뀌어 입력줄이 닫히고 입력칸이 주소의 검색어로 돌아간다.
+// 송출 이탈 확인에서 머무르면 위치가 그대로라 입력이 남아야 하므로, 제출할 때
+// 따로 닫지 않는다.
+function HeaderSearch() {
+  const location = useLocation();
+  const current =
+    location.pathname === '/search'
+      ? normalizeSearchQuery(new URLSearchParams(location.search).get('q'))
+      : '';
+  return <SearchRow key={location.key} current={current} />;
+}
+
+function SearchRow({ current }: { current: string }) {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const magnifierRef = useRef<HTMLButtonElement>(null);
+  const inputId = useId();
+
+  // 보이게 바꾼 입력칸에 같은 클릭 안에서 포커스를 준다. effect에서 포커스하면
+  // iOS Safari는 사용자 동작 밖이라 키보드를 띄우지 않는다.
+  function openRow() {
+    flushSync(() => setOpen(true));
+    inputRef.current?.focus();
+  }
+
+  function closeRow() {
+    flushSync(() => setOpen(false));
+    magnifierRef.current?.focus();
+  }
+
+  // Enter는 폼 제출에 맡긴다. ChatPanel처럼 keyCode 229를 막지 않는다. 크롬
+  // 한글 IME의 조합 중 Enter는 확정 뒤 완성된 글자로 한 번만 제출된다(e2e).
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = normalizeSearchQuery(inputRef.current?.value ?? null);
+    if (!query) return;
+    const resubmittingSameQuery = query === current;
+    void navigate(searchPath(query), { replace: resubmittingSameQuery });
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLFormElement>) {
+    if (!open || event.key !== 'Escape' || event.nativeEvent.isComposing)
+      return;
+    event.preventDefault();
+    closeRow();
+  }
+
+  return (
+    <div className={styles.search} data-open={open || undefined}>
+      <form
+        role="search"
+        className={styles.searchForm}
+        onSubmit={handleSubmit}
+        onKeyDown={handleKeyDown}
+      >
+        <label htmlFor={inputId} className={styles.visuallyHidden}>
+          검색
+        </label>
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="search"
+          className={styles.searchInput}
+          defaultValue={current}
+          maxLength={SEARCH_QUERY_MAX_LENGTH}
+          placeholder="방송, 스트리머, 게임 검색"
+          enterKeyHint="search"
+        />
+        {open && (
+          <button
+            type="button"
+            className={`${styles.logoutButton} ${styles.searchClose}`}
+            onClick={closeRow}
+          >
+            닫기
+          </button>
+        )}
+      </form>
+      <button
+        ref={magnifierRef}
+        type="button"
+        className={styles.magnifier}
+        aria-label="검색"
+        onClick={openRow}
+      >
+        <SearchIcon />
+      </button>
+    </div>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="1em"
+      height="1em"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </svg>
+  );
+}
+
 // 점 없는 ı로 쓴 "Lime". 점은 따로 그린 라임색 원이고, 로드 때 한 번,
 // hover나 focus 때 다시 튄다. animationend에서 class를 지워야
 // 다음 hover가 애니메이션을 다시 시작한다.
@@ -199,6 +323,7 @@ export function AppLayout() {
               </NavLink>
             )}
           </nav>
+          <HeaderSearch />
           <AccountMenu />
         </header>
         <div className={styles.body}>

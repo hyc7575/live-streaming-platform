@@ -38,61 +38,31 @@ function titles(view: ReturnType<typeof pickListView>) {
   return view.kind === 'shown' ? view.broadcasts.map((b) => b.title) : view;
 }
 
-it('shows the whole list when no category or search is picked', () => {
-  expect(titles(pickListView(list, null, ''))).toHaveLength(3);
+it('shows the whole list when no category is picked', () => {
+  expect(titles(pickListView(list, null))).toHaveLength(3);
 });
 
 it('keeps only the picked category', () => {
-  expect(titles(pickListView(list, 'GAME', ''))).toEqual([
+  expect(titles(pickListView(list, 'GAME'))).toEqual([
     'Minecraft 생존',
     '어제 minecraft 건축',
   ]);
 });
 
-it('narrows the category further by title or nickname, ignoring case and spaces', () => {
-  expect(titles(pickListView(list, 'GAME', '  어제 MINECRAFT '))).toEqual([
-    '어제 minecraft 건축',
-  ]);
-  expect(titles(pickListView(list, null, 'moon'))).toEqual(['저녁 라디오']);
-});
-
-it('finds a game broadcast by its game title too', () => {
-  const lol = card('오늘도 랭크', 'GAME', '불씨', {
-    qid: 'Q223341',
-    name: '리그 오브 레전드',
-  });
-  const typed = card('신작 해 봄', 'GAME', '불씨', {
-    qid: null,
-    name: '카트라이더 슈퍼러쉬',
-  });
-  expect(titles(pickListView([...list, lol, typed], null, ' 리그 '))).toEqual([
-    '오늘도 랭크',
-  ]);
-  expect(titles(pickListView([...list, lol, typed], 'GAME', '카트'))).toEqual([
-    '신작 해 봄',
-  ]);
-});
-
 it('says the tab is empty when no category is picked and the fetched list is empty', () => {
-  expect(pickListView([], null, 'minecraft')).toEqual({ kind: 'empty' });
+  expect(pickListView([], null)).toEqual({ kind: 'empty' });
 });
 
 it('blames the category even when the fetched list itself is empty', () => {
-  expect(pickListView([], 'GAME', 'minecraft')).toEqual({
+  expect(pickListView([], 'GAME')).toEqual({
     kind: 'noCategoryMatch',
     category: 'GAME',
   });
 });
 
-it('blames the category when it has no broadcast, even with a search', () => {
-  expect(pickListView(list, 'MUSIC', 'minecraft')).toEqual({
+it('blames the category when it has no broadcast', () => {
+  expect(pickListView(list, 'MUSIC')).toEqual({
     kind: 'noCategoryMatch',
     category: 'MUSIC',
-  });
-});
-
-it('blames the search when the category has broadcasts but none match', () => {
-  expect(pickListView(list, 'TALK', 'minecraft')).toEqual({
-    kind: 'noQueryMatch',
   });
 });

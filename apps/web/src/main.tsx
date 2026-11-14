@@ -25,8 +25,8 @@ if (!root) throw new Error('#root element is missing from index.html');
 
 createRoot(root).render(
   <StrictMode>
-    {/* 목록 검색창은 ?q=에서 값을 가져온다. transition 안에서는
-        입력이 키 입력을 따라가지 못해 글자와 IME 입력을 잃는다. */}
+    {/* 이유였던 홈 ?q= 입력창은 #139로 사라졌다. 기본값(transition)으로 바꾸는
+        일은 송출 이탈 확인 회귀를 확인한 뒤 따로 한다. */}
     <RouterProvider router={router} useTransitions={false} />
   </StrictMode>,
 );

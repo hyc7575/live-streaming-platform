@@ -26,6 +26,7 @@ import type {
 import { PcCaptureError, startPcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
 import { startWhipPublish, type PublishEvent } from '../publish/whipPublisher';
+import { searchPath } from '../search';
 import { renderInDataRouter } from '../testing/renderInDataRouter';
 import { OBS_STOP_REMINDER } from './ObsPanel';
 
@@ -864,6 +865,42 @@ it('leaves and drops the publish, without ending, on 떠나기', async () => {
   await waitFor(() => expect(page.router.state.location.pathname).toBe('/'));
   expect(page.publisher.stop).toHaveBeenCalled();
   expect(page.capture.stop).toHaveBeenCalled();
+  expect(page.calls).not.toContain('POST /api/broadcasts/b1/end');
+});
+
+it('asks before a header search leaves a live publish, keeping the open search row on 머무르기', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+    [`GET /api${searchPath('리그')}`]: {
+      status: 200,
+      body: { streamers: [], broadcasts: [], past: [] },
+    },
+  });
+  await goLive(page);
+  const banner = within(screen.getByRole('banner'));
+  fireEvent.click(banner.getByRole('button', { name: '검색' }));
+  const input = banner.getByRole<HTMLInputElement>('searchbox', {
+    name: '검색',
+  });
+  fireEvent.change(input, { target: { value: '리그' } });
+
+  fireEvent.submit(input.form!);
+  const dialog = await screen.findByRole('alertdialog');
+  expect(within(dialog).getByText(LEAVE_TEXT)).toBeDefined();
+  fireEvent.click(within(dialog).getByRole('button', { name: '머무르기' }));
+  expect(page.router.state.location.pathname).toBe('/studio/broadcasts/b1');
+  expect(input.value).toBe('리그');
+  expect(banner.getByRole('button', { name: '닫기' })).toBeDefined();
+  expect(page.publisher.stop).not.toHaveBeenCalled();
+
+  fireEvent.submit(input.form!);
+  fireEvent.click(await screen.findByRole('button', { name: '떠나기' }));
+  await waitFor(() =>
+    expect(
+      page.router.state.location.pathname + page.router.state.location.search,
+    ).toBe(searchPath('리그')),
+  );
+  expect(page.publisher.stop).toHaveBeenCalled();
   expect(page.calls).not.toContain('POST /api/broadcasts/b1/end');
 });
 
