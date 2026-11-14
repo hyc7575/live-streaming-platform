@@ -2,6 +2,8 @@
 
 브라우저로 PC 화면·모바일 카메라 방송을 송출하고, 누구나 로그인 없이 시청하는 공모전 제출물이다. 1인 개발, 마감 2026-11-19 23:59 KST.
 
+고객은 심사위원이고, 성공 기준은 `docs/private/CONTEST-BRIEF.md` 4절 평가 기준이다(필수 기능 완성도 우선). 실사용자 데이터는 없다.
+
 ## 언어
 
 대화, 보고, PR 본문, 이슈 댓글, 커밋 메시지 본문, 코드 주석은 한국어로 쓴다. 코드와 식별자는 영어로 쓴다.
@@ -44,3 +46,7 @@ GitHub Issues, `gh` CLI. See `docs/agents/issue-tracker.md`.
 ### Domain docs
 
 Single-context. See `docs/agents/domain.md`.
+
+### PM skills
+
+아이디어를 이슈로 만들기 전, `pm-*` 스킬을 고르기 전, 백로그 범위·QA 시나리오·제출 문서를 정할 때 `docs/agents/pm-skills.md`를 읽는다.
