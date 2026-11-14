@@ -18,32 +18,11 @@
   white-space: nowrap;
 }
 
-@media (max-width: 480px) {
-  .header {
-    gap: var(--space-3);
-    padding: 0 var(--space-3);
-  }
-
-  .nav,
-  .account {
-    gap: var(--space-3);
-  }
-
-  /* 닉네임은 최대 20자다. 첫 글자로 세션을 보여 준다.
-     시각적으로만 숨기므로 메뉴 버튼은 닉네임을 이름으로
-     유지한다. */
-  .nickname {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-
-  /* 휴대폰 헤더에는 너무 길다. 재시도 버튼은 남는다. */
-  .authError {
-    display: none;
-  }
+/* 로고와 메뉴는 줄지 않는다. 폭이 모자라면 검색 슬롯과 계정 메뉴(닉네임
+   말줄임)가 먼저 줄어, 넘침이 헤더 밖 가로 스크롤이 되지 않게 한다. */
+.logo,
+.nav {
+  flex-shrink: 0;
 }
 
 .logo {
@@ -133,15 +112,21 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  min-width: 0;
   margin-left: auto;
 }
 
 .nickname {
+  min-width: 0;
+  max-width: var(--header-nickname-max-width);
+  overflow: hidden;
   font-weight: 600;
+  text-overflow: ellipsis;
 }
 
 .menuButton {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: var(--space-2);
   min-height: var(--touch-target-size);
@@ -207,8 +192,11 @@
 }
 
 .authError {
+  min-width: 0;
+  overflow: hidden;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
 }
 
 .loginButton {
@@ -234,6 +222,118 @@
 
 .logoutButton:hover {
   color: var(--color-text);
+}
+
+/* 남는 폭을 차지한다. 좁으면 돋보기를 계정 메뉴 바로 왼쪽에, 넓으면
+   입력창을 가운데에 둔다. */
+.search {
+  display: flex;
+  flex: 1 1 0;
+  justify-content: flex-end;
+}
+
+.searchForm {
+  display: none;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.search[data-open] .searchForm {
+  display: flex;
+}
+
+.search[data-open] .magnifier {
+  display: none;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  height: var(--touch-target-size);
+  padding: 0 var(--space-3);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.searchInput:focus {
+  outline: 2px solid var(--color-brand-strong);
+  outline-offset: -1px;
+}
+
+.magnifier {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target-size);
+  height: var(--touch-target-size);
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+}
+
+.magnifier:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* range 문법을 쓴다. max-width: 1023px는 확대 배율에서 1023.5px 같은 틈이
+   생겨 어느 쪽에도 걸리지 않는다. */
+@media (width < 1024px) {
+  /* 입력줄이 열리면 같은 56px 줄을 입력칸과 닫기가 채운다. 줄을 하나 더
+     만들면 --header-height로 높이를 계산하는 화면들이 어긋난다. */
+  .header:has(.search[data-open]) > :not(.search) {
+    display: none;
+  }
+
+  /* 닉네임은 최대 20자라 481px에서도 넘친다. 첫 글자 원으로 세션을 보여 준다.
+     시각적으로만 숨기므로 메뉴 버튼은 닉네임을 이름으로 유지한다. */
+  .nickname {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  /* 좁은 헤더에는 너무 길다. 재시도 버튼은 남는다. */
+  .authError {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .search {
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .searchForm {
+    display: flex;
+    max-width: var(--header-search-max-width);
+  }
+
+  .magnifier,
+  .searchClose {
+    display: none;
+  }
 }
 
 .body {
@@ -265,4 +365,26 @@
   max-width: var(--content-max-width);
   margin: 0 auto;
   padding: var(--space-6) var(--space-4);
+}
+
+/* 파일 끝에 둔다. 같은 특이도의 기본 규칙(.nav, .account)보다 앞에 있으면
+   그 규칙이 이겨 간격이 줄지 않는다. */
+@media (max-width: 480px) {
+  .header {
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+  }
+
+  .nav {
+    gap: var(--space-2);
+  }
+
+  .account {
+    gap: var(--space-3);
+  }
+
+  /* 돋보기 자리를 만든다. 버튼 이름(닉네임)과 aria-expanded는 그대로다. */
+  .caret {
+    display: none;
+  }
 }
