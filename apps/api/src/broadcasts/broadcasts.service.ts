@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -21,16 +22,22 @@ import {
 } from '../images/image-store.js';
 import { OME_API, type OmeApi } from '../ome/ome-api.js';
 
+// 목록에서 고른 게임이거나 직접 입력한 이름. 본문의 gameQid·gameName을
+// 컨트롤러가 이 모양으로 접는다. null은 게임을 비우고, undefined는 그대로 둔다.
+export type GameChoice = { qid: string } | { name: string };
+
 export interface CreateBroadcastInput {
   title: string;
   description: string;
   category?: BroadcastCategory | undefined;
+  game?: GameChoice | null | undefined;
 }
 
 export interface UpdateBroadcastInput {
   title?: string | undefined;
   description?: string | undefined;
   category?: BroadcastCategory | undefined;
+  game?: GameChoice | null | undefined;
 }
 
 export const END_READY_MESSAGE =
@@ -39,6 +46,9 @@ export const DROP_STREAM_FAILED_MESSAGE =
   '송출 연결을 끊지 못했습니다. 다시 시도하세요.';
 export const THUMBNAIL_NOT_LIVE_MESSAGE =
   '방송 중일 때만 썸네일을 올릴 수 있습니다.';
+export const GAME_NEEDS_GAME_CATEGORY_MESSAGE =
+  '게임 카테고리 방송에만 게임을 붙일 수 있습니다.';
+export const UNKNOWN_GAME_MESSAGE = '게임 목록에 없는 게임입니다.';
 
 export type PublicStatus = Extract<BroadcastStatus, 'LIVE' | 'READY' | 'ENDED'>;
 
@@ -49,6 +59,8 @@ const broadcastSelect = {
   title: true,
   description: true,
   category: true,
+  gameQid: true,
+  gameName: true,
   status: true,
   startedAt: true,
   endedAt: true,
@@ -82,8 +94,14 @@ export interface RecordingPart {
 // 받는다. 기본 대기 이미지는 스트리머 것이라 그 스트리머의 모든 방송이 함께 쓴다.
 export type BroadcastView = Omit<
   BroadcastRow,
-  'recordingStartedAt' | 'thumbnailUpdatedAt' | 'streamer'
+  | 'recordingStartedAt'
+  | 'thumbnailUpdatedAt'
+  | 'streamer'
+  | 'gameQid'
+  | 'gameName'
 > & {
+  // qid가 null이면 직접 입력한 게임이다.
+  game: { qid: string | null; name: string } | null;
   recordingParts: RecordingPart[];
   streamer: { id: string; nickname: string };
   thumbnailUrl: string | null;
@@ -93,11 +111,14 @@ export type BroadcastView = Omit<
 function toView({
   recordingStartedAt,
   thumbnailUpdatedAt,
+  gameQid,
+  gameName,
   streamer: { standbyImageExt, standbyImageUpdatedAt, ...streamer },
   ...row
 }: BroadcastRow): BroadcastView {
   return {
     ...row,
+    game: gameName === null ? null : { qid: gameQid, name: gameName },
     recordingParts: row.recordingFiles.map((file, i) => ({
       file,
       startedAt: recordingStartedAt[i] ?? null,
@@ -132,6 +153,8 @@ export const READY_LISTED_MS = 24 * 60 * 60 * 1000;
 
 const uuid = z.uuid();
 
+const NO_GAME = { gameQid: null, gameName: null };
+
 @Injectable()
 export class BroadcastsService {
   private readonly logger = new Logger(BroadcastsService.name);
@@ -145,14 +168,32 @@ export class BroadcastsService {
 
   async create(
     streamerId: string,
-    input: CreateBroadcastInput,
+    { game, ...fields }: CreateBroadcastInput,
   ): Promise<BroadcastView> {
     return toView(
       await this.prisma.broadcast.create({
-        data: { ...input, streamerId },
+        data: {
+          ...fields,
+          ...(game ? await this.gameColumns(game) : {}),
+          streamerId,
+        },
         select: broadcastSelect,
       }),
     );
+  }
+
+  // 목록 게임의 이름은 클라이언트가 보낸 값이 아니라 그때의 Game.nameKo다.
+  private async gameColumns(
+    game: GameChoice | null,
+  ): Promise<{ gameQid: string | null; gameName: string | null }> {
+    if (game === null) return NO_GAME;
+    if ('name' in game) return { gameQid: null, gameName: game.name };
+    const listed = await this.prisma.game.findUnique({
+      where: { qid: game.qid },
+      select: { nameKo: true },
+    });
+    if (!listed) throw new BadRequestException(UNKNOWN_GAME_MESSAGE);
+    return { gameQid: game.qid, gameName: listed.nameKo };
   }
 
   // 공개 목록, 또는 채널 페이지용으로 그중 한 스트리머의 몫.
@@ -226,25 +267,41 @@ export class BroadcastsService {
     return broadcast.streamerId;
   }
 
-  // 제목·설명·카테고리는 status 생애주기에 속하지 않는다. 그래서 LIVE를
-  // 포함한 모든 status에서 수정을 받는다.
+  // 제목·설명·카테고리·게임은 status 생애주기에 속하지 않는다. 그래서 LIVE를
+  // 포함한 모든 status에서 수정을 받는다. 카테고리를 GAME이 아닌 것으로 바꾸면
+  // 게임을 비운다.
   async update(
     id: string,
-    input: UpdateBroadcastInput,
+    { game, ...fields }: UpdateBroadcastInput,
   ): Promise<BroadcastView> {
+    const columns: { gameQid?: string | null; gameName?: string | null } =
+      fields.category !== undefined && fields.category !== 'GAME'
+        ? NO_GAME
+        : game === undefined
+          ? {}
+          : await this.gameColumns(game);
+    // 본문에 카테고리 없이 게임을 붙이면 저장된 카테고리가 GAME이어야 한다.
+    // 따로 읽지 않고 같은 UPDATE의 조건으로 확인해서, 그사이 다른 요청이
+    // 카테고리를 바꿔도 CHECK 위반(500)이 아니라 400이 된다.
+    const needsGameCategory =
+      fields.category === undefined && columns.gameName != null;
     try {
       return toView(
         await this.prisma.broadcast.update({
-          where: { id },
-          data: input,
+          where: needsGameCategory ? { id, category: 'GAME' } : { id },
+          data: { ...fields, ...columns },
           select: broadcastSelect,
         }),
       );
     } catch (error) {
-      if (isRecordNotFound(error)) {
-        throw new NotFoundException('Broadcast not found');
+      if (!isRecordNotFound(error)) throw error;
+      if (
+        needsGameCategory &&
+        (await this.prisma.broadcast.count({ where: { id } })) > 0
+      ) {
+        throw new BadRequestException(GAME_NEEDS_GAME_CATEGORY_MESSAGE);
       }
-      throw error;
+      throw new NotFoundException('Broadcast not found');
     }
   }
 

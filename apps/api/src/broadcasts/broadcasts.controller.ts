@@ -16,6 +16,7 @@ import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
 import { BroadcastCategory } from '../generated/prisma/client.js';
+import { GAME_QID_PATTERN } from '../games/seed-games.js';
 import {
   ImageUpload,
   UploadedImage,
@@ -25,8 +26,10 @@ import { ZodBodyPipe } from '../zod-body.pipe.js';
 import { BroadcastOwnerGuard } from './broadcast-owner.guard.js';
 import {
   BroadcastsService,
+  GAME_NEEDS_GAME_CATEGORY_MESSAGE,
   type BroadcastView,
   type CreateBroadcastInput,
+  type GameChoice,
   type PublicStatus,
   type UpdateBroadcastInput,
 } from './broadcasts.service.js';
@@ -34,27 +37,77 @@ import { ThumbnailRateGuard } from './thumbnail-rate.guard.js';
 
 export const TITLE_MAX_LENGTH = 100;
 export const DESCRIPTION_MAX_LENGTH = 2000;
+export const GAME_NAME_MAX_LENGTH = 50;
 
 const title = z.string().trim().min(1).max(TITLE_MAX_LENGTH);
 const description = z.string().trim().max(DESCRIPTION_MAX_LENGTH);
 const category = z.enum(BroadcastCategory);
 
-const createSchema = z.object({
-  title,
-  description: description.default(''),
-  category: category.optional(),
-});
+const gameFields = {
+  gameQid: z.string().regex(GAME_QID_PATTERN).nullable().optional(),
+  gameName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(GAME_NAME_MAX_LENGTH)
+    .nullable()
+    .optional(),
+};
 
-// `status` 같은 모르는 키는 제거한다. status는 서버만 바꾼다.
+// 게임 필드를 하나라도 보내면 게임 전체를 바꾼다. qid가 있으면 목록 게임이고
+// 보낸 이름은 버린다. 이름만 있으면 직접 입력이다.
+function withGameChoice<
+  T extends { gameQid?: string | null; gameName?: string | null },
+>({
+  gameQid,
+  gameName,
+  ...rest
+}: T): Omit<T, 'gameQid' | 'gameName'> & { game?: GameChoice | null } {
+  if (gameQid === undefined && gameName === undefined) return rest;
+  const game = gameQid
+    ? { qid: gameQid }
+    : gameName
+      ? { name: gameName }
+      : null;
+  return { ...rest, game };
+}
+
+const gameNeedsGameCategory = {
+  message: GAME_NEEDS_GAME_CATEGORY_MESSAGE,
+  path: ['category'],
+};
+
+// 카테고리를 보내지 않은 생성은 ETC다.
+const createSchema = z
+  .object({
+    title,
+    description: description.default(''),
+    category: category.optional(),
+    ...gameFields,
+  })
+  .transform(withGameChoice)
+  .refine(
+    (b) => b.game == null || b.category === 'GAME',
+    gameNeedsGameCategory,
+  );
+
+// `status` 같은 모르는 키는 제거한다. status는 서버만 바꾼다. 카테고리를 보내지
+// 않고 게임을 붙이면 저장된 카테고리로 서비스가 판단한다.
 const updateSchema = z
   .object({
     title: title.optional(),
     description: description.optional(),
     category: category.optional(),
+    ...gameFields,
   })
   .refine((b) => Object.values(b).some((v) => v !== undefined), {
     message: 'Nothing to update',
-  });
+  })
+  .transform(withGameChoice)
+  .refine(
+    (b) => b.game == null || b.category === undefined || b.category === 'GAME',
+    gameNeedsGameCategory,
+  );
 
 const publicStatus = {
   LIVE: 'LIVE',

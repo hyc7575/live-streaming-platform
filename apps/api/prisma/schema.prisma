@@ -69,6 +69,12 @@ model Broadcast {
   title              String
   description        String            @default("")
   category           BroadcastCategory @default(ETC)
+  // 게임 타이틀 스냅샷(PRD-category 7.1). category가 GAME일 때만 있다.
+  // gameQid가 있으면 저장 시점의 Game.nameKo가 gameName이고, gameName만 있으면
+  // 직접 입력이다. 다음 가져오기에서 그 게임이 빠져도 방송은 그대로 보여야 해서
+  // Game과 외래 키를 걸지 않는다. 마이그레이션의 CHECK가 위 규칙을 지킨다.
+  gameQid            String?
+  gameName           String?
   status             BroadcastStatus   @default(READY)
   startedAt          DateTime?
   endedAt            DateTime?
@@ -96,6 +102,19 @@ model Broadcast {
   @@unique([streamerId], map: "Broadcast_one_live_per_streamer", where: raw("status = 'LIVE'"))
   @@index([status, createdAt])
   @@index([streamerId, createdAt])
+}
+
+// Wikidata에서 받은 게임 목록(PRD-category 7.1·7.2). apps/api/data/games.json을
+// db:seed가 그대로 옮긴다. 파일에 없는 행은 지운다. 런타임은 Wikidata를 부르지 않는다.
+model Game {
+  qid        String   @id
+  nameKo     String
+  nameEn     String?
+  aliasesKo  String[] @default([])
+  // nameKo·nameEn·aliasesKo를 공백 없이 소문자로 이은 값. "리그오브레전드"로 쳐도
+  // "리그 오브 레전드"를 찾게 한다.
+  searchText String
+  updatedAt  DateTime @updatedAt
 }
 
 // 방송이나 사용자를 지우면 그 댓글도 함께 지워진다. 댓글에도

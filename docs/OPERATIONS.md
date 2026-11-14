@@ -75,6 +75,18 @@ docker compose -f deploy/compose.yaml up -d --build --wait
 
 바뀐 이미지의 서비스만 다시 만든다. 새 마이그레이션은 API가 시작할 때 적용한다. `deploy/.env`만 바꿨을 때도 같은 명령을 쓴다.
 
+## 게임 목록
+
+API 컨테이너는 시작할 때 마이그레이션 다음에 `node dist/games-seed.js`로 이미지에 든 `apps/api/data/games.json`을 `Game` 표에 옮긴다. 이 시드가 실패하면 로그에 "게임 목록 시드 실패"를 남기고 기존 `Game`으로 API를 띄운다. 배포는 Wikidata를 부르지 않는다.
+
+목록을 갱신하는 순서는 다음과 같다.
+
+1. 로컬에서 `pnpm --filter @lsp/api games:refresh`로 `games.json`을 새로 받는다.
+2. `games.json`을 커밋하고 push한다.
+3. 서버에서 [재배포](#재배포)한다. 새 컨테이너가 시작하며 바뀐 목록을 시드한다.
+
+로컬 DB에만 반영하려면 `pnpm --filter @lsp/api games:seed`를 쓴다.
+
 ## 재부팅·장애 뒤 복구
 
 다운 알림을 받으면 서버에 SSH로 들어가 아래 세 줄을 실행한다.

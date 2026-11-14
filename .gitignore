@@ -16,6 +16,8 @@ coverage/
 
 # 런타임 데이터 (DB 볼륨, OME 녹화 파일, 썸네일, Caddy 인증서)
 data/
+# Wikidata 게임 목록 스냅샷(CC0)은 런타임 데이터가 아니라 커밋하는 시드 원본이다
+!/apps/api/data/
 recordings/
 thumbnails/
 caddy_data/

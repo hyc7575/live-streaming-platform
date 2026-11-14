@@ -7,3 +7,5 @@ test-results
 playwright-report
 .claude
 .playwright-mcp
+# games:refresh가 만드는 데이터 파일. 한 줄에 게임 하나로 써서 diff를 읽기 쉽게 한다
+apps/api/data/games.json

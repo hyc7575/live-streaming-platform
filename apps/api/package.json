@@ -12,7 +12,9 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
-    "db:seed": "nest build && node --env-file-if-exists=../../.env dist/seed.js"
+    "db:seed": "nest build && node --env-file-if-exists=../../.env dist/seed.js",
+    "games:seed": "nest build && node --env-file-if-exists=../../.env dist/games-seed.js",
+    "games:refresh": "nest build && node dist/games-refresh.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.4.0",
