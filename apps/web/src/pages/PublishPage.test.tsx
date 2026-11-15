@@ -1311,10 +1311,11 @@ it('toasts each new donation on a LIVE publish page for 6 seconds, but not the o
     act(() => {
       vi.advanceTimersByTime(6000);
     });
-    await waitFor(() =>
-      expect(screen.queryByText('시청자님이 5,000원 후원')).toBeNull(),
-    );
-    expect(screen.queryByText('라임팬님이 3,000라임 후원')).toBeNull();
+    // 두 장의 타이머가 한 렌더에 함께 반영된다고 기대하지 않고 둘 다 기다린다.
+    await waitFor(() => {
+      expect(screen.queryByText('시청자님이 5,000원 후원')).toBeNull();
+      expect(screen.queryByText('라임팬님이 3,000라임 후원')).toBeNull();
+    });
   } finally {
     vi.useRealTimers();
   }
