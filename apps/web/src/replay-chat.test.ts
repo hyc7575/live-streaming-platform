@@ -25,6 +25,7 @@ function message(id: string, createdAtMs: number): ChatMessage {
     body: id,
     createdAt: new Date(createdAtMs).toISOString(),
     author: { id: 'u1', nickname: '불씨' },
+    donation: null,
   };
 }
 

@@ -107,6 +107,8 @@ describe('chat', () => {
           body: '안녕하세요',
           createdAt: expect.any(String) as string,
           author: { id: viewer.user.id, nickname: '구경꾼' },
+          // 일반 채팅이다. 후원 줄만 후원 금액과 수단을 담는다(#166).
+          donation: null,
         });
         expect(await list()).toEqual([res.body]);
       },
@@ -182,6 +184,7 @@ describe('chat', () => {
         'author',
         'body',
         'createdAt',
+        'donation',
         'id',
       ]);
       expect(messages[0]!.author).toEqual({

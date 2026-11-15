@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
 import { CHAT_MAX_LENGTH, type ChatMessage } from '../chat';
+import { formatDonationAmount } from '../donations';
 import type { LoginPageState } from '../pages/LoginPage';
 import { chatUpTo, type Playhead } from '../replay-chat';
 import { useChatFeed } from '../use-chat-feed';
@@ -223,22 +224,46 @@ function ChatForm({
 }
 
 // 메시지 하나를 한 줄로: 닉네임, 본문, 시각 순. 채팅은 작성자가
-// 고치거나 지울 수 없다.
+// 고치거나 지울 수 없다. 후원 줄은 옅은 라임 면에 "닉네임님이 금액 후원"을
+// 앞세우고 메시지를 그 아래 줄에 둔다.
 function ChatLine({ message }: { message: ChatMessage }) {
-  const createdAt = new Date(message.createdAt);
+  const time = <ChatTime createdAt={message.createdAt} />;
+  if (message.donation) {
+    return (
+      <li className={styles.donationItem}>
+        <p className={styles.chatLine}>
+          <span className={styles.donationHead}>
+            {`${message.author.nickname}님이 ${formatDonationAmount(message.donation)} 후원`}
+          </span>{' '}
+          {time}
+        </p>
+        {message.body && (
+          <p className={`${styles.chatLine} ${styles.chatBody}`}>
+            {message.body}
+          </p>
+        )}
+      </li>
+    );
+  }
   return (
     <li className={styles.chatItem}>
       <p className={styles.chatLine}>
         <span className={styles.author}>{message.author.nickname}</span>{' '}
-        <span className={styles.chatBody}>{message.body}</span>{' '}
-        <time
-          dateTime={message.createdAt}
-          title={timeFormat.format(createdAt)}
-          className={styles.time}
-        >
-          {clockFormat.format(createdAt)}
-        </time>
+        <span className={styles.chatBody}>{message.body}</span> {time}
       </p>
     </li>
+  );
+}
+
+function ChatTime({ createdAt }: { createdAt: string }) {
+  const at = new Date(createdAt);
+  return (
+    <time
+      dateTime={createdAt}
+      title={timeFormat.format(at)}
+      className={styles.time}
+    >
+      {clockFormat.format(at)}
+    </time>
   );
 }

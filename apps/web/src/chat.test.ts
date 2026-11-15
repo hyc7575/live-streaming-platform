@@ -8,7 +8,13 @@ import {
 } from './chat';
 
 function message(id: string, createdAt: string): ChatMessage {
-  return { id, body: id, createdAt, author: { id: 'u1', nickname: '불씨' } };
+  return {
+    id,
+    body: id,
+    createdAt,
+    author: { id: 'u1', nickname: '불씨' },
+    donation: null,
+  };
 }
 
 const T1 = '2026-11-10T01:00:00.000Z';

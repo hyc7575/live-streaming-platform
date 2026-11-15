@@ -10,6 +10,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { BroadcastsService } from '../broadcasts/broadcasts.service.js';
+import { addDonationLine } from '../chat/donation-line.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { donationTargetSelect, type DonationTarget } from './sent-donation.js';
@@ -299,7 +300,7 @@ export class DonationsService {
     const { toss } = this.enabled();
     const order = await this.prisma.donation.findUnique({
       where: { orderId: input.orderId },
-      select: { donorId: true, amount: true },
+      select: { donorId: true, amount: true, broadcastId: true },
     });
     if (!order) throw new NotFoundException(ORDER_NOT_FOUND_MESSAGE);
     if (order.donorId !== donorId)
@@ -310,15 +311,30 @@ export class DonationsService {
     try {
       return await this.prisma.$transaction(
         async (tx) => {
+          // 후원 줄을 쓰면 FK 확인이 방송 행을 잠근다. 방송 삭제는 방송 행을
+          // 잠근 뒤 후원 행을 기다리므로, 후원 행을 먼저 잡으면 서로 기다린다.
+          // 그래서 방송 행을 먼저 잡는다. KEY SHARE는 삭제만 기다리게 하고
+          // 방송 종료(상태 갱신)는 막지 않는다. 이미 지워졌으면 행이 없고,
+          // 아래 잠금이 broadcastId null을 보고 거절한다.
+          if (order.broadcastId !== null) {
+            await tx.$queryRaw(Prisma.sql`
+              SELECT id FROM "Broadcast"
+              WHERE id = ${order.broadcastId}::uuid
+              FOR KEY SHARE`);
+          }
           const [locked] = await tx.$queryRaw<
             {
               id: string;
               status: string;
               paymentKey: string | null;
               broadcastId: string | null;
+              donorId: string;
+              message: string;
             }[]
           >(Prisma.sql`
-            SELECT id, status::text, "paymentKey", "broadcastId" FROM "Donation"
+            SELECT id, status::text, "paymentKey", "broadcastId", "donorId",
+              message
+            FROM "Donation"
             WHERE "orderId" = ${input.orderId}
             FOR UPDATE`);
           if (!locked) throw new NotFoundException(ORDER_NOT_FOUND_MESSAGE);
@@ -354,6 +370,10 @@ export class DonationsService {
                 paymentKey: input.paymentKey,
                 approvedAt,
               },
+            });
+            await addDonationLine(tx, {
+              ...locked,
+              broadcastId: locked.broadcastId,
             });
           }
           return tx.donation.findUniqueOrThrow({
