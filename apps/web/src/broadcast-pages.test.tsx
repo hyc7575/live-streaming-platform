@@ -7,13 +7,14 @@ import {
   within,
 } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
-import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
 import type { Broadcast, RecordingPart } from './broadcasts';
 import { CHAT_PAGE_LIMIT, type ChatMessage } from './chat';
 import type { Comment } from './comments';
 import { searchPath } from './search';
+import { stubNarrowScreen } from './testing/modalDialog';
 import { renderInDataRouter } from './testing/renderInDataRouter';
 
 beforeEach(() => {
@@ -1757,34 +1758,10 @@ it.each([
   }
 });
 
-// jsdom에는 matchMedia도 모달 <dialog>도 없다. 페이지는 matchMedia로
-// 화면 너비를 읽는다. 시트에는 브라우저처럼 `open`을 켜고 끄며 close를 발생시키는
-// showModal과 close만 있으면 된다.
-function narrowScreen() {
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: false,
-    media: query,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-  }));
-  const dialog = HTMLDialogElement.prototype;
-  dialog.showModal = function (this: HTMLDialogElement) {
-    this.open = true;
-  };
-  dialog.close = function (this: HTMLDialogElement) {
-    this.open = false;
-    this.dispatchEvent(new Event('close'));
-  };
-  onTestFinished(() => {
-    delete (dialog as Partial<HTMLDialogElement>).showModal;
-    delete (dialog as Partial<HTMLDialogElement>).close;
-  });
-}
-
 const sheet = () => screen.queryByRole('dialog', { name: '방송' });
 
 it('puts the details in a 더 보기 sheet on a narrow screen and returns focus on close', async () => {
-  narrowScreen();
+  stubNarrowScreen();
   stubApi({
     'GET /api/auth/me': 401,
     'GET /api/broadcasts/b1': broadcast({
@@ -1816,7 +1793,7 @@ it('puts the details in a 더 보기 sheet on a narrow screen and returns focus 
 });
 
 it('plays the part picked in the sheet and closes it', async () => {
-  narrowScreen();
+  stubNarrowScreen();
   stubApi({
     'GET /api/auth/me': 401,
     'GET /api/broadcasts/b1': broadcast({
@@ -1862,7 +1839,7 @@ it('badges the title with its category and follows a change made while LIVE', as
 });
 
 it('keeps the category badge out of the narrow summary line and beside the full title in the sheet', async () => {
-  narrowScreen();
+  stubNarrowScreen();
   stubApi({
     'GET /api/auth/me': 401,
     'GET /api/broadcasts/b1': broadcast({

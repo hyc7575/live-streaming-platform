@@ -51,13 +51,17 @@ interface Attempt {
 // (네트워크 오류, 5xx) 다시 누르면 같은 키를 다시 보내므로,
 // 서버는 그 키로 후원을 최대 한 번만 만든다. `onDonated`는 후원 뒤에,
 // `onUnsettled`는 응답을 잃은 뒤에 실행한다. 후원이 처리됐을 경우에 대비해
-// 목록을 다시 읽게 한다.
+// 목록을 다시 읽게 한다. `offerCard`가 `'always'`면 잔액이 넉넉해도
+// "카드로 후원"을 보조 버튼으로 둔다. 후원 모달에는 카드 후원으로 가는
+// 다른 길이 없기 때문이다.
 export function LimeDonationForm({
   broadcastId,
+  offerCard,
   onDonated,
   onUnsettled,
 }: {
   broadcastId: string;
+  offerCard: 'always' | 'whenShort';
   onDonated: () => void;
   onUnsettled: () => void;
 }) {
@@ -135,6 +139,21 @@ export function LimeDonationForm({
       setSending(false);
     }
   }
+
+  const submitButton = (
+    <button type="submit" className={styles.primary} disabled={sending}>
+      {sending ? '후원하는 중…' : '라임으로 후원'}
+    </button>
+  );
+  const cardButton = (
+    <button
+      type="button"
+      className={styles.secondary}
+      onClick={() => openDonateTab(broadcastId)}
+    >
+      카드로 후원
+    </button>
+  );
 
   return (
     <form
@@ -220,19 +239,16 @@ export function LimeDonationForm({
             >
               충전하기
             </button>
-            <button
-              type="button"
-              className={styles.secondary}
-              onClick={() => openDonateTab(broadcastId)}
-            >
-              카드로 후원
-            </button>
+            {cardButton}
           </div>
         </div>
+      ) : offerCard === 'always' ? (
+        <div className={styles.actions}>
+          {submitButton}
+          {cardButton}
+        </div>
       ) : (
-        <button type="submit" className={styles.primary} disabled={sending}>
-          {sending ? '후원하는 중…' : '라임으로 후원'}
-        </button>
+        submitButton
       )}
     </form>
   );

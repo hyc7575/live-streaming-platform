@@ -1,4 +1,11 @@
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
@@ -20,16 +27,24 @@ const DONATED_NOTICE_MS = 4000;
 // 줄에 있다(#166). 후원 목록 API는 그대로 개별 내역을 준다. 후원 목록은
 // 페이지(`BroadcastPage`)가 읽어 넘긴다. 플레이어 위 새 후원 배너(S5)와
 // 같은 5초 폴링 응답을 써서 요청이 늘지 않는다.
+//
+// `donateIn`은 라임 후원 폼을 둘 자리다. 넓은 화면은 "후원하기"가 여는
+// 모달 안(`'modal'`), 좁은 화면은 패널 안(`'inline'`)이다. 좁은 화면의
+// 패널은 이미 `···` 시트(모달) 안에 있어 모달을 겹치지 않는다.
 export function DonationPanel({
   broadcast,
   summary,
   reload,
+  donateIn,
 }: {
   broadcast: Pick<Broadcast, 'id' | 'status' | 'streamer'>;
   summary: Loadable<DonationSummary>;
   reload: () => void;
+  donateIn: 'modal' | 'inline';
 }) {
   const { state } = useAuth();
+  const [modalOpen, setModalOpen] = useState(false);
+  const donateRef = useRef<HTMLButtonElement>(null);
   // 메시지마다 올려서, 두 번째 후원이 알림 타이머를 다시 시작하게 한다.
   const [donatedAt, setDonatedAt] = useState<number | null>(null);
 
@@ -54,6 +69,11 @@ export function DonationPanel({
     state.user.id !== broadcast.streamer.id;
   const loginState: LoginPageState = { from: `/broadcasts/${broadcast.id}` };
   const loaded = summary.status === 'loaded' ? summary.data : null;
+  const inModal = donateIn === 'modal';
+  const donated = () => {
+    reload();
+    setDonatedAt(Date.now());
+  };
 
   return (
     <section className={styles.panel} aria-labelledby="donations-heading">
@@ -69,9 +89,14 @@ export function DonationPanel({
         )}
         {canDonate && (
           <button
+            ref={donateRef}
             type="button"
             className={styles.donate}
-            onClick={() => openDonateTab(broadcast.id)}
+            aria-haspopup={inModal ? 'dialog' : undefined}
+            aria-expanded={inModal ? modalOpen : undefined}
+            onClick={() =>
+              inModal ? setModalOpen(true) : openDonateTab(broadcast.id)
+            }
           >
             후원하기
           </button>
@@ -83,16 +108,31 @@ export function DonationPanel({
           <p className={styles.donated}>후원이 반영되었습니다</p>
         )}
       </div>
-      {canDonate && (
-        <LimeDonationForm
-          broadcastId={broadcast.id}
-          onDonated={() => {
-            reload();
-            setDonatedAt(Date.now());
-          }}
-          onUnsettled={reload}
-        />
-      )}
+      {canDonate &&
+        (inModal ? (
+          <DonationModal
+            open={modalOpen}
+            onOpenChange={setModalOpen}
+            returnFocusTo={donateRef}
+          >
+            <LimeDonationForm
+              broadcastId={broadcast.id}
+              offerCard="always"
+              onDonated={() => {
+                donated();
+                setModalOpen(false);
+              }}
+              onUnsettled={reload}
+            />
+          </DonationModal>
+        ) : (
+          <LimeDonationForm
+            broadcastId={broadcast.id}
+            offerCard="whenShort"
+            onDonated={donated}
+            onUnsettled={reload}
+          />
+        ))}
       {live && state.status === 'anonymous' && (
         <Link to="/login" state={loginState} className={styles.login}>
           로그인하고 후원해 보세요
@@ -108,6 +148,62 @@ export function DonationPanel({
         <DonationRanking ranking={loaded.ranking} />
       )}
     </section>
+  );
+}
+
+// 닫혀도 children(폼)을 마운트해 두어, 응답을 잃은 시도의 멱등 키가
+// 모달을 다시 열어도 남는다.
+function DonationModal({
+  open,
+  onOpenChange,
+  returnFocusTo,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  returnFocusTo: RefObject<HTMLButtonElement | null>;
+  children: ReactNode;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const headingId = useId();
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog || dialog.open === open) return;
+    if (open) dialog.showModal();
+    else dialog.close();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className={styles.modal}
+      aria-labelledby={headingId}
+      onClose={() => {
+        onOpenChange(false);
+        returnFocusTo.current?.focus();
+      }}
+      onClick={(e) => {
+        // 내용이 dialog 상자를 채우므로 dialog 자체에 닿는 클릭은 배경뿐이다.
+        if (e.target === e.currentTarget) onOpenChange(false);
+      }}
+    >
+      <div className={styles.modalContent}>
+        <div className={styles.modalHeader}>
+          <h2 id={headingId} className={styles.modalTitle}>
+            후원하기
+          </h2>
+          <button
+            type="button"
+            className={styles.close}
+            onClick={() => onOpenChange(false)}
+          >
+            닫기
+          </button>
+        </div>
+        {children}
+      </div>
+    </dialog>
   );
 }
 

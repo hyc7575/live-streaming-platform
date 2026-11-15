@@ -18,6 +18,7 @@ import type {
   DonationOrder,
   DonationSummary,
 } from './donations';
+import { stubModalDialog, stubNarrowScreen } from './testing/modalDialog';
 
 const toss = vi.hoisted(() => {
   const widgets = {
@@ -190,23 +191,108 @@ it('shows the total and the count, and leaves each donation to the chat', async 
   expect(within(panel).queryByText('10,000원')).toBeNull();
 });
 
-it('opens 후원하기 in a new tab the payment can close again', async () => {
-  stubApi({
-    'GET /api/auth/me': viewer,
-    'GET /api/broadcasts/b1': broadcast(),
-    [DONATIONS]: summary(),
-  });
-  const open = vi.spyOn(window, 'open').mockReturnValue(null);
-  renderAt('/broadcasts/b1');
+// jsdom에는 matchMedia가 없어 넓은 화면으로 그린다. 넓은 화면의
+// "후원하기"는 라임 후원 폼을 모달로 연다(PRD-donation-modal 7.2, #180).
+const donationModal = () => screen.queryByRole('dialog', { name: '후원하기' });
+
+async function openDonationModal() {
+  stubModalDialog();
   const panel = await donationPanel();
   fireEvent.click(
     await within(panel).findByRole('button', { name: '후원하기' }),
   );
+  return screen.findByRole('dialog', { name: '후원하기' });
+}
+
+it('opens the lime form in a 후원하기 modal and returns focus to 후원하기 on close', async () => {
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+  });
+  renderAt('/broadcasts/b1');
+  const panel = await donationPanel();
+  const donate = await within(panel).findByRole('button', {
+    name: '후원하기',
+  });
+  expect(
+    within(panel).queryByRole('form', { name: '라임으로 후원' }),
+  ).toBeNull();
+  expect(donate.getAttribute('aria-haspopup')).toBe('dialog');
+  expect(donate.getAttribute('aria-expanded')).toBe('false');
+
+  const modal = await openDonationModal();
+  expect(donate.getAttribute('aria-expanded')).toBe('true');
+  const form = within(modal).getByRole('form', { name: '라임으로 후원' });
+  expect(
+    await within(form).findByText('10,000라임', { selector: 'strong' }),
+  ).toBeDefined();
+  expect(within(form).getByLabelText('직접 입력 (라임)')).toBeDefined();
+  expect(within(form).getByLabelText(/메시지/)).toBeDefined();
+  expect(
+    within(form).getByRole('button', { name: '라임으로 후원' }),
+  ).toBeDefined();
+  expect(
+    within(form).getByRole('button', { name: '카드로 후원' }),
+  ).toBeDefined();
+
+  fireEvent.click(within(modal).getByRole('button', { name: '닫기' }));
+  expect(donationModal()).toBeNull();
+  expect(document.activeElement).toBe(donate);
+  expect(donate.getAttribute('aria-expanded')).toBe('false');
+
+  fireEvent.click(donate);
+  // 배경을 누르면 클릭은 dialog 자신에 닿는다.
+  fireEvent.click(await screen.findByRole('dialog', { name: '후원하기' }));
+  expect(donationModal()).toBeNull();
+  expect(document.activeElement).toBe(donate);
+});
+
+it('opens 카드로 후원 from the modal in a new tab the payment can close again', async () => {
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+  });
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  renderAt('/broadcasts/b1');
+  const modal = await openDonationModal();
+  fireEvent.click(within(modal).getByRole('button', { name: '카드로 후원' }));
   // `noopener`가 없어야 결제 탭이 window.close()로 스스로 닫을 수 있다.
   expect(open).toHaveBeenCalledWith('/broadcasts/b1/donate', '_blank');
   expect(
     await screen.findByRole('heading', { level: 1, name: '저녁 방송' }),
   ).toBeDefined();
+});
+
+// 좁은 화면의 패널은 `···` 시트 안에 있다. 시트 위에 모달을 겹치지 않고,
+// "후원하기"는 지금처럼 카드 결제 탭을 연다.
+it('keeps the lime form in the panel and 후원하기 on the card tab on a narrow screen', async () => {
+  stubNarrowScreen();
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+  });
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('button', { name: '더 보기' }));
+  const sheet = await screen.findByRole('dialog', { name: '저녁 방송' });
+  const panel = within(sheet).getByRole('region', { name: '후원' });
+  const form = within(panel).getByRole('form', { name: '라임으로 후원' });
+  await within(form).findByText('10,000라임', { selector: 'strong' });
+  expect(
+    within(form).queryByRole('button', { name: '카드로 후원' }),
+  ).toBeNull();
+
+  const donate = within(panel).getByRole('button', { name: '후원하기' });
+  expect(donate.getAttribute('aria-haspopup')).toBeNull();
+  fireEvent.click(donate);
+  expect(open).toHaveBeenCalledWith('/broadcasts/b1/donate', '_blank');
+  expect(donationModal()).toBeNull();
 });
 
 it('re-reads the donations as soon as the payment tab reports one', async () => {
@@ -654,8 +740,8 @@ const limeDonation = (amount: number, message = ''): ConfirmedDonation => ({
 });
 
 async function limeForm() {
-  const panel = await donationPanel();
-  return within(panel).findByRole('form', { name: '라임으로 후원' });
+  const modal = await openDonationModal();
+  return within(modal).getByRole('form', { name: '라임으로 후원' });
 }
 
 function sentKeys(calls: { body?: BodyInit | null }[]): string[] {
@@ -664,7 +750,7 @@ function sentKeys(calls: { body?: BodyInit | null }[]): string[] {
   );
 }
 
-it('donates lime from the balance and shows it without leaving the page', async () => {
+it('donates lime from the modal, closes it and shows the donation without leaving the page', async () => {
   const routes: Record<string, unknown> = {
     'GET /api/auth/me': viewer,
     'GET /api/broadcasts/b1': broadcast(),
@@ -696,10 +782,11 @@ it('donates lime from the balance and shows it without leaving the page', async 
   routes[LIME] = { balance: 7_000 };
   fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
 
+  await waitFor(() => expect(donationModal()).toBeNull());
   const panel = await donationPanel();
-  expect(
-    await within(panel).findByText('7,000라임', { selector: 'strong' }),
-  ).toBeDefined();
+  expect(document.activeElement).toBe(
+    within(panel).getByRole('button', { name: '후원하기' }),
+  );
   const ranking = await within(panel).findByRole('list', {
     name: '후원 순위',
   });
@@ -717,9 +804,13 @@ it('donates lime from the balance and shows it without leaving the page', async 
     message: '응원',
     orderId: expect.stringMatching(UUID) as string,
   });
-  expect(within(form).getByLabelText<HTMLInputElement>(/메시지/).value).toBe(
-    '',
-  );
+  const reopened = await openDonationModal();
+  expect(
+    await within(reopened).findByText('7,000라임', { selector: 'strong' }),
+  ).toBeDefined();
+  expect(
+    within(reopened).getByLabelText<HTMLInputElement>(/메시지/).value,
+  ).toBe('');
   // 여전히 시청 페이지다.
   expect(
     screen.getByRole('heading', { level: 1, name: '저녁 방송' }),
@@ -742,6 +833,9 @@ it('offers 충전하기 and 카드로 후원 in new tabs when the balance is sho
     within(form).queryByRole('button', { name: '라임으로 후원' }),
   ).toBeNull();
   expect(within(form).getByText('라임이 3,000라임 부족합니다.')).toBeDefined();
+  expect(
+    within(form).getAllByRole('button', { name: '카드로 후원' }),
+  ).toHaveLength(1);
 
   fireEvent.click(within(form).getByRole('button', { name: '충전하기' }));
   expect(open).toHaveBeenLastCalledWith('/lime/charge', '_blank');
@@ -812,7 +906,10 @@ it('resends a lost attempt with its key and gives the next donation a new one', 
   );
   donate();
   await waitFor(() => expect(sent).toHaveLength(2));
-  await waitFor(() => expect(within(form).queryByRole('alert')).toBeNull());
+  // 후원에 성공하면 모달이 닫힌다. 다음 후원은 모달을 다시 연다.
+  await waitFor(() => expect(donationModal()).toBeNull());
+  await openDonationModal();
+  expect(within(form).queryByRole('alert')).toBeNull();
   donate();
   await waitFor(() => expect(sent).toHaveLength(3));
   const [lost, resent, next] = sentKeys(sent);
@@ -868,7 +965,9 @@ it('re-reads after a lost answer and keeps the resend open when the balance fell
   await waitFor(() => expect(sent).toHaveLength(2));
   const [lost, resent] = sentKeys(sent);
   expect(resent).toBe(lost);
-  await waitFor(() => expect(within(form).queryByRole('alert')).toBeNull());
+  await waitFor(() => expect(donationModal()).toBeNull());
+  await openDonationModal();
+  expect(within(form).queryByRole('alert')).toBeNull();
   // 결론이 났다. 다른 금액은 새 시도이고, 이제는 잔액이 모자라다.
   fireEvent.click(within(form).getByRole('button', { name: '1,000라임' }));
   expect(
