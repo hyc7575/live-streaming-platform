@@ -3,7 +3,7 @@
 현금 1:1 단위 라임을 테스트 결제로 충전하고, 시청 화면을 떠나지 않고 잔액에서 후원한다.
 
 - 우선순위: P2
-- 상태: 구현 완료
+- 상태: 구현 완료. 후원 모달(#180)까지 머지했고, PC 모달 안 결제(#181)는 스파이크 #179를 기다린다
 
 ## 문서
 
@@ -24,16 +24,20 @@
 | #108 | #111 | 후원 결제를 새 탭에서 열기 |
 | #109 | #112 | 라임 충전과 한 번만 적립 |
 | #110 | #113 | 라임으로 시청 화면에서 후원 |
-| #178 | | PC에서 후원·충전 결제를 방송 화면 위 모달에서 끝낸다 (하위 #179 스파이크, #180 모달, #181 모달 안 결제) |
+| #178 | #182 | 후원 모달과 PC 모달 안 결제의 기획 문서 (상위 이슈) |
+| #180 | #183 | 넓은 화면에서 "후원하기"가 후원 폼 모달을 띄운다 |
+| #179 | | [스파이크] 모달 안 iframe에서 Toss 테스트 결제가 끝나는지 확인한다 |
+| #181 | | PC에서 충전·카드 결제를 후원 모달 안 iframe에서 끝낸다 (#179에 막힘) |
 
 ## 코드
 
 - api: `apps/api/src/lime/`
 - web: `apps/web/src/pages/LimeChargePage.tsx`, `LimeChargeSuccessPage.tsx`, `LimeChargeFailPage.tsx`
-- web: `apps/web/src/components/LimeDonationForm.tsx`
+- web: `apps/web/src/components/LimeDonationForm.tsx`(`offerCard`), `DonationPanel.tsx`(후원 모달, `donateIn`)
 - web: `apps/web/src/lime.ts`
 
 ## 확인
 
-- 인수 시나리오: `PRD.md` §8.3 15, 16
+- 인수 시나리오: `PRD.md` §8.3 15, 16, 30
+- e2e: `apps/web/e2e/donationModal.spec.ts`(넓은 화면 모달, 좁은 화면 시트)
 - 수동 확인 절차: 루트 `README.md` "기능 확인"의 10절
