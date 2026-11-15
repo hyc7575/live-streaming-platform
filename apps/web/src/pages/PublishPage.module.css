@@ -40,6 +40,9 @@
    정한다. 사이드 패널이 옆에 서면 같은 화면 폭에서도 칸이 좁아진다. */
 .studioArea {
   container: studio / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
   min-width: 0;
 }
 

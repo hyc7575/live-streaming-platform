@@ -310,9 +310,11 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
 
   return (
     <section className={styles.page}>
-      <Heading broadcast={broadcast} />
       <div className={styles.workspace}>
+        {/* 제목은 왼쪽 칸 안에 두어, 오른쪽 패널이 시청 화면처럼 본문 맨 위에서
+            시작해 화면 높이 안에 들어오게 한다. */}
         <div className={styles.studioArea}>
+          <Heading broadcast={broadcast} />
           <div className={styles.studio}>
             {capture ? (
               <video
@@ -435,7 +437,10 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
             />
           </div>
         </div>
-        <PublishSidePanel summary={donations.summary} />
+        <PublishSidePanel
+          broadcastId={broadcast.id}
+          summary={donations.summary}
+        />
       </div>
       <DonationToasts alert={toasts.current} onExpire={toasts.advance} />
       <LeaveConfirm blocker={leave} />
