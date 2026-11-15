@@ -27,6 +27,7 @@ import { PcCaptureError, startPcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
 import type { Donation, DonationSummary } from '../donations';
 import { startWhipPublish, type PublishEvent } from '../publish/whipPublisher';
+import { advanceClock, eventually, useFakeClock } from '../testing/fakeClock';
 import { searchPath } from '../search';
 import { renderInDataRouter } from '../testing/renderInDataRouter';
 import { OBS_STOP_REMINDER } from './ObsPanel';
@@ -1267,12 +1268,29 @@ const donations = (list: Donation[]) => ({
   } satisfies DonationSummary,
 });
 
-it('toasts each new donation on a LIVE publish page for 6 seconds, but not the ones already there', async () => {
-  // waitFor·findBy가 기다릴 수 있게 가짜 시계도 실제 시간만큼 흐르게 둔다.
-  vi.useFakeTimers({
-    toFake: ['setInterval', 'setTimeout'],
-    shouldAdvanceTime: true,
+// 앱이 후원 목록 응답 본문을 다 읽은 횟수. 송출 화면에는 기준선을 잡았다는
+// 표시가 없으므로, 응답을 바꾸기 전에 첫 응답을 읽었는지 이것으로 본다.
+// renderPage 직후(첫 요청 전)에 부른다.
+function countDonationReads(): () => number {
+  const inner = globalThis.fetch;
+  let reads = 0;
+  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+    const res = await inner(url, init);
+    if (url !== '/api/broadcasts/b1/donations') return res;
+    const json = res.json.bind(res);
+    res.json = async () => {
+      const body: unknown = await json();
+      reads += 1;
+      return body;
+    };
+    return res;
   });
+  return () => reads;
+}
+
+it('toasts new donations on a LIVE publish page one at a time for 6 seconds each, but not the ones already there', async () => {
+  // 토스트 6초와 폴링 5초는 테스트가 시계를 넘길 때만 지난다.
+  useFakeClock();
   try {
     const before = donation({
       id: 'd0',
@@ -1283,8 +1301,10 @@ it('toasts each new donation on a LIVE publish page for 6 seconds, but not the o
       'GET /api/broadcasts/b1': LIVE_ELSEWHERE,
       [DONATIONS]: donations([before]),
     });
-    await screen.findByRole('tab', { name: 'OBS로 송출' });
-    await waitFor(() => expect(page.calls).toContain(DONATIONS));
+    const donationReads = countDonationReads();
+    await eventually(() => screen.getByRole('tab', { name: 'OBS로 송출' }));
+    // 첫 응답이 기준선이 된 뒤에 응답을 바꾼다.
+    await eventually(() => expect(donationReads()).toBe(1));
 
     page.routes[DONATIONS] = donations([
       donation({
@@ -1297,26 +1317,25 @@ it('toasts each new donation on a LIVE publish page for 6 seconds, but not the o
       donation({ id: 'd1', message: '화이팅' }),
       before,
     ]);
-    act(() => {
-      vi.advanceTimersByTime(5000);
-    });
+    await advanceClock(5000);
 
-    const card = await screen.findByText('시청자님이 5,000원 후원');
+    // 시청 화면 배너와 같은 큐(#164): 오래된 것부터 한 장씩 뜬다.
+    const card = await eventually(() =>
+      screen.getByText('시청자님이 5,000원 후원'),
+    );
     const toasts = card.closest('[aria-live="polite"]') as HTMLElement;
     expect(toasts).not.toBeNull();
     expect(within(toasts).getByText('화이팅')).toBeDefined();
-    expect(within(toasts).getByText('라임팬님이 3,000라임 후원')).toBeDefined();
+    expect(within(toasts).queryByText('라임팬님이 3,000라임 후원')).toBeNull();
     expect(within(toasts).queryByText('먼저 온 후원')).toBeNull();
     expect(within(toasts).queryByText(/1,000원/)).toBeNull();
 
-    act(() => {
-      vi.advanceTimersByTime(6000);
-    });
-    // 두 장의 타이머가 한 렌더에 함께 반영된다고 기대하지 않고 둘 다 기다린다.
-    await waitFor(() => {
-      expect(screen.queryByText('시청자님이 5,000원 후원')).toBeNull();
-      expect(screen.queryByText('라임팬님이 3,000라임 후원')).toBeNull();
-    });
+    await advanceClock(6000);
+    expect(within(toasts).getByText('라임팬님이 3,000라임 후원')).toBeDefined();
+    expect(within(toasts).queryByText('시청자님이 5,000원 후원')).toBeNull();
+
+    await advanceClock(6000);
+    expect(toasts.textContent).toBe('');
   } finally {
     vi.useRealTimers();
   }

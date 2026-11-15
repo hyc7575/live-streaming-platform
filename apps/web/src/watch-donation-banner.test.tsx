@@ -102,6 +102,7 @@ async function donationsLoaded() {
 }
 
 const nextPoll = () => advanceClock(5000);
+const shownFor6Seconds = () => advanceClock(6000);
 
 const EARLIER = donation({ id: 'd0', amount: 1000, message: '먼저 온 후원' });
 const CARD = donation({ id: 'd1', message: '화이팅' });
@@ -113,7 +114,7 @@ const LIME = donation({
   donor: { id: 'u4', nickname: '라임팬' },
 });
 
-it('shows each new donation over the live player for 6 seconds, but not the ones already there', async () => {
+it('shows new donations over the live player one at a time for 6 seconds each, but not the ones already there', async () => {
   const page = renderWatch({
     'GET /api/auth/me': 401,
     'GET /api/broadcasts/b1': broadcast(),
@@ -125,6 +126,7 @@ it('shows each new donation over the live player for 6 seconds, but not the ones
   page.routes[DONATIONS] = summaryOf([LIME, CARD, EARLIER]);
   await nextPoll();
 
+  // 오래된 카드 후원이 먼저, 혼자 뜬다.
   const card = await eventually(() =>
     screen.getByText('시청자님이 5,000원 후원'),
   );
@@ -132,15 +134,49 @@ it('shows each new donation over the live player for 6 seconds, but not the ones
   // 전체 화면은 영상을 감싼 플레이어 컨테이너에 걸리므로 배너도 그 안에 있어야 보인다.
   expect(video.parentElement?.contains(banners)).toBe(true);
   expect(within(banners).getByText('화이팅')).toBeDefined();
-  expect(within(banners).getByText('라임팬님이 3,000라임 후원')).toBeDefined();
+  expect(within(banners).queryByText('라임팬님이 3,000라임 후원')).toBeNull();
   expect(within(banners).queryByText('먼저 온 후원')).toBeNull();
 
-  // 6초 직전까지는 그대로고, 6초가 되면 내려간다.
+  // 6초 직전까지는 그대로다.
   await advanceClock(5999);
   expect(within(banners).getByText('시청자님이 5,000원 후원')).toBeDefined();
   await advanceClock(1);
-  expect(screen.queryByText('시청자님이 5,000원 후원')).toBeNull();
-  expect(screen.queryByText('라임팬님이 3,000라임 후원')).toBeNull();
+  expect(within(banners).getByText('라임팬님이 3,000라임 후원')).toBeDefined();
+  expect(within(banners).queryByText('시청자님이 5,000원 후원')).toBeNull();
+
+  await shownFor6Seconds();
+  expect(banners.textContent).toBe('');
+});
+
+it('bundles what waits beyond 4 into one 외 N건 후원 banner', async () => {
+  const page = renderWatch({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summaryOf([]),
+  });
+  await eventually(() => screen.getByLabelText('방송 화면'));
+  await donationsLoaded();
+
+  // 한 응답에 새 후원 7건(최신 순).
+  const wave = Array.from({ length: 7 }, (_, i) =>
+    donation({
+      id: `w${i}`,
+      approvedAt: `2026-11-15T00:2${i}:00.000Z`,
+      donor: { id: `u${i + 10}`, nickname: `팬${i}` },
+    }),
+  ).reverse();
+  page.routes[DONATIONS] = summaryOf(wave);
+  await nextPoll();
+
+  // 지금 1장과 기다리는 4장은 따로, 남은 2건은 한 장이다.
+  await eventually(() => screen.getByText('팬0님이 5,000원 후원'));
+  for (let i = 1; i < 5; i += 1) {
+    await shownFor6Seconds();
+    expect(screen.getByText(`팬${i}님이 5,000원 후원`)).toBeDefined();
+  }
+  await shownFor6Seconds();
+  expect(screen.getByText('외 2건 후원')).toBeDefined();
+  expect(screen.queryByText('팬5님이 5,000원 후원')).toBeNull();
 });
 
 it('shows no banner before the broadcast is LIVE or once it ended', async () => {
