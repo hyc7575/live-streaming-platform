@@ -761,6 +761,45 @@ it('says the broadcast does not exist on a 404', async () => {
   ).toBeDefined();
 });
 
+it('keeps re-reading after a first read fails with 503 and shows the broadcast once it answers (#149)', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  try {
+    const routes: Record<string, unknown> = {
+      'GET /api/auth/me': 401,
+      'GET /api/broadcasts/b1': 503,
+    };
+    stubApi(routes);
+    renderAt('/broadcasts/b1');
+    expect(
+      await screen.findByRole('heading', {
+        name: '방송을 불러오지 못했습니다',
+      }),
+    ).toBeDefined();
+
+    routes['GET /api/broadcasts/b1'] = broadcast({ status: 'READY' });
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(screen.getByText('방송 준비 중입니다.')).toBeDefined();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('stops re-reading once the broadcast is gone (404)', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  try {
+    const calls = stubApi({ 'GET /api/auth/me': 401 });
+    renderAt('/broadcasts/missing');
+    await screen.findByRole('heading', { name: '방송을 찾을 수 없습니다' });
+    const reads = () =>
+      calls.filter((c) => c === 'GET /api/broadcasts/missing').length;
+    const before = reads();
+    await act(() => vi.advanceTimersByTimeAsync(20_000));
+    expect(reads()).toBe(before);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 const other = { id: 'u2', email: 'b@example.com', nickname: '타인' };
 
 // 헤더에 로그인한 사용자가 보일 때까지 기다린다. 그래야 단언이 로딩 중이
