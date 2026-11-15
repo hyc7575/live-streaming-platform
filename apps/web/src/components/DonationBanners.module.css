@@ -1,0 +1,64 @@
+/* 플레이어 오른쪽 위. 왼쪽 위에는 "소리 켜기"가, 아래에는 컨트롤 바가 있다. */
+.banners {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  /* 아래 컨트롤 바(버튼 + 위쪽 그라데이션 여백) 위에서 끝난다. 넘치는 배너는
+     잘리고, 몰릴 때의 순서는 #164가 정한다. */
+  bottom: calc(var(--player-control-size) + var(--space-8) + var(--space-2));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  width: min(var(--toast-width), 60%);
+  /* 배너는 보이기만 하고 재생·음량·전체 화면 클릭은 아래로 지나가게 한다. */
+  pointer-events: none;
+}
+
+.banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 100%;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-on-video);
+  background: var(--color-player-scrim);
+  border-left: var(--space-1) solid var(--color-brand);
+  border-radius: var(--radius-md);
+  animation: banner-in var(--duration-fade) ease-out;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.message {
+  /* 휴대폰 플레이어는 높이가 낮아 메시지를 두 줄까지만 보인다. 전체는
+     후원 목록(#166 뒤에는 채팅)에 남는다. */
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-2)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner {
+    animation: none;
+  }
+}

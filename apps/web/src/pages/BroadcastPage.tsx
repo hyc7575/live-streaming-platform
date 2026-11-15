@@ -7,12 +7,15 @@ import { ActionSheet } from '../components/ActionSheet';
 import { BroadcastSidePanel } from '../components/BroadcastSidePanel';
 import { CategoryBadge } from '../components/CategoryBadge';
 import type { BroadcastStatus } from '../components/StatusBadge';
+import { DonationBanners } from '../components/DonationBanners';
 import { DonationPanel } from '../components/DonationPanel';
 import { ElapsedTime } from '../components/ElapsedTime';
 import { LivePlayer } from '../components/LivePlayer';
 import { OwnerActions } from '../components/OwnerActions';
 import { ReplayParts, ReplayPlayer } from '../components/ReplayPlayer';
 import { StatusBadge } from '../components/StatusBadge';
+import { useNewDonations } from '../donation/useNewDonations';
+import type { Donation } from '../donations';
 import { FollowButton } from '../follows/FollowButton';
 import { partStarts, type Playhead } from '../replay-chat';
 import { channelPath } from '../streamers';
@@ -137,18 +140,6 @@ export function BroadcastPage() {
     `/broadcasts/${encodeURIComponent(id)}`,
   );
   useDocumentTitle(broadcast.status === 'loaded' ? broadcast.data.title : null);
-  // 재생 위치를 받은 방송을 함께 적어 둔다. 그래서 다른 방송으로 옮기면
-  // 그 방송의 채팅 기록은 재생 위치 없이 시작한다.
-  const [heard, setHeard] = useState<{
-    broadcastId: string;
-    playhead: Playhead;
-  } | null>(null);
-  const [picked, setPicked] = useState<{
-    broadcastId: string;
-    part: number;
-  } | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const wide = useWideScreen();
 
   // 소유자인지 알기 전까지 플레이어는 음소거로 시작할지
   // 정할 수 없다 (T7).
@@ -165,9 +156,57 @@ export function BroadcastPage() {
     );
   }
 
-  const b = broadcast.data;
   const isOwner =
-    state.status === 'authenticated' && state.user.id === b.streamer.id;
+    state.status === 'authenticated' &&
+    state.user.id === broadcast.data.streamer.id;
+  return (
+    <BroadcastView
+      key={broadcast.data.id}
+      b={broadcast.data}
+      isOwner={isOwner}
+      waitingForReplay={waitingForReplay}
+      recheck={recheck}
+    />
+  );
+}
+
+// 읽어 온 방송을 그린다. 후원 목록 폴링은 방송을 읽은 뒤에만 시작해, 없는
+// 방송(404)에는 후원을 읽지 않는다.
+function BroadcastView({
+  b,
+  isOwner,
+  waitingForReplay,
+  recheck,
+}: {
+  b: Broadcast;
+  isOwner: boolean;
+  waitingForReplay: boolean;
+  recheck: () => void;
+}) {
+  // 재생 위치를 받은 방송을 함께 적어 둔다. 그래서 다른 방송으로 옮기면
+  // 그 방송의 채팅 기록은 재생 위치 없이 시작한다.
+  const [heard, setHeard] = useState<{
+    broadcastId: string;
+    playhead: Playhead;
+  } | null>(null);
+  const [picked, setPicked] = useState<{
+    broadcastId: string;
+    part: number;
+  } | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const wide = useWideScreen();
+  // 후원 패널과 플레이어 위 배너(S5)가 같은 5초 폴링 응답을 쓴다. 새 후원은
+  // LIVE일 때만 배너로 띄운다. 처음 읽은 후원은 훅이 기준선으로 거른다.
+  const [banners, setBanners] = useState<Donation[]>([]);
+  const donations = useNewDonations(b.id, (fresh) => {
+    if (b.status === 'LIVE') setBanners((shown) => [...shown, ...fresh]);
+  });
+  const dismissBanner = useCallback(
+    (donationId: string) =>
+      setBanners((shown) => shown.filter((d) => d.id !== donationId)),
+    [],
+  );
+
   const standbyImageUrl = b.status === 'READY' ? b.standbyImageUrl : null;
   const playhead = heard?.broadcastId === b.id ? heard.playhead : null;
   const part = picked?.broadcastId === b.id ? picked.part : 0;
@@ -215,7 +254,13 @@ export function BroadcastPage() {
     <p className={styles.description}>{b.description}</p>
   );
   const owner = isOwner && <OwnerActions broadcast={b} onEnded={recheck} />;
-  const donation = <DonationPanel broadcast={b} />;
+  const donation = (
+    <DonationPanel
+      broadcast={b}
+      summary={donations.summary}
+      reload={donations.reload}
+    />
+  );
 
   return (
     <section className={styles.page}>
@@ -237,6 +282,12 @@ export function BroadcastPage() {
                 broadcastId={b.id}
                 startMuted={isOwner}
                 onPlaybackError={recheck}
+                overlay={
+                  <DonationBanners
+                    donations={banners}
+                    onExpire={dismissBanner}
+                  />
+                }
               />
             ) : (
               <>
