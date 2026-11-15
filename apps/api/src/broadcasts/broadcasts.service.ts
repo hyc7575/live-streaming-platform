@@ -78,6 +78,8 @@ const broadcastSelect = {
       nickname: true,
       standbyImageExt: true,
       standbyImageUpdatedAt: true,
+      avatarExt: true,
+      avatarUpdatedAt: true,
     },
   },
 } as const satisfies Prisma.BroadcastSelect;
@@ -106,7 +108,8 @@ export type BroadcastView = Omit<
   // qid가 null이면 직접 입력한 게임이다.
   game: { qid: string | null; name: string } | null;
   recordingParts: RecordingPart[];
-  streamer: { id: string; nickname: string };
+  // 카드와 시청 화면이 닉네임 옆에 프로필 원을 그린다. 없으면 null이다.
+  streamer: { id: string; nickname: string; avatarUrl: string | null };
   thumbnailUrl: string | null;
   standbyImageUrl: string | null;
 };
@@ -116,7 +119,13 @@ function toView({
   thumbnailUpdatedAt,
   gameQid,
   gameName,
-  streamer: { standbyImageExt, standbyImageUpdatedAt, ...streamer },
+  streamer: {
+    standbyImageExt,
+    standbyImageUpdatedAt,
+    avatarExt,
+    avatarUpdatedAt,
+    ...streamer
+  },
   ...row
 }: BroadcastRow): BroadcastView {
   return {
@@ -126,7 +135,15 @@ function toView({
       file,
       startedAt: recordingStartedAt[i] ?? null,
     })),
-    streamer,
+    streamer: {
+      ...streamer,
+      avatarUrl: userImageUrl(
+        streamer.id,
+        'avatar',
+        avatarExt,
+        avatarUpdatedAt,
+      ),
+    },
     thumbnailUrl: thumbnailUrl(row.id, thumbnailUpdatedAt),
     standbyImageUrl: userImageUrl(
       streamer.id,

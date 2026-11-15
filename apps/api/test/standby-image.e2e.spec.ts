@@ -294,6 +294,7 @@ describe('channel standby image', () => {
       expect(Object.keys((created.body as BroadcastView).streamer)).toEqual([
         'id',
         'nickname',
+        'avatarUrl',
       ]);
 
       expect((await detail(ready)).standbyImageUrl).toBe(url);

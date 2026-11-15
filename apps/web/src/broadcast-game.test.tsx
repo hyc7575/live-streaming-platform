@@ -42,7 +42,7 @@ function broadcast(overrides: Partial<Broadcast>): Broadcast {
     recordingParts: [],
     thumbnailUrl: null,
     standbyImageUrl: null,
-    streamer: { id: streamer.id, nickname: streamer.nickname },
+    streamer: { id: streamer.id, nickname: streamer.nickname, avatarUrl: null },
     ...overrides,
   };
 }

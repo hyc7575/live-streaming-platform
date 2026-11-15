@@ -38,7 +38,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const streamer = { id: 'u1', nickname: '불씨' };
+const streamer = { id: 'u1', nickname: '불씨', avatarUrl: null };
 const viewer = { id: 'u2', email: 'b@example.com', nickname: '구경꾼' };
 
 function broadcast(overrides: Partial<Broadcast> = {}): Broadcast {

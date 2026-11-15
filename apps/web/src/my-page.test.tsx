@@ -343,7 +343,7 @@ const channelBroadcast = (
   title,
   description: '',
   status,
-  streamer: { id: 's1', nickname: '불씨' },
+  streamer: { id: 's1', nickname: '불씨', avatarUrl: null },
   startedAt: '2026-11-13T04:00:00.000Z',
   endedAt: status === 'ENDED' ? '2026-11-13T05:00:00.000Z' : null,
   disconnectedAt: null,

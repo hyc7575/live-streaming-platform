@@ -24,6 +24,7 @@
 | #119 | #123 | 스트리머 채널 페이지 |
 | #120 | #124 | 프로필 편집 |
 | #116 | #127 | 구현 결과를 PRD와 discovery 문서에 반영 |
+| — | #192 | 방송 카드·시청 화면에 스트리머 프로필 원 |
 
 ## 코드
 
@@ -31,6 +32,7 @@
 - api: `apps/api/src/channel/profile.controller.ts`, `profile.service.ts`
 - web: `apps/web/src/pages/StreamerPage.tsx`, `LimeHistoryPage.tsx`, `SentDonationsPage.tsx`, `ProfilePage.tsx`
 - web: `apps/web/src/pages/ReceivedDonationsPage.tsx`, `FollowersPage.tsx`
+- web: `apps/web/src/components/UserAvatar.tsx`(헤더·채널·검색·방송 카드·시청 화면이 같이 쓴다)
 
 ## 확인
 

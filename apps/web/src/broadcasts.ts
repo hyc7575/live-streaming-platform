@@ -27,7 +27,8 @@ export interface Broadcast {
   // /thumbnails 아래 스트리머의 기본 대기 이미지다. 그 스트리머의 모든 방송이
   // 함께 쓴다. 한 번도 올리지 않았으면 null이다.
   standbyImageUrl: string | null;
-  streamer: { id: string; nickname: string };
+  // avatarUrl은 /thumbnails 아래 스트리머의 프로필 이미지다. 없으면 null이다.
+  streamer: { id: string; nickname: string; avatarUrl: string | null };
 }
 
 // 방송을 저장할 때의 게임 이름 스냅샷이다. 목록에서 고르면 qid가 있고,

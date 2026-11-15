@@ -15,7 +15,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const streamer = { id: 'u1', nickname: '불씨' };
+const streamer = { id: 'u1', nickname: '불씨', avatarUrl: null };
 
 function broadcast(overrides: Partial<Broadcast>): Broadcast {
   return {

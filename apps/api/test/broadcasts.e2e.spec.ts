@@ -109,7 +109,7 @@ describe('broadcasts', () => {
         thumbnailUrl: null,
         standbyImageUrl: null,
         game: null,
-        streamer: { id: user.id, nickname: '불씨' },
+        streamer: { id: user.id, nickname: '불씨', avatarUrl: null },
       });
     });
 
@@ -246,6 +246,7 @@ describe('broadcasts', () => {
       expect((res.body as BroadcastView[])[0]?.streamer).toEqual({
         id: b.id,
         nickname: 'B',
+        avatarUrl: null,
       });
     });
 

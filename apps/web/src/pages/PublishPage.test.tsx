@@ -78,7 +78,7 @@ const broadcast: Broadcast = {
   recordingParts: [],
   thumbnailUrl: null,
   standbyImageUrl: null,
-  streamer: { id: me.id, nickname: me.nickname },
+  streamer: { id: me.id, nickname: me.nickname, avatarUrl: null },
 };
 
 type Reply = number | { status: number; body: unknown };
