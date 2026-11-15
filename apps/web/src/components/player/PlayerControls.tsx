@@ -12,7 +12,7 @@ import {
 import { formatClock } from '../../elapsed';
 import { FullscreenIcon, PauseIcon, PlayIcon, VolumeIcon } from './PlayerIcons';
 import styles from './PlayerControls.module.css';
-import { useMediaState } from './useMediaState';
+import { isSilent, useMediaState } from './useMediaState';
 
 // 재생 중인 소스의 라이브 엣지. 엔진이 알 수 없는 동안 position()은 null이다
 // (playlist 로드 전, 또는 seekable 없는 네이티브 HLS).
@@ -73,11 +73,6 @@ function roundVolume(volume: number) {
   return Math.min(1, Math.max(0, Math.round(volume * 100) / 100));
 }
 
-// 볼륨 0은 음소거만큼 조용하므로, 컨트롤은 둘 다 음소거로 다룬다.
-function isSilent(video: { muted: boolean; volume: number }) {
-  return video.muted || video.volume === 0;
-}
-
 function togglePlay(video: HTMLVideoElement) {
   if (video.paused) video.play().catch(() => {});
   else video.pause();
@@ -90,10 +85,13 @@ function cx(...names: (string | false | undefined)[]) {
 export function PlayerControls({
   videoRef,
   live,
+  extraControls,
   children,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   live?: LiveEdge;
+  // 바 오른쪽, 전체화면 앞에 놓을 컨트롤(시청 화면의 "후원 읽기").
+  extraControls?: ReactNode;
   // 영상(그리고 컨트롤 아래에서 영상 위에 그린 것).
   children: ReactNode;
 }) {
@@ -382,24 +380,27 @@ export function PlayerControls({
               LIVE
             </span>
           ))}
-        {seekable && (
+        <div className={styles.trailing}>
+          {extraControls}
+          {seekable && (
+            <button
+              type="button"
+              className={cx(styles.button, styles.rate)}
+              aria-label={`재생 속도 ${media.playbackRate}배`}
+              onClick={() => withVideo(cycleRate)}
+            >
+              {media.playbackRate}x
+            </button>
+          )}
           <button
             type="button"
-            className={cx(styles.button, styles.rate, styles.end)}
-            aria-label={`재생 속도 ${media.playbackRate}배`}
-            onClick={() => withVideo(cycleRate)}
+            className={styles.button}
+            aria-label={media.fullscreen ? '전체화면 종료' : '전체화면'}
+            onClick={toggleFullscreen}
           >
-            {media.playbackRate}x
+            <FullscreenIcon exit={media.fullscreen} />
           </button>
-        )}
-        <button
-          type="button"
-          className={cx(styles.button, !seekable && styles.end)}
-          aria-label={media.fullscreen ? '전체화면 종료' : '전체화면'}
-          onClick={toggleFullscreen}
-        >
-          <FullscreenIcon exit={media.fullscreen} />
-        </button>
+        </div>
       </div>
     </div>
   );

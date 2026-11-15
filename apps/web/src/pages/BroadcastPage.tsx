@@ -7,7 +7,6 @@ import { ActionSheet } from '../components/ActionSheet';
 import { BroadcastSidePanel } from '../components/BroadcastSidePanel';
 import { CategoryBadge } from '../components/CategoryBadge';
 import type { BroadcastStatus } from '../components/StatusBadge';
-import { DonationBanners } from '../components/DonationBanners';
 import { DonationPanel } from '../components/DonationPanel';
 import { ElapsedTime } from '../components/ElapsedTime';
 import { LivePlayer } from '../components/LivePlayer';
@@ -196,9 +195,9 @@ function BroadcastView({
   const [sheetOpen, setSheetOpen] = useState(false);
   const wide = useWideScreen();
   const finePointer = useFinePointer();
-  // 후원 패널과 플레이어 위 배너(S5)가 같은 5초 폴링 응답을 쓴다. 새 후원은
-  // LIVE일 때만 배너로 띄운다. 처음 읽은 후원은 훅이 기준선으로 거르고,
-  // 순서와 묶음은 송출 토스트와 같은 큐가 정한다(#164).
+  // 후원 패널과 플레이어 위 배너(S5)·읽어 주기(S14)가 같은 5초 폴링 응답을
+  // 쓴다. 새 후원은 LIVE일 때만 배너로 띄운다. 처음 읽은 후원은 훅이
+  // 기준선으로 거르고, 순서와 묶음은 송출 토스트와 같은 큐가 정한다(#164).
   const banners = useDonationAlerts();
   const donations = useNewDonations(b.id, (fresh) => {
     if (b.status === 'LIVE') banners.enqueue(fresh);
@@ -282,12 +281,7 @@ function BroadcastView({
                 broadcastId={b.id}
                 startMuted={isOwner}
                 onPlaybackError={recheck}
-                overlay={
-                  <DonationBanners
-                    alert={banners.current}
-                    onExpire={banners.advance}
-                  />
-                }
+                donationAlerts={banners}
               />
             ) : (
               <>

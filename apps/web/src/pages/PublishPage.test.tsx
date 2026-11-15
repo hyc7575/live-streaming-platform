@@ -30,6 +30,7 @@ import { startWhipPublish, type PublishEvent } from '../publish/whipPublisher';
 import { advanceClock, eventually, useFakeClock } from '../testing/fakeClock';
 import { searchPath } from '../search';
 import { renderInDataRouter } from '../testing/renderInDataRouter';
+import { KOREAN_VOICE, stubSpeech } from '../testing/speechSynthesis';
 import { OBS_STOP_REMINDER } from './ObsPanel';
 
 vi.mock('../capture/cameraCapture', async (importOriginal) => ({
@@ -1291,6 +1292,8 @@ function countDonationReads(): () => number {
 it('toasts new donations on a LIVE publish page one at a time for 6 seconds each, but not the ones already there', async () => {
   // 토스트 6초와 폴링 5초는 테스트가 시계를 넘길 때만 지난다.
   useFakeClock();
+  // 후원 읽어 주기(S14)는 시청 화면에만 있다. 송출 화면은 소리로 읽지 않는다.
+  const speech = stubSpeech({ voices: [KOREAN_VOICE] });
   try {
     const before = donation({
       id: 'd0',
@@ -1336,6 +1339,7 @@ it('toasts new donations on a LIVE publish page one at a time for 6 seconds each
 
     await advanceClock(6000);
     expect(toasts.textContent).toBe('');
+    expect(speech.calls).toEqual([]);
   } finally {
     vi.useRealTimers();
   }

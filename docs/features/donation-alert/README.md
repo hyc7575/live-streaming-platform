@@ -30,19 +30,21 @@
 | #158 | | S0 스파이크: 가려진 송출 탭의 감지 지연과 알림음 |
 | #162 | | S3 송출 화면 알림음 |
 | #167 | #185 | S11 README·PRD의 후원 알림 확인 절차 |
-| #186 | | S14 시청 화면 후원 읽어 주기(TTS) |
+| #186 | #189 | S14 시청 화면 후원 읽어 주기(TTS) |
 
 ## 코드
 
 - web: `apps/web/src/donation/useNewDonations.ts`(5초 폴링, 첫 응답은 기준선), `donationAlerts.ts`(알림 큐와 "외 N건" 묶음)
 - web: `apps/web/src/components/DonationToasts.tsx`, `DonationBanners.tsx`, `DonationAlertCard.tsx`
 - web: `apps/web/src/components/PublishSidePanel.tsx`(송출 화면 후원·채팅)
+- web: `apps/web/src/donation/useDonationSpeech.ts`(읽어 주기, 말하기는 이 훅만), `donationSpeech.ts`(읽을 문장·한국어 음성), `components/DonationSpeechButton.tsx`("후원 읽기")
 - api: `apps/api/src/donations/donations.service.ts`(순위 `ranking`), `apps/api/src/chat/donation-line.ts`(채팅 후원 줄)
 
 ## 확인
 
 - 수동 확인: 루트 `README.md` 8절 "새 후원 알림"과 "화면에서 확인" 7·8, "심사자용 확인" 9번 후원 줄
 - 인수 시나리오: `docs/PRD.md` §8.3 시나리오 33
+- 읽어 주기 수동 확인: 루트 `README.md` 8절 "화면에서 확인" 9
 
 ## 관련 기능
 

@@ -89,6 +89,12 @@ function reduce(state: DonationAlerts, action: Action): DonationAlerts {
     : advanceAlerts(state);
 }
 
+// 시청 화면 플레이어가 받는 쪽: 지금 장과 그 장의 표시 시간이 끝났음을 알리는 함수.
+export type DonationAlertQueue = Pick<
+  ReturnType<typeof useDonationAlerts>,
+  'current' | 'advance'
+>;
+
 // 화면이 큐를 들고 있는 훅. `enqueue`는 감지 훅의 새 후원을, `advance`는
 // 지금 장의 표시 시간이 끝났음을 받는다.
 export function useDonationAlerts(): {

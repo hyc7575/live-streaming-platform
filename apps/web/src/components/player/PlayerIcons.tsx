@@ -60,3 +60,14 @@ export function FullscreenIcon({ exit }: { exit: boolean }) {
     </Icon>
   );
 }
+
+// 말풍선. 끄면 사선을 긋는다.
+export function SpeechIcon({ off }: { off: boolean }) {
+  return (
+    <Icon>
+      <path d="M4 5h16v11H9l-5 4z" />
+      <path d="M8 9.5h8M8 12.5h5" />
+      {off && <path d="M3 3l18 18" />}
+    </Icon>
+  );
+}
