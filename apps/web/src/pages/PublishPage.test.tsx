@@ -1263,6 +1263,7 @@ const donations = (list: Donation[]) => ({
     total: list.reduce((sum, d) => sum + d.amount, 0),
     count: list.length,
     donations: list,
+    ranking: [],
   } satisfies DonationSummary,
 });
 

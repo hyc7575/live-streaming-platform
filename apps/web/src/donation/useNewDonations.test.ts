@@ -23,6 +23,7 @@ const summaryOf = (donations: Donation[]): DonationSummary => ({
   total: donations.length * 1000,
   count: donations.length,
   donations,
+  ranking: [],
 });
 
 // 응답 차례를 테스트가 정한다. 숫자는 그 상태 코드로 실패한다. 줄 세운
