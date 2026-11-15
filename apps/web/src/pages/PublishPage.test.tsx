@@ -1341,8 +1341,12 @@ it('toasts new donations on a LIVE publish page one at a time for 6 seconds each
   }
 });
 
+// 오른쪽 패널("후원과 채팅") 안의 후원 구역.
 async function donationSidePanel() {
-  return screen.findByRole('complementary', { name: '후원' });
+  const side = await screen.findByRole('complementary', {
+    name: '후원과 채팅',
+  });
+  return within(side).getByRole('region', { name: '후원' });
 }
 
 // #160(11/15 결정): 송출 패널에는 합계와 후원자별 누적 금액만 둔다. 개별 후원과
@@ -1384,7 +1388,7 @@ it('shows the total and each donor’s running total beside the publish controls
   expect(within(panel).queryByRole('button', { name: '후원하기' })).toBeNull();
 
   await openObsTab();
-  expect(screen.getByRole('complementary', { name: '후원' })).toBe(panel);
+  expect(screen.getByRole('region', { name: '후원' })).toBe(panel);
   expect(within(panel).getAllByRole('listitem')).toHaveLength(2);
 });
 
@@ -1436,4 +1440,44 @@ it('updates the donors’ running totals on the next poll', async () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+// #165: 스트리머가 시청 화면을 따로 열지 않고 송출 화면에서 채팅한다.
+it('lets the streamer read and send chat beside the donations', async () => {
+  const hello = {
+    id: 'c1',
+    body: '안녕하세요',
+    createdAt: '2026-11-09T00:10:00.000Z',
+    author: { id: 'u2', nickname: '시청자' },
+  };
+  const page = renderPage({
+    'GET /api/broadcasts/b1': LIVE_ELSEWHERE,
+    [DONATIONS]: donations([]),
+    'GET /api/broadcasts/b1/chat': { status: 200, body: [hello] },
+    'GET /api/broadcasts/b1/chat?after=c1': { status: 200, body: [] },
+    'POST /api/broadcasts/b1/chat': {
+      status: 201,
+      body: {
+        id: 'c2',
+        body: '반가워요',
+        createdAt: '2026-11-09T00:11:00.000Z',
+        author: { id: me.id, nickname: me.nickname },
+      },
+    },
+  });
+  const side = await screen.findByRole('complementary', {
+    name: '후원과 채팅',
+  });
+  const chat = within(side).getByRole('region', { name: '채팅' });
+  expect(await within(chat).findByText('안녕하세요')).toBeDefined();
+  // 채팅이 있어도 후원 구역은 같은 패널에 그대로 있다.
+  expect(within(side).getByRole('region', { name: '후원' })).toBeDefined();
+
+  fireEvent.change(within(chat).getByLabelText('채팅 쓰기'), {
+    target: { value: '반가워요' },
+  });
+  fireEvent.click(within(chat).getByRole('button', { name: '보내기' }));
+  expect(await within(chat).findByText('반가워요')).toBeDefined();
+  expect(page.calls).toContain('POST /api/broadcasts/b1/chat');
+  expect(page.bodies).toContainEqual({ body: '반가워요' });
 });

@@ -1,3 +1,30 @@
+/* 좁은 화면은 패널이 송출 조작 아래에 온다. 시청 화면처럼 패널을 화면
+   하나 높이로 잡아, 채팅이 페이지를 끝없이 늘이지 않고 목록만 스크롤한다.
+   넓은 화면의 높이와 고정은 SidePanel.module.css가 정한다. */
+@media (max-width: 1023.98px) {
+  .panel {
+    height: calc(100dvh - var(--header-height) - var(--space-8));
+  }
+}
+
+/* 후원은 자기 높이만 쓰고, 남은 높이는 채팅이 채운다. */
+.donations {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.chat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
 .header {
   display: flex;
   flex-wrap: wrap;
@@ -18,8 +45,22 @@
   font-size: var(--font-size-sm);
 }
 
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* 최대 50명. 채팅 자리를 남기도록 몇 줄만 보이고 그 안에서 스크롤한다. */
 .ranks {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
+  max-height: var(--publish-ranking-max-height);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
 }
 
 /* 순위 · 닉네임(남는 폭, 말줄임) · 누적 금액을 한 줄에 둔다. */
@@ -51,12 +92,4 @@
   flex-shrink: 0;
   color: var(--color-brand-strong);
   font-weight: 700;
-}
-
-/* 좁은 화면은 패널이 송출 조작 아래에 오므로, 목록(최대 50명)이 페이지를
-   끝없이 늘이지 않게 시청 화면 후원 목록과 같은 높이에서 자른다. */
-@media (max-width: 1023.98px) {
-  .ranks {
-    max-height: var(--donation-list-max-height);
-  }
 }

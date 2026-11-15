@@ -76,6 +76,8 @@
   --player-max-width: 1080px;
   --side-panel-width: 340px;
   --donation-list-max-height: 320px;
+  /* 송출 화면 패널의 후원자별 누적 목록. 아래 채팅 자리를 남기려고 다섯 줄 남짓만 보인다. */
+  --publish-ranking-max-height: 160px;
   /* 송출 화면 새 후원 토스트의 폭. 좁은 화면은 좌우 여백을 뺀 폭으로 줄어든다. */
   --toast-width: 360px;
   --touch-target-size: 36px;
