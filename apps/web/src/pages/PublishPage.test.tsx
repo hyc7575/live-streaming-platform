@@ -25,7 +25,7 @@ import type {
 } from '../capture/pcCapture';
 import { PcCaptureError, startPcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
-import type { Donation, DonationSummary } from '../donations';
+import type { Donation, DonationRank, DonationSummary } from '../donations';
 import { startWhipPublish, type PublishEvent } from '../publish/whipPublisher';
 import { advanceClock, eventually, useFakeClock } from '../testing/fakeClock';
 import { searchPath } from '../search';
@@ -1257,14 +1257,14 @@ function donation(overrides: Partial<Donation> = {}): Donation {
   };
 }
 
-// API처럼 최신 순으로 받는다.
-const donations = (list: Donation[]) => ({
+// API처럼 최신 순으로 받는다. `ranking`은 #163 계약의 목이다.
+const donations = (list: Donation[], ranking: DonationRank[] = []) => ({
   status: 200,
   body: {
     total: list.reduce((sum, d) => sum + d.amount, 0),
     count: list.length,
     donations: list,
-    ranking: [],
+    ranking,
   } satisfies DonationSummary,
 });
 
@@ -1336,6 +1336,103 @@ it('toasts new donations on a LIVE publish page one at a time for 6 seconds each
 
     await advanceClock(6000);
     expect(toasts.textContent).toBe('');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+async function donationSidePanel() {
+  return screen.findByRole('complementary', { name: '후원' });
+}
+
+// #160(11/15 결정): 송출 패널에는 합계와 후원자별 누적 금액만 둔다. 개별 후원과
+// 메시지는 토스트와 채팅 후원 줄(#166)이 맡는다.
+it('shows the total and each donor’s running total beside the publish controls, through tab changes', async () => {
+  renderPage({
+    'GET /api/broadcasts/b1': LIVE_ELSEWHERE,
+    [DONATIONS]: donations(
+      [
+        donation({
+          id: 'd3',
+          method: 'LIME',
+          amount: 3000,
+          message: '잘 보고 있어요',
+          donor: { id: 'u3', nickname: '라임팬' },
+        }),
+        donation({ id: 'd2', amount: 5000 }),
+        donation({ id: 'd1', amount: 1000 }),
+      ],
+      [
+        { donor: { id: 'u2', nickname: '시청자' }, total: 6000 },
+        { donor: { id: 'u3', nickname: '라임팬' }, total: 3000 },
+      ],
+    ),
+  });
+  const panel = await donationSidePanel();
+  expect(await within(panel).findByText('9,000원')).toBeDefined();
+  expect(within(panel).getByText('3건')).toBeDefined();
+  const donors = within(panel).getAllByRole('listitem');
+  expect(donors).toHaveLength(2);
+  expect(within(donors[0]).getByText('시청자')).toBeDefined();
+  expect(within(donors[0]).getByText('6,000원')).toBeDefined();
+  // 순위 금액은 카드와 라임을 합친 값이라 원으로 적는다.
+  expect(within(donors[1]).getByText('라임팬')).toBeDefined();
+  expect(within(donors[1]).getByText('3,000원')).toBeDefined();
+  // 개별 후원 메시지는 이 패널에 없다.
+  expect(within(panel).queryByText('잘 보고 있어요')).toBeNull();
+  // 스트리머는 자기 방송에 후원하지 않는다.
+  expect(within(panel).queryByRole('button', { name: '후원하기' })).toBeNull();
+
+  await openObsTab();
+  expect(screen.getByRole('complementary', { name: '후원' })).toBe(panel);
+  expect(within(panel).getAllByRole('listitem')).toHaveLength(2);
+});
+
+it('says when no donation has arrived yet', async () => {
+  renderPage({ [DONATIONS]: donations([]) });
+  const panel = await donationSidePanel();
+  expect(await within(panel).findByText('아직 후원이 없습니다.')).toBeDefined();
+  expect(within(panel).getByText('0원')).toBeDefined();
+  expect(within(panel).queryByRole('list')).toBeNull();
+});
+
+it('updates the donors’ running totals on the next poll', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval'] });
+  try {
+    const first = donation({ id: 'd1', amount: 1000 });
+    const page = renderPage({
+      'GET /api/broadcasts/b1': LIVE_ELSEWHERE,
+      [DONATIONS]: donations(
+        [first],
+        [{ donor: { id: 'u2', nickname: '시청자' }, total: 1000 }],
+      ),
+    });
+    const panel = await donationSidePanel();
+    await within(panel).findByText('1건');
+
+    page.routes[DONATIONS] = donations(
+      [
+        donation({
+          id: 'd2',
+          amount: 10000,
+          approvedAt: '2026-11-09T00:12:00.000Z',
+          donor: { id: 'u3', nickname: '라임팬' },
+        }),
+        first,
+      ],
+      [
+        { donor: { id: 'u3', nickname: '라임팬' }, total: 10000 },
+        { donor: { id: 'u2', nickname: '시청자' }, total: 1000 },
+      ],
+    );
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(await within(panel).findByText('2건')).toBeDefined();
+    const donors = within(panel).getAllByRole('listitem');
+    expect(within(donors[0]).getByText('라임팬')).toBeDefined();
+    expect(within(donors[0]).getByText('10,000원')).toBeDefined();
+    expect(within(donors[1]).getByText('시청자')).toBeDefined();
   } finally {
     vi.useRealTimers();
   }

@@ -31,6 +31,7 @@ import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
 import { DonationToasts } from '../components/DonationToasts';
 import { BrowserNotice, PcPreflight } from '../components/PcPreflight';
 import { PermissionGuide } from '../components/PermissionGuide';
+import { PublishSidePanel } from '../components/PublishSidePanel';
 import { useThumbnailCapture } from '../publish/thumbnailCapture';
 import {
   usePublishSession,
@@ -142,7 +143,7 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
   // 새 후원은 LIVE일 때만 띄운다. 처음 읽은 후원은 훅이 기준선으로 거르고,
   // 순서와 묶음은 시청 배너와 같은 큐가 정한다(#164).
   const toasts = useDonationAlerts();
-  useNewDonations(opened.id, (fresh) => {
+  const donations = useNewDonations(opened.id, (fresh) => {
     if (broadcast.status === 'LIVE') toasts.enqueue(fresh);
   });
   // 이게 없으면 방금 끊긴 이 페이지의 송출이 다음 폴링까지
@@ -310,126 +311,131 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
   return (
     <section className={styles.page}>
       <Heading broadcast={broadcast} />
-      <div className={styles.studio}>
-        {capture ? (
-          <video
-            ref={videoRef}
-            className={styles.preview}
-            data-source={active?.source}
-            data-mirrored={
-              camera?.status === 'live' && camera.facing === 'user'
-            }
-            aria-label="미리보기"
-            autoPlay
-            muted
-            playsInline
-          />
-        ) : (
-          <div className={styles.placeholder}>
-            <p className={styles.note}>
-              {publishingElsewhere
-                ? 'OBS나 다른 탭에서 송출 중이라 여기에는 미리보기가 없습니다. 화면은 시청 화면에서 확인하세요.'
-                : offer.placeholder}
-            </p>
-          </div>
-        )}
-        <PublishTabs
-          browser={
-            <>
-              {desktop && (!active || active.source === 'screen') && (
-                <BrowserNotice support={support} />
-              )}
-              <StatusLine
-                slot={slot}
-                session={session.state}
-                onAir={onAir}
-                onAirWithoutCapture={offer.onAirWithoutCapture}
-                publishingElsewhere={publishingElsewhere}
+      <div className={styles.workspace}>
+        <div className={styles.studioArea}>
+          <div className={styles.studio}>
+            {capture ? (
+              <video
+                ref={videoRef}
+                className={styles.preview}
+                data-source={active?.source}
+                data-mirrored={
+                  camera?.status === 'live' && camera.facing === 'user'
+                }
+                aria-label="미리보기"
+                autoPlay
+                muted
+                playsInline
               />
-              {active && (
-                <SourcePanel
-                  active={active}
-                  cameraState={camera}
-                  onReplaceTrack={session.replaceTrack}
-                  onRestart={
-                    session.state.kind === 'idle'
-                      ? () => {
-                          active.capture.stop();
-                          void turnOn(active.source);
-                        }
-                      : undefined
-                  }
-                />
-              )}
-              <div className={`${styles.actions} ${styles.mainActions}`}>
-                {active?.source === 'camera' &&
-                  camera?.status === 'live' &&
-                  camera.canSwitchCamera && (
-                    <CameraSwitch
-                      capture={active.capture}
-                      state={camera}
-                      // 송출을 만드는 도중에 전환하면 송출에
-                      // 바꿔 끼울 카메라 트랙이 없을 수 있다.
-                      allowed={
-                        session.state.kind === 'idle' ||
-                        session.state.kind === 'live'
-                      }
-                      onReleaseTrack={session.releaseTrack}
+            ) : (
+              <div className={styles.placeholder}>
+                <p className={styles.note}>
+                  {publishingElsewhere
+                    ? 'OBS나 다른 탭에서 송출 중이라 여기에는 미리보기가 없습니다. 화면은 시청 화면에서 확인하세요.'
+                    : offer.placeholder}
+                </p>
+              </div>
+            )}
+            <PublishTabs
+              browser={
+                <>
+                  {desktop && (!active || active.source === 'screen') && (
+                    <BrowserNotice support={support} />
+                  )}
+                  <StatusLine
+                    slot={slot}
+                    session={session.state}
+                    onAir={onAir}
+                    onAirWithoutCapture={offer.onAirWithoutCapture}
+                    publishingElsewhere={publishingElsewhere}
+                  />
+                  {active && (
+                    <SourcePanel
+                      active={active}
+                      cameraState={camera}
                       onReplaceTrack={session.replaceTrack}
+                      onRestart={
+                        session.state.kind === 'idle'
+                          ? () => {
+                              active.capture.stop();
+                              void turnOn(active.source);
+                            }
+                          : undefined
+                      }
                     />
                   )}
-                {!active &&
-                  session.state.kind === 'idle' &&
-                  sources.map((source, index) => (
-                    <button
-                      key={source}
-                      type="button"
-                      className={
-                        index === 0 ? styles.primary : styles.secondary
-                      }
-                      disabled={slot.kind === 'acquiring'}
-                      onClick={() => void turnOn(source)}
-                    >
-                      {CAPTURE_SOURCES[source].startLabel}
-                    </button>
-                  ))}
-                {active && !publishing && (
-                  <>
-                    <button
-                      type="button"
-                      className={styles.primary}
-                      disabled={
-                        session.state.kind !== 'idle' ||
-                        cameraSwitching ||
-                        publishingElsewhere
-                      }
-                      onClick={() => startPublish(active)}
-                    >
-                      {session.state.kind === 'idle' && session.state.retry
-                        ? '다시 시도'
-                        : '방송 시작'}
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.secondary}
-                      onClick={() => active.capture.stop()}
-                    >
-                      {CAPTURE_SOURCES[active.source].stopLabel}
-                    </button>
-                  </>
-                )}
-                {endControl}
-              </div>
-            </>
-          }
-          obs={
-            <ObsPanel
-              broadcast={broadcast}
-              endControl={endControl}
-              onIssued={() => setObsMayPublish(true)}
+                  <div className={`${styles.actions} ${styles.mainActions}`}>
+                    {active?.source === 'camera' &&
+                      camera?.status === 'live' &&
+                      camera.canSwitchCamera && (
+                        <CameraSwitch
+                          capture={active.capture}
+                          state={camera}
+                          // 송출을 만드는 도중에 전환하면 송출에
+                          // 바꿔 끼울 카메라 트랙이 없을 수 있다.
+                          allowed={
+                            session.state.kind === 'idle' ||
+                            session.state.kind === 'live'
+                          }
+                          onReleaseTrack={session.releaseTrack}
+                          onReplaceTrack={session.replaceTrack}
+                        />
+                      )}
+                    {!active &&
+                      session.state.kind === 'idle' &&
+                      sources.map((source, index) => (
+                        <button
+                          key={source}
+                          type="button"
+                          className={
+                            index === 0 ? styles.primary : styles.secondary
+                          }
+                          disabled={slot.kind === 'acquiring'}
+                          onClick={() => void turnOn(source)}
+                        >
+                          {CAPTURE_SOURCES[source].startLabel}
+                        </button>
+                      ))}
+                    {active && !publishing && (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.primary}
+                          disabled={
+                            session.state.kind !== 'idle' ||
+                            cameraSwitching ||
+                            publishingElsewhere
+                          }
+                          onClick={() => startPublish(active)}
+                        >
+                          {session.state.kind === 'idle' && session.state.retry
+                            ? '다시 시도'
+                            : '방송 시작'}
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.secondary}
+                          onClick={() => active.capture.stop()}
+                        >
+                          {CAPTURE_SOURCES[active.source].stopLabel}
+                        </button>
+                      </>
+                    )}
+                    {endControl}
+                  </div>
+                </>
+              }
+              obs={
+                <ObsPanel
+                  broadcast={broadcast}
+                  endControl={endControl}
+                  onIssued={() => setObsMayPublish(true)}
+                />
+              }
             />
-          }
-        />
+          </div>
+        </div>
+        <PublishSidePanel summary={donations.summary} />
       </div>
       <DonationToasts alert={toasts.current} onExpire={toasts.advance} />
       <LeaveConfirm blocker={leave} />
