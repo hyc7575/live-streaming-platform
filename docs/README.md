@@ -5,7 +5,7 @@
 - `docs/` 바로 아래에는 제품 전체에 걸친 문서만 둔다.
 - 기능마다 `docs/features/<기능>/` 폴더를 둔다. 기능 이름은 kebab-case 영어로 쓴다.
 - 모든 기능 폴더에는 입구 문서 `README.md`를 둔다. 여기에는 요약, 요구사항 위치, 이슈와 PR, 코드 위치, 확인 방법을 적는다. 요구사항 본문은 복사하지 않고 `PRD.md`의 절(`§`)이나 같은 폴더의 PRD를 가리킨다.
-- 기능 폴더에는 결정 하나의 흐름(탐색 → 전략 → PRD → 시나리오·테스트)을 모은다. 파일 이름은 종류로 정한다: `DISCOVERY.md`, `STRATEGY.md`, `PRD.md`, `SCENARIOS.md`, `TEST.md`. 같은 종류가 둘이면 `STRATEGY-<주제>.md`처럼 주제를 붙인다.
+- 기능 폴더에는 결정 하나의 흐름(탐색 → 전략 → PRD → 시나리오·테스트)을 모은다. 파일 이름은 종류로 정한다: `DISCOVERY.md`, `STRATEGY.md`, `RED-TEAM.md`, `PRD.md`, `PRE-MORTEM.md`, `SCENARIOS.md`, `TEST.md`. 같은 종류가 둘이면 `STRATEGY-<주제>.md`처럼 주제를 붙인다.
 - 새 기능을 만들면 폴더와 `README.md`를 만들고 아래 기능 표에 한 줄을 더한다.
 - `screenshots/<이슈 번호>/`는 옮기지 않는다. PR 본문들이 이 경로의 이미지를 직접 쓴다.
 
@@ -39,7 +39,7 @@
 | [플레이어 컨트롤](./features/player-controls/) | P2 | README, PRD |
 | [썸네일·대기 이미지](./features/thumbnail-standby/) | P2 | README, STRATEGY |
 | [방송 준비 중 노출, 채팅·댓글 분리](./features/chat-and-ready/) | P2 | README, STRATEGY ×2, PRD |
-| [라임](./features/lime/) | P2 | README, PRD |
+| [라임](./features/lime/) | P2 | README, PRD, 후원 모달(DISCOVERY·RED-TEAM·PRD·PRE-MORTEM) |
 | [채널 페이지·마이페이지](./features/mypage/) | P2 | README, DISCOVERY, PRD |
 | [카테고리·게임 타이틀](./features/category/) | P2 | README, DISCOVERY, PRD |
 | [검색](./features/search/) | P2 | README, DISCOVERY, PRD |
