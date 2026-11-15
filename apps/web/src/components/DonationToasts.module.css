@@ -1,0 +1,55 @@
+/* 헤더 바로 아래 오른쪽에 띄운다. 휴대폰 송출 화면은 방송 종료·카메라 전환
+   버튼을 화면 아래에 붙이므로, 위에 두어야 그 버튼을 가리지 않는다. */
+.toasts {
+  position: fixed;
+  top: calc(var(--header-height) + var(--space-4));
+  right: var(--space-4);
+  /* sticky 헤더(10)보다 위, 이탈 확인 대화상자(20)보다 아래. */
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(var(--toast-width), calc(100% - 2 * var(--space-4)));
+  /* 알림만 보이고 클릭은 아래 화면으로 지나가게 한다. */
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: var(--space-1) solid var(--color-brand);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+  animation: toast-in var(--duration-fade) ease-out;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.message {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-2)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
