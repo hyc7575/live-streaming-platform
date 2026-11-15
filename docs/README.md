@@ -3,9 +3,10 @@
 ## 폴더 규칙
 
 - `docs/` 바로 아래에는 제품 전체에 걸친 문서만 둔다.
-- 기능 하나에 대한 문서는 `docs/features/<기능>/`에 둔다. 폴더 하나에는 결정 하나의 흐름(탐색 → 전략 → PRD → 시나리오·테스트)을 모은다.
-- 기능 폴더 안의 파일 이름은 종류로 정한다: `DISCOVERY.md`, `STRATEGY.md`, `PRD.md`, `SCENARIOS.md`, `TEST.md`. 같은 종류가 둘이면 `STRATEGY-<주제>.md`처럼 주제를 붙인다.
-- 기능 이름은 kebab-case 영어로 쓴다.
+- 기능마다 `docs/features/<기능>/` 폴더를 둔다. 기능 이름은 kebab-case 영어로 쓴다.
+- 모든 기능 폴더에는 입구 문서 `README.md`를 둔다. 여기에는 요약, 요구사항 위치, 이슈와 PR, 코드 위치, 확인 방법을 적는다. 요구사항 본문은 복사하지 않고 `PRD.md`의 절(`§`)이나 같은 폴더의 PRD를 가리킨다.
+- 기능 폴더에는 결정 하나의 흐름(탐색 → 전략 → PRD → 시나리오·테스트)을 모은다. 파일 이름은 종류로 정한다: `DISCOVERY.md`, `STRATEGY.md`, `PRD.md`, `SCENARIOS.md`, `TEST.md`. 같은 종류가 둘이면 `STRATEGY-<주제>.md`처럼 주제를 붙인다.
+- 새 기능을 만들면 폴더와 `README.md`를 만들고 아래 기능 표에 한 줄을 더한다.
 - `screenshots/<이슈 번호>/`는 옮기지 않는다. PR 본문들이 이 경로의 이미지를 직접 쓴다.
 
 ## 제품 전체
@@ -22,14 +23,25 @@
 
 ## 기능
 
-| 기능 | 문서 | 이슈 |
-|---|---|---|
-| 플레이어 컨트롤 | [PRD](./features/player-controls/PRD.md) | #56, #69 |
-| 썸네일·대기 이미지 | [STRATEGY](./features/thumbnail-standby/STRATEGY.md) | #61, #62, #63 |
-| 방송 준비 중 노출, 채팅·댓글 분리 | [STRATEGY-chat-replay](./features/chat-and-ready/STRATEGY-chat-replay.md) → [STRATEGY-standby-scene](./features/chat-and-ready/STRATEGY-standby-scene.md) → [PRD](./features/chat-and-ready/PRD.md) | #90, #91, #92 |
-| 라임 | [PRD](./features/lime/PRD.md) | #108, #109, #110 |
-| 채널 페이지·마이페이지 | [DISCOVERY](./features/mypage/DISCOVERY.md) → [PRD](./features/mypage/PRD.md) | #116 |
-| 카테고리·게임 타이틀 | [DISCOVERY](./features/category/DISCOVERY.md) → [PRD](./features/category/PRD.md) | #132, #133 |
-| 검색 | [DISCOVERY](./features/search/DISCOVERY.md) → [PRD](./features/search/PRD.md) | #138, #139 |
+필수 기능(P0)과 일부 선택 기능은 `PRD.md` 안에서 정의했다. 이런 기능은 폴더에 `README.md`만 있다. 별도 탐색이나 PRD를 거친 기능은 그 문서가 같은 폴더에 있다.
 
-썸네일·대기 이미지 전략의 후속 논의는 채팅·댓글 분리 폴더의 `STRATEGY-chat-replay.md`로 이어진다.
+| 기능 | 우선순위 | 폴더 안 문서 |
+|---|---|---|
+| [인증](./features/auth/) | P0 | README |
+| [방송 관리](./features/broadcast-management/) | P0 | README |
+| [송출](./features/publish/) (PC·모바일·OBS·사전 점검) | P0 | README |
+| [시청](./features/watch/) | P0 | README |
+| [댓글](./features/comments/) | P1 | README |
+| [녹화·다시보기](./features/recording-replay/) | P2 | README |
+| [도네이션](./features/donation/) | P2 | README |
+| [채널 설정](./features/channel-settings/) | P2 | README |
+| [팔로우](./features/follow/) | P2 | README |
+| [플레이어 컨트롤](./features/player-controls/) | P2 | README, PRD |
+| [썸네일·대기 이미지](./features/thumbnail-standby/) | P2 | README, STRATEGY |
+| [방송 준비 중 노출, 채팅·댓글 분리](./features/chat-and-ready/) | P2 | README, STRATEGY ×2, PRD |
+| [라임](./features/lime/) | P2 | README, PRD |
+| [채널 페이지·마이페이지](./features/mypage/) | P2 | README, DISCOVERY, PRD |
+| [카테고리·게임 타이틀](./features/category/) | P2 | README, DISCOVERY, PRD |
+| [검색](./features/search/) | P2 | README, DISCOVERY, PRD |
+
+운영(자동 재기동, 감시, 백업)은 사용자 기능이 아니라서 [OPERATIONS.md](./OPERATIONS.md)에 둔다.

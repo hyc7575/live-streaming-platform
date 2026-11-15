@@ -20,7 +20,7 @@
 - `docs/PRE-MORTEM.md` (`T`): 위험과 대응. 대응의 근거가 필요할 때 읽는다.
 - `docs/NEXT-STEPS.md` (`C`·`S`): 작업 순서, 서버 작업, 검증 결과.
 - `docs/private/CONTEST-BRIEF.md`: 공모 원문. gitignore 대상이라 원본 체크아웃에만 있다. PRD 해석이 의심스러울 때 읽는다.
-- `docs/features/<기능>/`: 기능별 DISCOVERY·STRATEGY·PRD. 새 기능 문서도 여기에 만든다. 규칙과 목록은 `docs/README.md`에 있다.
+- `docs/features/<기능>/`: 기능마다 입구 문서 `README.md`(요구사항 위치, 이슈·PR, 코드 위치)와 DISCOVERY·STRATEGY·PRD를 둔다. 새 기능 문서도 여기에 만든다. 규칙과 목록은 `docs/README.md`에 있다.
 
 UI 작업 전 `apps/web/CLAUDE.md`를 읽는다.
 
