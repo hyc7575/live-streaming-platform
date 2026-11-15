@@ -79,7 +79,7 @@
 ### 7.1 A. 직접결제를 새 탭에서
 
 - `DonationPanel`의 "후원하기"를 링크 이동이 아니라 `window.open('/broadcasts/:id/donate', '_blank')`로 연다. 스크립트로 연 창이어야 B에서 `window.close()`가 통한다.
-- `DonatePage`·Toss 위젯·`/donations/confirm`과 서버 검증은 바꾸지 않는다.
+- `DonatePage`·Toss 위젯·`/donations/confirm`과 서버 검증은 바꾸지 않는다. 예외는 #181의 모달 안 iframe에서만 넘기는 `windowTarget: 'self'`다([PRD-donation-modal](./PRD-donation-modal.md) 7.3).
 - 새 탭에서 세션이 없으면 기존 로그인 리다이렉트를 그대로 탄다.
 - #181부터 마우스를 쓰는 넓은 PC 화면은 새 탭 대신 후원 모달 안 iframe에서 결제한다([PRD-donation-modal](./PRD-donation-modal.md) 7.1·7.3). 터치 기기와 좁은 화면은 이 절대로 새 탭이다.
 
