@@ -132,7 +132,7 @@
   font-size: var(--font-size-sm);
 }
 
-/* S12 후원 순위. 최근 후원 목록과 구분되게 옅은 라임 면에 둔다. */
+/* S12 후원자별 누적(후원 순위). 최근 후원 목록과 구분되게 옅은 라임 면에 둔다. */
 .ranking {
   display: flex;
   flex-direction: column;
@@ -152,8 +152,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  /* 최대 50명이라 최근 후원 목록과 같은 높이에서 스크롤한다. */
+  max-height: var(--donation-list-max-height);
   margin: 0;
   padding: 0;
+  overflow-y: auto;
   list-style: none;
 }
 
@@ -165,7 +168,9 @@
 }
 
 .place {
-  min-width: var(--space-4);
+  /* 두 자리 순위(최대 50)도 닉네임 시작선이 같게 한다. */
+  min-width: var(--space-6);
+  text-align: right;
   color: var(--color-on-brand);
   font-weight: 700;
   font-variant-numeric: tabular-nums;

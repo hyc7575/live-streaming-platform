@@ -133,7 +133,8 @@ export function DonationPanel({
   );
 }
 
-// 순위 금액은 카드와 라임을 합친 값이라 수단과 관계없이 원으로 적는다.
+// 후원자별 누적(최대 50명, 서버가 정렬)을 그대로 그린다. 금액은 카드와
+// 라임을 합친 값이라 수단과 관계없이 원으로 적는다.
 function DonationRanking({ ranking }: { ranking: DonationRank[] }) {
   return (
     <div className={styles.ranking}>

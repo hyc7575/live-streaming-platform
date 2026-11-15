@@ -8,7 +8,6 @@ import {
   DONATION_MAX_AMOUNT,
   DONATION_MESSAGE_MAX_LENGTH,
   DONATION_MIN_AMOUNT,
-  DONATION_RANKING_LIMIT,
   type DonationOrder,
 } from '../src/donations/donations.service.js';
 import { TossPaymentsError } from '../src/donations/toss-payments.js';
@@ -591,15 +590,25 @@ describe('donations', () => {
       ]);
     });
 
-    it(`shows the top ${DONATION_RANKING_LIMIT} only`, async () => {
-      for (let i = 0; i <= DONATION_RANKING_LIMIT; i += 1) {
-        const fan = await signUpAndLogIn(app, { nickname: `팬${i}` });
-        await seed(fan.user.id, 1000 * (i + 1));
+    it(`lists up to ${DONATION_LIST_LIMIT} donors`, async () => {
+      // 가입 API를 51번 부르지 않고 사용자 행을 바로 넣는다.
+      const fans = Array.from({ length: DONATION_LIST_LIMIT + 1 }, (_, i) => ({
+        email: `fan${i}@example.com`,
+        nickname: `팬${i}`,
+        passwordHash: 'unused',
+      }));
+      await prisma.user.createMany({ data: fans });
+      const rows = await prisma.user.findMany({
+        where: { email: { in: fans.map((fan) => fan.email) } },
+        select: { id: true, nickname: true },
+      });
+      for (const row of rows) {
+        await seed(row.id, 1000 * (Number(row.nickname.slice(1)) + 1));
       }
 
       const { ranking } = await list();
-      expect(ranking).toHaveLength(DONATION_RANKING_LIMIT);
-      expect(ranking[0]?.donor.nickname).toBe(`팬${DONATION_RANKING_LIMIT}`);
+      expect(ranking).toHaveLength(DONATION_LIST_LIMIT);
+      expect(ranking[0]?.donor.nickname).toBe(`팬${DONATION_LIST_LIMIT}`);
       expect(ranking.map((rank) => rank.donor.nickname)).not.toContain('팬0');
     });
 
