@@ -115,6 +115,8 @@
 .streamerRow {
   display: flex;
   flex-wrap: wrap;
+  /* 프로필 원·닉네임은 왼쪽, 팔로우 버튼은 오른쪽 끝이다. */
+  justify-content: space-between;
   align-items: center;
   gap: var(--space-2) var(--space-3);
   margin-top: var(--space-3);
