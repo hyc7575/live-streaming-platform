@@ -10,12 +10,10 @@ import {
   type DonationSummary,
 } from '../donations';
 import type { LoginPageState } from '../pages/LoginPage';
-import { usePolledApi } from '../use-api';
+import type { Loadable } from '../use-api';
 import styles from './DonationPanel.module.css';
 import { LimeDonationForm } from './LimeDonationForm';
 
-// 댓글과 같은 주기(PRD §8.2: 실시간 push 없음).
-const DONATION_POLL_MS = 5000;
 // 결제 탭이 결과를 알린 뒤 "후원이 반영되었습니다"가 남아 있는 시간.
 const DONATED_NOTICE_MS = 4000;
 
@@ -26,16 +24,18 @@ const timeFormat = new Intl.DateTimeFormat('ko-KR', {
   minute: '2-digit',
 });
 
+// 후원 목록은 페이지(`BroadcastPage`)가 읽어 넘긴다. 플레이어 위 새 후원
+// 배너(S5)와 같은 5초 폴링 응답을 써서 요청이 늘지 않는다.
 export function DonationPanel({
   broadcast,
+  summary,
+  reload,
 }: {
   broadcast: Pick<Broadcast, 'id' | 'status' | 'streamer'>;
+  summary: Loadable<DonationSummary>;
+  reload: () => void;
 }) {
   const { state } = useAuth();
-  const { data: summary, reload } = usePolledApi<DonationSummary>(
-    `/broadcasts/${encodeURIComponent(broadcast.id)}/donations`,
-    DONATION_POLL_MS,
-  );
   // 메시지마다 올려서, 두 번째 후원이 알림 타이머를 다시 시작하게 한다.
   const [donatedAt, setDonatedAt] = useState<number | null>(null);
 
