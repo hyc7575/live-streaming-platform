@@ -75,7 +75,7 @@ function stubApi({
     if (url === '/api/auth/test-login') return reply(streamerA);
     if (url in routes) return reply(routes[url]);
     if (url.endsWith('/donations'))
-      return reply({ total: 0, count: 0, donations: [] });
+      return reply({ total: 0, count: 0, donations: [], ranking: [] });
     if (url === '/api/me/follows' || url.startsWith('/api/broadcasts'))
       return reply([]);
     return reply(404);

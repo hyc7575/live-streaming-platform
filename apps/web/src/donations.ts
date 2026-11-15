@@ -14,12 +14,22 @@ export interface Donation {
   donor: { id: string; nickname: string };
 }
 
+// 한 후원자가 이 방송에 보낸 PAID 후원의 합. 카드와 라임을 1:1로
+// 더했으므로 원으로 적는다.
+export interface DonationRank {
+  donor: { id: string; nickname: string };
+  total: number;
+}
+
 // GET /broadcasts/:id/donations. `total`과 `count`는 PAID 후원 전부를
-// 센다. `donations`는 그중 최신 DONATION_LIST_LIMIT개뿐이다.
+// 센다. `donations`는 그중 최신 DONATION_LIST_LIMIT개뿐이다. `ranking`은
+// 전부를 후원자별로 더한 상위 몇 명이다(누적 금액 큰 순, 같으면 먼저
+// 후원한 순).
 export interface DonationSummary {
   total: number;
   count: number;
   donations: Donation[];
+  ranking: DonationRank[];
 }
 
 // GET /me/received-donations: 스트리머가 어느 방송에서 무엇을 받았는지다.

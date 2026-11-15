@@ -577,6 +577,12 @@ describe('authorization matrix (PRD §7.5)', () => {
               donor: { id: w.other.id, nickname: w.other.nickname },
             }),
           ],
+          ranking: [
+            {
+              donor: { id: w.other.id, nickname: w.other.nickname },
+              total: PAID_AMOUNT,
+            },
+          ],
         });
       },
     },

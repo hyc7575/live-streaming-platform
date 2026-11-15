@@ -6,6 +6,7 @@ import { onDonation, openDonateTab } from '../donation/donationChannel';
 import {
   formatDonationAmount,
   formatWon,
+  type DonationRank,
   type DonationSummary,
 } from '../donations';
 import type { LoginPageState } from '../pages/LoginPage';
@@ -109,8 +110,11 @@ export function DonationPanel({
       {loaded && loaded.donations.length === 0 && (
         <p className={styles.empty}>아직 후원이 없습니다.</p>
       )}
+      {loaded && loaded.ranking.length > 0 && (
+        <DonationRanking ranking={loaded.ranking} />
+      )}
       {loaded && loaded.donations.length > 0 && (
-        <ol className={styles.list}>
+        <ol className={styles.list} aria-label="최근 후원">
           {loaded.donations.map((d) => (
             <li key={d.id} className={styles.item}>
               <div className={styles.meta}>
@@ -126,5 +130,25 @@ export function DonationPanel({
         </ol>
       )}
     </section>
+  );
+}
+
+// 순위 금액은 카드와 라임을 합친 값이라 수단과 관계없이 원으로 적는다.
+function DonationRanking({ ranking }: { ranking: DonationRank[] }) {
+  return (
+    <div className={styles.ranking}>
+      <h3 id="donation-ranking-heading" className={styles.subheading}>
+        후원 순위
+      </h3>
+      <ol className={styles.ranks} aria-labelledby="donation-ranking-heading">
+        {ranking.map((rank, index) => (
+          <li key={rank.donor.id} className={styles.rank}>
+            <span className={styles.place}>{index + 1}</span>
+            <span className={styles.rankDonor}>{rank.donor.nickname}</span>
+            <span className={styles.amount}>{formatWon(rank.total)}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }

@@ -44,7 +44,7 @@ async function openBroadcast(
     route.fulfill({ json: broadcast(status) }),
   );
   await page.route('**/api/broadcasts/b1/donations', (route) =>
-    route.fulfill({ json: { total: 0, count: 0, donations: [] } }),
+    route.fulfill({ json: { total: 0, count: 0, donations: [], ranking: [] } }),
   );
   // 채팅은 `after` 커서로 폴링한다. 첫 읽기에만 메시지가 있다.
   await page.route('**/api/broadcasts/b1/chat**', (route) =>

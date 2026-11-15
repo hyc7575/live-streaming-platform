@@ -88,7 +88,7 @@ function stubApi(options: {
     }
     if (key === 'GET /api/broadcasts/b1') return json(broadcast());
     if (key === 'GET /api/broadcasts/b1/donations') {
-      return json({ total: 0, count: 0, donations: [] });
+      return json({ total: 0, count: 0, donations: [], ranking: [] });
     }
     if (key === 'GET /api/broadcasts/b1/chat') return json([]);
     const follow = /^(PUT|DELETE) \/api\/streamers\/([^/]+)\/follow$/.exec(key);

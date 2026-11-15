@@ -31,6 +31,9 @@ export const DONATION_MESSAGE_MAX_LENGTH = 100;
 // 합계는 이 목록이 아니라 집계에서 가져온다.
 export const DONATION_LIST_LIMIT = 50;
 
+// 후원 순위(S12)에 보이는 인원.
+export const DONATION_RANKING_LIMIT = 5;
+
 export const NOT_CONFIGURED_MESSAGE = '후원 기능이 설정되지 않았습니다.';
 export const ORDER_NOT_FOUND_MESSAGE = '후원 주문을 찾을 수 없습니다.';
 export const NOT_YOUR_ORDER_MESSAGE = '내 후원 주문만 승인할 수 있습니다.';
@@ -72,10 +75,19 @@ export type ConfirmedDonation = Prisma.DonationGetPayload<{
   select: typeof confirmedSelect;
 }>;
 
+// 한 후원자가 이 방송에 보낸 PAID 후원의 합. 카드(원)와 라임은 1:1이다.
+export interface DonationRank {
+  donor: { id: string; nickname: string };
+  total: number;
+}
+
 export interface DonationList {
   total: number;
   count: number;
   donations: DonationView[];
+  // 누적 금액이 큰 순, 같으면 이 방송에 먼저 후원한 순으로 상위
+  // DONATION_RANKING_LIMIT명. 최근 목록과 달리 PAID 후원 전부로 센다.
+  ranking: DonationRank[];
 }
 
 // 호출자 본인의 내역에 쓰는, 호출자가 보낸 후원. 누가 보냈는지가 아니라
@@ -146,7 +158,7 @@ export class DonationsService {
   async list(broadcastId: string): Promise<DonationList> {
     await this.broadcasts.get(broadcastId);
     const where = { broadcastId, status: 'PAID' } as const;
-    const [aggregate, donations] = await Promise.all([
+    const [aggregate, donations, ranking] = await Promise.all([
       this.prisma.donation.aggregate({
         where,
         _sum: { amount: true },
@@ -158,12 +170,37 @@ export class DonationsService {
         take: DONATION_LIST_LIMIT,
         select: donationSelect,
       }),
+      this.ranking(where),
     ]);
     return {
       total: aggregate._sum.amount ?? 0,
       count: aggregate._count,
       donations,
+      ranking,
     };
+  }
+
+  // groupBy는 관계를 못 읽으므로 닉네임은 상위 N명만 따로 읽어 붙인다.
+  private async ranking(
+    where: Prisma.DonationWhereInput,
+  ): Promise<DonationRank[]> {
+    const groups = await this.prisma.donation.groupBy({
+      by: ['donorId'],
+      where,
+      _sum: { amount: true },
+      _min: { approvedAt: true },
+      orderBy: [{ _sum: { amount: 'desc' } }, { _min: { approvedAt: 'asc' } }],
+      take: DONATION_RANKING_LIMIT,
+    });
+    const donors = await this.prisma.user.findMany({
+      where: { id: { in: groups.map((group) => group.donorId) } },
+      select: { id: true, nickname: true },
+    });
+    const byId = new Map(donors.map((donor) => [donor.id, donor]));
+    return groups.flatMap((group) => {
+      const donor = byId.get(group.donorId);
+      return donor ? [{ donor, total: group._sum.amount ?? 0 }] : [];
+    });
   }
 
   // PENDING 주문은 뺀다. 결제된 적이 없고, 라임 후원은
