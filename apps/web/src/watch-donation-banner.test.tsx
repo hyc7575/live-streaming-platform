@@ -100,6 +100,13 @@ function renderWatch(routes: Record<string, unknown>) {
   return { routes, calls };
 }
 
+// 화면이 첫 후원 응답을 받아 기준선을 잡을 때까지 기다린다. 첫 요청이
+// 아직 오는 중이면 다음 다시 읽기는 건너뛰므로, 응답을 바꾸기 전에 부른다.
+async function donationsLoaded() {
+  const panel = await screen.findByRole('region', { name: '후원' });
+  await within(panel).findByText(/^\d+건$/);
+}
+
 function nextPoll() {
   act(() => {
     vi.advanceTimersByTime(5000);
@@ -123,7 +130,7 @@ it('shows each new donation over the live player for 6 seconds, but not the ones
     [DONATIONS]: summaryOf([EARLIER]),
   });
   const video = await screen.findByLabelText('방송 화면');
-  await waitFor(() => expect(page.calls).toContain(DONATIONS));
+  await donationsLoaded();
 
   page.routes[DONATIONS] = summaryOf([LIME, CARD, EARLIER]);
   nextPoll();
@@ -136,6 +143,8 @@ it('shows each new donation over the live player for 6 seconds, but not the ones
   expect(within(banners).getByText('라임팬님이 3,000라임 후원')).toBeDefined();
   expect(within(banners).queryByText('먼저 온 후원')).toBeNull();
 
+  // 배너 타이머 effect가 걸린 뒤에 시계를 넘긴다.
+  await act(async () => {});
   act(() => {
     vi.advanceTimersByTime(6000);
   });
@@ -153,7 +162,7 @@ it('shows no banner before the broadcast is LIVE or once it ended', async () => 
       [DONATIONS]: summaryOf([EARLIER]),
     });
     await screen.findByRole('heading', { level: 1, name: '저녁 방송' });
-    await waitFor(() => expect(page.calls).toContain(DONATIONS));
+    await donationsLoaded();
 
     page.routes[DONATIONS] = summaryOf([CARD, EARLIER]);
     nextPoll();
@@ -172,7 +181,7 @@ it('reads the donations once per poll for both the panel and the banner', async 
     [DONATIONS]: summaryOf([]),
   });
   await screen.findByLabelText('방송 화면');
-  await waitFor(() => expect(page.calls).toContain(DONATIONS));
+  await donationsLoaded();
   const reads = () => page.calls.filter((call) => call === DONATIONS).length;
   expect(reads()).toBe(1);
 
@@ -192,7 +201,7 @@ it('shows the donor their own donation too, next to the existing notice', async 
     [DONATIONS]: summaryOf([]),
   });
   const panel = await screen.findByRole('region', { name: '후원' });
-  await waitFor(() => expect(page.calls).toContain(DONATIONS));
+  await donationsLoaded();
 
   page.routes[DONATIONS] = summaryOf([
     donation({ donor: { id: viewer.id, nickname: viewer.nickname } }),
