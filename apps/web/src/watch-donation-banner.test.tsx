@@ -1,27 +1,18 @@
-import {
-  act,
-  cleanup,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
 import type { Broadcast } from './broadcasts';
 import type { Donation, DonationSummary } from './donations';
+import { advanceClock, eventually, useFakeClock } from './testing/fakeClock';
 
 // S5(#161): 시청 화면 플레이어 위 새 후원 배너.
 
 beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
-  // waitFor·findBy가 기다릴 수 있게 가짜 시계도 실제 시간만큼 흐르게 둔다.
-  vi.useFakeTimers({
-    toFake: ['setInterval', 'setTimeout'],
-    shouldAdvanceTime: true,
-  });
+  // 배너 6초와 폴링 5초는 테스트가 시계를 넘길 때만 지난다.
+  useFakeClock();
 });
 
 afterEach(() => {
@@ -103,15 +94,13 @@ function renderWatch(routes: Record<string, unknown>) {
 // 화면이 첫 후원 응답을 받아 기준선을 잡을 때까지 기다린다. 첫 요청이
 // 아직 오는 중이면 다음 다시 읽기는 건너뛰므로, 응답을 바꾸기 전에 부른다.
 async function donationsLoaded() {
-  const panel = await screen.findByRole('region', { name: '후원' });
-  await within(panel).findByText(/^\d+건$/);
+  const panel = await eventually(() =>
+    screen.getByRole('region', { name: '후원' }),
+  );
+  await eventually(() => within(panel).getByText(/^\d+건$/));
 }
 
-function nextPoll() {
-  act(() => {
-    vi.advanceTimersByTime(5000);
-  });
-}
+const nextPoll = () => advanceClock(5000);
 
 const EARLIER = donation({ id: 'd0', amount: 1000, message: '먼저 온 후원' });
 const CARD = donation({ id: 'd1', message: '화이팅' });
@@ -129,13 +118,15 @@ it('shows each new donation over the live player for 6 seconds, but not the ones
     'GET /api/broadcasts/b1': broadcast(),
     [DONATIONS]: summaryOf([EARLIER]),
   });
-  const video = await screen.findByLabelText('방송 화면');
+  const video = await eventually(() => screen.getByLabelText('방송 화면'));
   await donationsLoaded();
 
   page.routes[DONATIONS] = summaryOf([LIME, CARD, EARLIER]);
-  nextPoll();
+  await nextPoll();
 
-  const card = await screen.findByText('시청자님이 5,000원 후원');
+  const card = await eventually(() =>
+    screen.getByText('시청자님이 5,000원 후원'),
+  );
   const banners = card.closest('[aria-live="polite"]') as HTMLElement;
   // 전체 화면은 영상을 감싼 플레이어 컨테이너에 걸리므로 배너도 그 안에 있어야 보인다.
   expect(video.parentElement?.contains(banners)).toBe(true);
@@ -143,14 +134,11 @@ it('shows each new donation over the live player for 6 seconds, but not the ones
   expect(within(banners).getByText('라임팬님이 3,000라임 후원')).toBeDefined();
   expect(within(banners).queryByText('먼저 온 후원')).toBeNull();
 
-  // 배너 타이머 effect가 걸린 뒤에 시계를 넘긴다.
-  await act(async () => {});
-  act(() => {
-    vi.advanceTimersByTime(6000);
-  });
-  await waitFor(() =>
-    expect(screen.queryByText('시청자님이 5,000원 후원')).toBeNull(),
-  );
+  // 6초 직전까지는 그대로고, 6초가 되면 내려간다.
+  await advanceClock(5999);
+  expect(within(banners).getByText('시청자님이 5,000원 후원')).toBeDefined();
+  await advanceClock(1);
+  expect(screen.queryByText('시청자님이 5,000원 후원')).toBeNull();
   expect(screen.queryByText('라임팬님이 3,000라임 후원')).toBeNull();
 });
 
@@ -161,14 +149,13 @@ it('shows no banner before the broadcast is LIVE or once it ended', async () => 
       'GET /api/broadcasts/b1': broadcast({ status }),
       [DONATIONS]: summaryOf([EARLIER]),
     });
-    await screen.findByRole('heading', { level: 1, name: '저녁 방송' });
     await donationsLoaded();
 
     page.routes[DONATIONS] = summaryOf([CARD, EARLIER]);
-    nextPoll();
+    await nextPoll();
     // 패널은 새 후원을 그리지만 배너는 없다.
-    const panel = await screen.findByRole('region', { name: '후원' });
-    expect(await within(panel).findByText('화이팅')).toBeDefined();
+    const panel = screen.getByRole('region', { name: '후원' });
+    await eventually(() => within(panel).getByText('화이팅'));
     expect(screen.queryByText('시청자님이 5,000원 후원')).toBeNull();
     cleanup();
   }
@@ -180,17 +167,17 @@ it('reads the donations once per poll for both the panel and the banner', async 
     'GET /api/broadcasts/b1': broadcast(),
     [DONATIONS]: summaryOf([]),
   });
-  await screen.findByLabelText('방송 화면');
+  await eventually(() => screen.getByLabelText('방송 화면'));
   await donationsLoaded();
   const reads = () => page.calls.filter((call) => call === DONATIONS).length;
   expect(reads()).toBe(1);
 
   page.routes[DONATIONS] = summaryOf([CARD]);
-  nextPoll();
-  await screen.findByText('시청자님이 5,000원 후원');
+  await nextPoll();
+  await eventually(() => screen.getByText('시청자님이 5,000원 후원'));
   expect(reads()).toBe(2);
-  nextPoll();
-  await waitFor(() => expect(reads()).toBe(3));
+  await nextPoll();
+  expect(reads()).toBe(3);
 });
 
 it('shows the donor their own donation too, next to the existing notice', async () => {
@@ -200,8 +187,8 @@ it('shows the donor their own donation too, next to the existing notice', async 
     'GET /api/broadcasts/b1': broadcast(),
     [DONATIONS]: summaryOf([]),
   });
-  const panel = await screen.findByRole('region', { name: '후원' });
   await donationsLoaded();
+  const panel = screen.getByRole('region', { name: '후원' });
 
   page.routes[DONATIONS] = summaryOf([
     donation({ donor: { id: viewer.id, nickname: viewer.nickname } }),
@@ -211,7 +198,7 @@ it('shows the donor their own donation too, next to the existing notice', async 
   tab.postMessage({ type: 'donated', broadcastId: 'b1' });
   tab.close();
 
-  expect(await screen.findByText('구경꾼님이 5,000원 후원')).toBeDefined();
+  await eventually(() => screen.getByText('구경꾼님이 5,000원 후원'));
   expect(within(panel).getByRole('status').textContent).toBe(
     '후원이 반영되었습니다',
   );
