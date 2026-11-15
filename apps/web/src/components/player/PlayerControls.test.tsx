@@ -360,3 +360,28 @@ it('seeks a recording with the arrow keys, within its length', () => {
   fireEvent.keyDown(player, { key: 'ArrowLeft', code: 'ArrowLeft' });
   expect(video().currentTime).toBe(0);
 });
+
+it('places an extra control in the bar, between the volume and fullscreen', () => {
+  function WithExtra() {
+    const ref = useRef<HTMLVideoElement>(null);
+    return (
+      <PlayerControls
+        videoRef={ref}
+        extraControls={<button type="button">추가 버튼</button>}
+      >
+        <video ref={ref} aria-label="화면" />
+      </PlayerControls>
+    );
+  }
+  render(<WithExtra />);
+  const names = screen
+    .getAllByRole('button')
+    .map((b) => b.textContent || b.getAttribute('aria-label'));
+  expect(names).toEqual(['재생', '음소거', '추가 버튼', '전체화면']);
+  cleanup();
+
+  render(<Player />);
+  expect(
+    screen.getAllByRole('button').map((b) => b.getAttribute('aria-label')),
+  ).toEqual(['재생', '음소거', '전체화면']);
+});

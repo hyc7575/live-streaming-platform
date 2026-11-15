@@ -13,6 +13,11 @@ export type MediaState = {
   playbackRate: number;
 };
 
+// 볼륨 0은 음소거만큼 조용하므로, 컨트롤과 후원 읽어 주기는 둘 다 무음으로 다룬다.
+export function isSilent(video: { muted: boolean; volume: number }): boolean {
+  return video.muted || video.volume === 0;
+}
+
 const VIDEO_EVENTS = [
   'play',
   'pause',
