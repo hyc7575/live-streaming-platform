@@ -190,9 +190,10 @@ it('shows no banner before the broadcast is LIVE or once it ended', async () => 
 
     page.routes[DONATIONS] = summaryOf([CARD, EARLIER]);
     await nextPoll();
-    // 패널은 새 후원을 그리지만 배너는 없다.
+    // 패널은 새 후원을 합계·건수에 반영하지만 배너는 없다. 개별 후원은
+    // 패널이 아니라 채팅의 후원 줄에 있다(#166).
     const panel = screen.getByRole('region', { name: '후원' });
-    await eventually(() => within(panel).getByText('화이팅'));
+    await eventually(() => within(panel).getByText('2건'));
     expect(screen.queryByText('시청자님이 5,000원 후원')).toBeNull();
     cleanup();
   }

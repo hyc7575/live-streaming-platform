@@ -1,9 +1,14 @@
+import type { DonationMethod } from './donations';
+
 // apps/api/src/chat/chat.service.ts의 ChatMessageView와 같은 모양이다.
+// `donation`이 있으면 후원 줄이다(#166). 작성자는 후원자, 본문은 후원
+// 메시지(빈 문자열 가능)다.
 export interface ChatMessage {
   id: string;
   body: string;
   createdAt: string;
   author: { id: string; nickname: string };
+  donation: { amount: number; method: DonationMethod } | null;
 }
 
 export const CHAT_MAX_LENGTH = 200;

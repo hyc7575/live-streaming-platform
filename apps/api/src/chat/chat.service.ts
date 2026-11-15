@@ -23,6 +23,8 @@ const chatSelect = {
   body: true,
   createdAt: true,
   author: { select: { id: true, nickname: true } },
+  // 후원 줄이면 그 후원의 금액과 수단, 아니면 null(#166).
+  donation: { select: { amount: true, method: true } },
 } as const satisfies Prisma.ChatMessageSelect;
 
 export type ChatMessageView = Prisma.ChatMessageGetPayload<{

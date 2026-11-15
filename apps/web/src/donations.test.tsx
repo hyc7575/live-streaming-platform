@@ -160,7 +160,9 @@ async function donationPanel() {
   return screen.findByRole('region', { name: '후원' });
 }
 
-it('shows the total, the count and the latest donations on the watch page', async () => {
+// #166: 개별 후원과 메시지는 채팅의 후원 줄에만 있다. 패널은 합계·건수와
+// 후원자별 누적(순위)만 보인다.
+it('shows the total and the count, and leaves each donation to the chat', async () => {
   stubApi({
     'GET /api/auth/me': viewer,
     'GET /api/broadcasts/b1': broadcast(),
@@ -171,17 +173,21 @@ it('shows the total, the count and the latest donations on the watch page', asyn
         donation({ id: 'd2', amount: 10000, message: '화이팅' }),
         donation({ id: 'd1', amount: 5000 }),
       ],
+      ranking: [
+        { donor: { id: viewer.id, nickname: viewer.nickname }, total: 15000 },
+      ],
     }),
   });
   renderAt('/broadcasts/b1');
   const panel = await donationPanel();
-  expect(await within(panel).findByText('15,000원')).toBeDefined();
+  expect(
+    await within(panel).findByText('15,000원', { selector: 'strong' }),
+  ).toBeDefined();
   expect(within(panel).getByText('3건')).toBeDefined();
-  const items = within(panel).getAllByRole('listitem');
-  expect(items).toHaveLength(2);
-  expect(within(items[0]).getByText('10,000원')).toBeDefined();
-  expect(within(items[0]).getByText('화이팅')).toBeDefined();
-  expect(within(items[0]).getByText(viewer.nickname)).toBeDefined();
+  expect(within(panel).getByRole('list', { name: '후원 순위' })).toBeDefined();
+  expect(within(panel).queryByRole('list', { name: '최근 후원' })).toBeNull();
+  expect(within(panel).queryByText('화이팅')).toBeNull();
+  expect(within(panel).queryByText('10,000원')).toBeNull();
 });
 
 it('opens 후원하기 in a new tab the payment can close again', async () => {
@@ -260,8 +266,7 @@ it('ranks the top donors by their running total, in won', async () => {
     `2${viewer.nickname}4,000원`,
   ]);
   // 순위 금액은 카드·라임을 합친 값이라 라임 후원뿐이어도 원으로 적는다.
-  const recent = within(panel).getByRole('list', { name: '최근 후원' });
-  expect(within(recent).getByText('4,000라임')).toBeDefined();
+  expect(within(panel).queryByText('4,000라임')).toBeNull();
 });
 
 it('hides the ranking until someone donates', async () => {
@@ -684,6 +689,9 @@ it('donates lime from the balance and shows it without leaving the page', async 
     total: 3_000,
     count: 1,
     donations: [limeDonation(3_000, '응원')],
+    ranking: [
+      { donor: { id: viewer.id, nickname: viewer.nickname }, total: 3_000 },
+    ],
   });
   routes[LIME] = { balance: 7_000 };
   fireEvent.click(within(form).getByRole('button', { name: '라임으로 후원' }));
@@ -692,9 +700,12 @@ it('donates lime from the balance and shows it without leaving the page', async 
   expect(
     await within(panel).findByText('7,000라임', { selector: 'strong' }),
   ).toBeDefined();
-  const item = await within(panel).findByRole('listitem');
-  expect(within(item).getByText('3,000라임')).toBeDefined();
-  expect(within(item).getByText('응원')).toBeDefined();
+  const ranking = await within(panel).findByRole('list', {
+    name: '후원 순위',
+  });
+  expect(within(ranking).getByText('3,000원')).toBeDefined();
+  // 메시지는 채팅의 후원 줄로 간다(#166).
+  expect(within(panel).queryByText('응원')).toBeNull();
   expect(
     within(panel).getByText('3,000원', { selector: 'strong' }),
   ).toBeDefined();

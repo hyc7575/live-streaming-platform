@@ -52,6 +52,8 @@ describe('demo ended broadcast seed', () => {
     };
     const chat = (await api.get(`/api/broadcasts/${first.id}/chat`)).body as {
       createdAt: string;
+      author: { id: string };
+      donation: { amount: number; method: string } | null;
     }[];
     const comments = (await api.get(`/api/broadcasts/${first.id}/comments`))
       .body as { createdAt: string; author: { id: string } }[];
@@ -59,5 +61,17 @@ describe('demo ended broadcast seed', () => {
     expect(comments.map((c) => c.author.id)).toContain(users.B.id);
     for (const m of chat) expect(m.createdAt < endedAt).toBe(true);
     for (const c of comments) expect(c.createdAt > endedAt).toBe(true);
+
+    // README 다시보기 절차가 채팅 기록에서 후원 줄을 볼 수 있게 한다(#166).
+    // 후원 영역의 합계도 같은 후원을 센다.
+    const lines = chat.filter((m) => m.donation !== null);
+    expect(lines.length).toBeGreaterThan(0);
+    for (const m of lines) expect(m.author.id).toBe(users.B.id);
+    const donations = (await api.get(`/api/broadcasts/${first.id}/donations`))
+      .body as { total: number; count: number };
+    expect(donations).toMatchObject({
+      count: lines.length,
+      total: lines.reduce((sum, m) => sum + m.donation!.amount, 0),
+    });
   });
 });

@@ -1112,6 +1112,7 @@ function chat(id: string, overrides: Partial<ChatMessage> = {}): ChatMessage {
     body: `채팅 ${id}`,
     createdAt: '2026-11-10T01:00:00.000Z',
     author: { id: other.id, nickname: other.nickname },
+    donation: null,
     ...overrides,
   };
 }
@@ -1351,6 +1352,63 @@ it('opens an ended broadcast on the 댓글 tab, with the chat log read-only behi
   expect(within(logPanel).queryByRole('textbox')).toBeNull();
   expect(within(logPanel).queryByRole('button')).toBeNull();
   expect(screen.queryByRole('tabpanel', { name: '댓글' })).toBeNull();
+});
+
+// #166: 후원은 채팅에 후원 줄로 쌓인다. 닉네임과 금액을 한 문장으로 앞에
+// 두어 일반 채팅과 구별하고, 메시지는 그 아래 줄이다.
+it('shows a donation line in live chat apart from ordinary chat', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    [CHAT]: [
+      chat('m1', { body: '안녕하세요' }),
+      chat('d1', {
+        body: '화이팅',
+        author: { id: 'u9', nickname: '후원자' },
+        donation: { amount: 5000, method: 'TOSS' },
+      }),
+      chat('d2', {
+        body: '',
+        author: { id: 'u9', nickname: '후원자' },
+        donation: { amount: 3000, method: 'LIME' },
+      }),
+    ],
+  });
+  renderAt('/broadcasts/b1');
+  const panel = await screen.findByRole('complementary', { name: '채팅' });
+  const card = (
+    await within(panel).findByText('후원자님이 5,000원 후원')
+  ).closest('li')!;
+  expect(within(card).getByText('화이팅')).toBeDefined();
+  expect(card.querySelector('time')).not.toBeNull();
+  const lime = within(panel)
+    .getByText('후원자님이 3,000라임 후원')
+    .closest('li')!;
+  expect(lime.querySelectorAll('p')).toHaveLength(1);
+  const plain = within(panel).getByText('안녕하세요').closest('li')!;
+  expect(plain.textContent).not.toMatch(/후원/);
+});
+
+it('shows donation lines in the chat log of an ended broadcast', async () => {
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+    [COMMENTS]: [],
+    [CHAT]: [
+      chat('d1', {
+        body: '첫 방송 축하해요!',
+        author: { id: 'u9', nickname: '후원자' },
+        donation: { amount: 5000, method: 'TOSS' },
+      }),
+    ],
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('tab', { name: '채팅 기록' }));
+  const logPanel = screen.getByRole('tabpanel', { name: '채팅 기록' });
+  const card = (
+    await within(logPanel).findByText('후원자님이 5,000원 후원')
+  ).closest('li')!;
+  expect(within(card).getByText('첫 방송 축하해요!')).toBeDefined();
 });
 
 // 1부는 01:00:00에 시작해 10분 이어지고, 송출이 끊긴 뒤

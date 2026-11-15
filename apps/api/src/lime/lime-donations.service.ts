@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { addDonationLine } from '../chat/donation-line.js';
 import { PrismaService } from '../database/database.module.js';
 import {
   confirmedSelect,
@@ -40,7 +41,7 @@ export class LimeDonationsService {
   // 호출자가 이미 키를 조회했고(`earlier`) 대상을
   // 확인했다(DonationTargetGuard.check).
   //
-  // 트랜잭션 하나가 차감, 후원 기록, 원장 쓰기를 한다.
+  // 트랜잭션 하나가 차감, 후원 기록, 채팅 후원 줄(#166), 원장 쓰기를 한다.
   // 차감은 조건부 UPDATE이므로, 동시에 온 후원은
   // 사용자 행에서 줄을 서고 각자 앞선 후원이 남긴 잔액을 본다. 그래서
   // 같은 라임을 두 번 쓸 수 없다. 다시 보낸 키는 Donation.orderId의
@@ -74,6 +75,12 @@ export class LimeDonationsService {
             approvedAt: new Date(),
           },
           select: confirmedSelect,
+        });
+        await addDonationLine(tx, {
+          id: created.id,
+          broadcastId,
+          donorId,
+          message: created.message,
         });
         await tx.limeLedger.create({
           data: {
