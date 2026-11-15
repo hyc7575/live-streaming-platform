@@ -363,7 +363,9 @@ sequenceDiagram
 28. 360px 폭, A로 로그인 → 헤더가 한 줄이고 돋보기가 보인다 → 누르면 입력줄이 열리고 포커스가 간다 → Esc → 원래 헤더로 돌아오고 포커스는 돋보기에 있다. 시청 화면에서 검색해도 결과 화면으로 이동한다 ([PRD-search](./features/search/PRD.md))
 29. `/search?q=zzqx` → "'zzqx'와 맞는 결과가 없습니다."와 "지금 방송 중" 구역(LIVE가 없으면 "방송 목록으로 가기")이 보인다
 30. PC 넓은 화면, B로 A의 LIVE 방송 → 패널에는 합계와 순위만 있고 폼은 없다 → "후원하기" → 모달에 잔액·금액·메시지·"라임으로 후원"·"카드로 후원"이 보인다 → Esc → 모달이 닫히고 포커스는 "후원하기"에 있다 ([PRD-donation-modal](./features/lime/PRD-donation-modal.md))
-33. PC 한 대, A 일반 창에 송출 화면, B 시크릿 창에 같은 방송 시청 화면을 나란히 둔다 → B가 후원 → 5초 안에 A 창에 "사용자 B님이 <금액> 후원" 토스트, B 창 플레이어 위에 같은 배너가 뜨고 6초 뒤 사라진다 → A 송출 화면의 후원 패널에 합계와 순위가 바뀌고 두 창의 채팅에 후원 줄이 있다 → B 창을 새로고침해도 이미 있던 후원으로는 배너가 다시 뜨지 않는다 ([donation-alert](./features/donation-alert/README.md)). 31·32는 [PRD-donation-modal](./features/lime/PRD-donation-modal.md)이 쓴다
+31. PC Chrome, 라임 0인 B → 모달에서 1,000라임 선택 → "충전하기" → 같은 모달 안에서 10,000라임 테스트 결제 → 결제 보기가 닫히고 폼에 "잔액 10,000라임" → "라임으로 후원" → 모달이 닫히고 "후원이 반영되었습니다". 처음부터 끝까지 방송 탭 URL은 그대로이고 영상은 멈추지 않는다. Safari도 같다 ([PRD-donation-modal](./features/lime/PRD-donation-modal.md))
+32. PC Chrome, 모달에서 "카드로 후원" → 같은 모달 안에서 5,000원 테스트 결제 → 모달이 닫히고 "후원이 반영되었습니다", 채팅에 후원 줄. 결제창을 닫으면 "결제를 취소했습니다."가 모달 안에 보이고 "돌아가기"로 폼에 돌아온다 ([PRD-donation-modal](./features/lime/PRD-donation-modal.md))
+33. PC 한 대, A 일반 창에 송출 화면, B 시크릿 창에 같은 방송 시청 화면을 나란히 둔다 → B가 후원 → 5초 안에 A 창에 "사용자 B님이 <금액> 후원" 토스트, B 창 플레이어 위에 같은 배너가 뜨고 6초 뒤 사라진다 → A 송출 화면의 후원 패널에 합계와 순위가 바뀌고 두 창의 채팅에 후원 줄이 있다 → B 창을 새로고침해도 이미 있던 후원으로는 배너가 다시 뜨지 않는다 ([donation-alert](./features/donation-alert/README.md)).
 
 위험 분석과 대응 근거는 [PRE-MORTEM.md](./PRE-MORTEM.md)를 따른다.
 

@@ -108,13 +108,14 @@ sequenceDiagram
 - "충전하기"나 "카드로 후원"을 누르면 모달 본문이 결제 보기로 바뀐다. 결제 보기는 위에 "뒤로"(폼으로 돌아간다), 아래에 iframe(`/lime/charge` 또는 `/broadcasts/:id/donate`)이다.
 - 모달 크기: 결제 보기일 때 폭과 높이를 Toss PC 결제창이 들어갈 만큼 키운다. 값은 토큰으로 정하고 E4에서 잰다. 화면보다 크면 iframe 안에서 스크롤한다.
 - **iframe 안 표시**: 결제 화면 6개(`/lime/charge`, `/lime/charge/success`, `/lime/charge/fail`, `/broadcasts/:id/donate`, `/donations/success`, `/donations/fail`)가 iframe 안에서 열렸으면(`window.self !== window.top`), `AppLayout`은 헤더·팔로우 패널·영역 메뉴를 그리지 않고 본문만 그린다. 쿼리 파라미터를 쓰지 않으므로 Toss가 보내는 `successUrl`·`failUrl`에도 그대로 적용된다. 다른 화면은 iframe 안이어도 그대로 그린다. 앱 전체를 다른 사이트가 iframe으로 띄워도 헤더가 사라지지 않게 하기 위해서다(PRE-MORTEM T3).
-- **완료 알림**: iframe 안의 성공 페이지는 confirm에 성공하면, 지금처럼 `BroadcastChannel`로 알리는 것에 더해 부모에게 `postMessage({ type: 'payment-done', kind: 'charge' | 'donation' })`를 보낸다. 대상 출처는 `location.origin`으로 고정한다. 부모는 `event.origin`과 `event.source`(자기 iframe)를 확인한 뒤에만 처리한다.
+- **완료 알림**: iframe 안의 성공 페이지는 confirm에 성공하면, 지금처럼 `BroadcastChannel`로 알리는 것에 더해 부모에게 `postMessage({ type: 'payment-done', kind: 'charge' | 'donation' })`를 보낸다. `charge`는 폼 문구 "N라임을 충전했습니다."를 위해 충전 금액 `amount`도 싣는다. 대상 출처는 `location.origin`으로 고정한다. 부모는 `event.origin`과 `event.source`(자기 iframe)를 확인한 뒤에만 처리한다.
   - `charge`: 결제 보기를 닫고 폼으로 돌아간다. 폼은 새 잔액을 읽고 "N라임을 충전했습니다."를 한 줄 띄운다.
   - `donation`: 모달을 닫고 패널에 "후원이 반영되었습니다"를 띄운다.
 - **돌아가기 버튼**: 성공·실패 페이지의 "돌아가기"·"방송으로 돌아가기"는 iframe 안이면 `window.close()` 대신 부모에게 `postMessage({ type: 'payment-close' })`를 보낸다. 부모는 결제 보기를 닫고 폼으로 돌아간다.
 - **iframe 안 링크**: 성공·실패 페이지의 "다시 충전하기"·"다시 후원하기"는 iframe 안에서 그대로 이동해도 된다. "방송 목록으로 가기"처럼 결제 밖으로 나가는 링크는 iframe 안에서 숨긴다.
 - **중간에 닫기**: 결제 보기에서 모달을 닫으면 묻지 않고 닫는다. Toss 결제는 서버 confirm 전까지 승인되지 않는다. 그래서 중간에 닫혀도 돈이 빠지지 않는다. 남은 주문은 지금처럼 결제 전 상태로 남는다.
-- 서버, Toss 연동(`tossWidget`·`PaymentStep`), confirm API, 멱등 적립은 바꾸지 않는다.
+- 서버, `PaymentStep`, confirm API, 멱등 적립은 바꾸지 않는다.
+- **Toss 결제창 위치(#181에서 바꿈)**: `tossWidget`의 `requestPayment`는 iframe 안일 때만 `windowTarget: 'self'`를 넘긴다. 새 탭·모바일은 기본값 그대로다. 근거는 #179 스파이크(2026-11-16 운영, Chrome)다. 기본값은 결제창을 우리 iframe 안의 Toss iframe 오버레이로 띄우고, 승인 뒤 Toss가 우리 iframe의 주소를 바꾸려다 브라우저의 교차 출처 이동 차단에 막혀 "일시적인 오류"로 끝났다. confirm이 불리지 않아 충전되지 않았다. `'self'`면 iframe 자체가 Toss 결제 페이지로 이동하고, 승인 뒤 iframe 안에서 `successUrl`로 돌아와 충전됐다. 바깥 탭 URL은 두 경우 모두 그대로였다.
 
 ### 7.4 Assumptions and open questions
 
@@ -122,7 +123,7 @@ sequenceDiagram
 |---|---|
 | Toss 위젯과 결제창이 우리 iframe 안에서 PC 카드 테스트 결제를 끝까지 마친다(RED-TEAM 1) | E1: PC Chrome·Safari 테스트 결제 1회씩. PIN은 사용자가 입력 |
 | 결제 뒤 이동이 iframe 안에 머물고, 방송 탭 URL은 바뀌지 않는다 | E1에서 방송 탭 URL과 `currentTime` 기록 |
-| 기본 `windowTarget`으로 안 되면 `'self'`로 된다 | E2 |
+| 기본 `windowTarget`으로 안 되면 `'self'`로 된다 | E2. #179에서 확인했다. 기본값은 실패하고 `'self'`는 성공한다. 7.3 "Toss 결제창 위치" |
 | Toss 결제창이 1366×768 모달 안에서 잘리지 않는다 | E4 스크린샷 |
 | 간편결제(토스페이·카카오페이) 팝업이 iframe 안에서 동작한다 | 확인하지 않는다. 심사 시나리오는 카드 테스트 결제다. README 한계에 적는다 |
 
@@ -147,7 +148,7 @@ sequenceDiagram
 - 간편결제 수단의 iframe 검증
 - 터치 태블릿에서의 iframe 결제
 - 결제 중 모달 닫기 확인창
-- 서버, Toss 연동, confirm API 변경
+- 서버, confirm API 변경. Toss 연동은 iframe 안의 `windowTarget: 'self'` 하나만 바꾼다(7.3)
 
 ### 8.3 인수 시나리오 (PRD 8.3에 이어 붙인다)
 
