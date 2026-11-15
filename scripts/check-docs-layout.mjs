@@ -10,6 +10,8 @@ const ROOT_FILES = new Set([
   'PRE-MORTEM.md',
   'NEXT-STEPS.md',
   'OPERATIONS.md',
+  'VERIFICATION.md',
+  'DEVELOPMENT.md',
 ]);
 const ROOT_DIRS = new Set([
   'adr',

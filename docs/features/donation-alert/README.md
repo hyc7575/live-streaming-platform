@@ -42,9 +42,9 @@
 
 ## 확인
 
-- 수동 확인: 루트 `README.md` 8절 "새 후원 알림"과 "화면에서 확인" 7·8, "심사자용 확인" 9번 후원 줄
+- 수동 확인: [`docs/VERIFICATION.md`](../../VERIFICATION.md) 8절 "새 후원 알림"과 "화면에서 확인" 7·8, 루트 `README.md` "심사자용 확인" 9번 후원 줄
 - 인수 시나리오: `docs/PRD.md` §8.3 시나리오 33
-- 읽어 주기 수동 확인: 루트 `README.md` 8절 "화면에서 확인" 9
+- 읽어 주기 수동 확인: [`docs/VERIFICATION.md`](../../VERIFICATION.md) 8절 "화면에서 확인" 9
 
 ## 관련 기능
 

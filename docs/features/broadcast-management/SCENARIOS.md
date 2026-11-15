@@ -81,7 +81,7 @@
 | 5 | B 쿠키로 `POST /api/broadcasts/<id>/end` | 403 |
 | 6 | A의 화면 | 방송이 LIVE로 그대로 이어진다 |
 
-> 루트 `README.md` "기능 확인" 2절에 복사해 쓸 `curl` 명령이 있다.
+> [`docs/VERIFICATION.md`](../../VERIFICATION.md) 2절에 복사해 쓸 `curl` 명령이 있다.
 
 ## BM5. 비로그인의 생성·수정·삭제는 401
 
