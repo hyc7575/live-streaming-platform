@@ -255,6 +255,7 @@ function BroadcastView({
       broadcast={b}
       summary={donations.summary}
       reload={donations.reload}
+      donateIn={wide ? 'modal' : 'inline'}
     />
   );
 

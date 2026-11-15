@@ -73,6 +73,7 @@
   /* 방송 폼의 게임 후보 목록 높이. 넘치면 목록 안에서 스크롤한다. */
   --game-listbox-max-height: 320px;
   --donate-card-width: 560px;
+  --donation-modal-width: 440px;
   --player-max-width: 1080px;
   --side-panel-width: 340px;
   --donation-list-max-height: 320px;
