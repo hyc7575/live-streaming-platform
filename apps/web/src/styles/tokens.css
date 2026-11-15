@@ -74,6 +74,10 @@
   --game-listbox-max-height: 320px;
   --donate-card-width: 560px;
   --donation-modal-width: 440px;
+  /* 후원 모달의 결제 보기(PC). Toss 결제 위젯과 결제 페이지가 들어가는 크기다.
+     화면이 더 낮으면 화면 높이에 맞추고 iframe 안에서 스크롤한다. */
+  --donation-payment-modal-width: 600px;
+  --donation-payment-modal-height: 760px;
   --player-max-width: 1080px;
   --side-panel-width: 340px;
   --donation-list-max-height: 320px;

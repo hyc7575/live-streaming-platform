@@ -360,6 +360,14 @@
   padding: var(--space-6) var(--space-4);
 }
 
+/* 모달 안 결제 화면. 모달 표면과 같은 색이고, 좌우 여백은 모달이 이미
+   두었으므로 두지 않는다. */
+.paymentFrame {
+  min-height: 100dvh;
+  padding-bottom: var(--space-4);
+  background: var(--color-surface);
+}
+
 /* 파일 끝에 둔다. 같은 특이도의 .nav·.account보다 앞에 있으면 간격이 줄지 않는다. */
 @media (max-width: 480px) {
   .header {

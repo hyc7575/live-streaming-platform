@@ -86,7 +86,7 @@ export function DonatePage() {
 
   return (
     <section className={styles.card}>
-      <h1 className={form.title}>후원하기</h1>
+      <h1 className={`${form.title} ${form.titleInModal}`}>후원하기</h1>
       {broadcast.status === 'loaded' && (
         <p className={form.notice}>
           {broadcast.data.streamer.nickname} 스트리머의 방송 “
@@ -173,7 +173,7 @@ export function DonatePage() {
           </button>
         </form>
       )}
-      <p className={form.footer}>
+      <p className={`${form.footer} ${form.hiddenInFrame}`}>
         <Link to={`/broadcasts/${id}`}>방송으로 돌아가기</Link>
       </p>
     </section>

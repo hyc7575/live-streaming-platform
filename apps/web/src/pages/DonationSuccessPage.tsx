@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import {
   announceDonation,
+  closeTabOr,
   returnToBroadcast,
 } from '../donation/donationChannel';
 import {
@@ -10,6 +11,7 @@ import {
   formatWon,
   type ConfirmedDonation,
 } from '../donations';
+import { inFrame, postToParent } from '../donation/paymentFrame';
 import { useDocumentTitle } from '../use-document-title';
 import form from './AuthForm.module.css';
 import type { LoginPageState } from './LoginPage';
@@ -99,6 +101,7 @@ export function DonationSuccessPage() {
           confirmation: { status: 'done', donation },
         });
         if (donation.broadcastId) announceDonation(donation.broadcastId);
+        if (inFrame()) postToParent({ type: 'payment-done', kind: 'donation' });
       },
       (err: unknown) => {
         if (err instanceof ApiError && err.status === 401) {
@@ -134,13 +137,19 @@ export function DonationSuccessPage() {
       </section>
     );
   }
-  const backButton = (broadcastId: string) => (
+  // 후원 모달 안 iframe이면 돌아갈 방송을 몰라도 모달의 폼으로 돌아간다.
+  const backButton = (broadcastId: string | null) => (
     <button
       type="button"
       className={`${form.submit} ${form.block}`}
-      onClick={() => returnToBroadcast(broadcastId, (to) => void navigate(to))}
+      onClick={() => {
+        const go = (to: string) => void navigate(to);
+        if (broadcastId) returnToBroadcast(broadcastId, go);
+        else closeTabOr('/', go);
+      }}
     >
-      방송으로 돌아가기
+      {/* 모달 안에서는 이미 방송 화면이라 폼으로 돌아간다. */}
+      {inFrame() ? '돌아가기' : '방송으로 돌아가기'}
     </button>
   );
 
@@ -154,8 +163,8 @@ export function DonationSuccessPage() {
         <p className={form.error} role="alert">
           {confirmation.message}
         </p>
-        {broadcastId && backButton(broadcastId)}
-        <p className={form.footer}>
+        {(broadcastId || inFrame()) && backButton(broadcastId)}
+        <p className={`${form.footer} ${form.hiddenInFrame}`}>
           <Link to="/">방송 목록으로 가기</Link>
         </p>
       </section>
@@ -169,11 +178,11 @@ export function DonationSuccessPage() {
         {formatWon(donation.amount)}을 후원했습니다.
         {donation.message && ` 메시지: ${donation.message}`}
       </p>
-      {donation.broadcastId ? (
+      {donation.broadcastId || inFrame() ? (
         backButton(donation.broadcastId)
       ) : (
         // 결제한 뒤에 방송이 지워졌다 (#114).
-        <p className={form.footer}>
+        <p className={`${form.footer} ${form.hiddenInFrame}`}>
           <Link to="/">방송 목록으로 가기</Link>
         </p>
       )}

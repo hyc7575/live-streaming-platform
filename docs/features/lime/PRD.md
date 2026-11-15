@@ -81,6 +81,7 @@
 - `DonationPanel`의 "후원하기"를 링크 이동이 아니라 `window.open('/broadcasts/:id/donate', '_blank')`로 연다. 스크립트로 연 창이어야 B에서 `window.close()`가 통한다.
 - `DonatePage`·Toss 위젯·`/donations/confirm`과 서버 검증은 바꾸지 않는다.
 - 새 탭에서 세션이 없으면 기존 로그인 리다이렉트를 그대로 탄다.
+- #181부터 마우스를 쓰는 넓은 PC 화면은 새 탭 대신 후원 모달 안 iframe에서 결제한다([PRD-donation-modal](./PRD-donation-modal.md) 7.1·7.3). 터치 기기와 좁은 화면은 이 절대로 새 탭이다.
 
 ### 7.2 B. 결제 후 복귀
 
@@ -113,7 +114,7 @@
 
 **화면 (방송 페이지 `DonationPanel`)**
 - 로그인 사용자에게 잔액, 금액 프리셋 칩, 메시지 입력, "라임으로 후원" 버튼을 패널 안에 둔다. 페이지를 이동하지 않는다.
-- 잔액이 부족하면 버튼 자리에 "충전하기"(새 탭)와 "카드로 후원"(A, 새 탭)을 둔다.
+- 잔액이 부족하면 버튼 자리에 "충전하기"(새 탭)와 "카드로 후원"(A, 새 탭)을 둔다. 마우스를 쓰는 넓은 PC 화면은 두 결제를 후원 모달 안 iframe에서 한다(#181, [PRD-donation-modal](./PRD-donation-modal.md) 7.3).
 - 모바일은 #98의 액션 모음 시트 안에 같은 내용을 둔다.
 
 ### 7.4 Assumptions and open questions

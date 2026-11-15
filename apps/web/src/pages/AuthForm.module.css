@@ -7,6 +7,16 @@
   border-radius: var(--radius-lg);
 }
 
+/* 후원 모달 안 iframe(AppLayout의 결제 프레임)에서는 카드 테두리와 바깥
+   여백을 지워 모달 본문에 이어 붙인다. */
+:global([data-payment-frame]) .card {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+}
+
 .title {
   margin: 0 0 var(--space-6);
   font-size: var(--font-size-xl);
@@ -109,4 +119,20 @@ fieldset.field {
   display: block;
   width: 100%;
   margin-top: var(--space-4);
+}
+
+/* 결제 프레임 안에서는 모달 머리가 같은 제목과 "뒤로"를 이미 보인다.
+   제목은 스크린 리더에 남기고 화면에서만 숨긴다. */
+:global([data-payment-frame]) .titleInModal {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 결제 밖으로 나가는 링크와 모달 "뒤로"와 겹치는 버튼. */
+:global([data-payment-frame]) .hiddenInFrame {
+  display: none;
 }

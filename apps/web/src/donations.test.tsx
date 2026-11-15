@@ -18,7 +18,12 @@ import type {
   DonationOrder,
   DonationSummary,
 } from './donations';
-import { stubModalDialog, stubNarrowScreen } from './testing/modalDialog';
+import {
+  stubInFrame,
+  stubModalDialog,
+  stubMousePc,
+  stubNarrowScreen,
+} from './testing/modalDialog';
 
 const toss = vi.hoisted(() => {
   const widgets = {
@@ -1103,4 +1108,250 @@ it('shows the lime form only to a logged-in viewer of a LIVE broadcast', async (
     expect(calls).not.toContain(LIME);
     cleanup();
   }
+});
+
+// PRD-donation-modal 7.3, #181: 마우스를 쓰는 넓은 PC에서는 충전·카드 결제를
+// 후원 모달 안 iframe에서 한다.
+function paymentFrame(modal: HTMLElement, name: string): HTMLIFrameElement {
+  return within(modal).getByTitle<HTMLIFrameElement>(name);
+}
+
+function postFrom(source: Window | null, data: unknown, origin?: string) {
+  fireEvent(
+    window,
+    new MessageEvent('message', {
+      data,
+      source,
+      origin: origin ?? window.location.origin,
+    }),
+  );
+}
+
+it('pays by card inside the modal on a mouse PC and keeps the form behind it', async () => {
+  stubMousePc();
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+  });
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  renderAt('/broadcasts/b1');
+  const modal = await openDonationModal();
+  const form = within(modal).getByRole('form', { name: '라임으로 후원' });
+  fireEvent.click(within(form).getByRole('button', { name: '5,000라임' }));
+  fireEvent.change(within(form).getByLabelText(/메시지/), {
+    target: { value: '응원' },
+  });
+
+  fireEvent.click(within(form).getByRole('button', { name: '카드로 후원' }));
+  expect(open).not.toHaveBeenCalled();
+  const frame = paymentFrame(modal, '카드로 후원 결제');
+  expect(frame.getAttribute('src')).toBe('/broadcasts/b1/donate');
+  expect(
+    within(modal).getByRole('heading', { name: '카드로 후원' }),
+  ).toBeDefined();
+  expect(
+    within(modal).queryByRole('form', { name: '라임으로 후원' }),
+  ).toBeNull();
+  expect(document.activeElement).toBe(
+    within(modal).getByRole('button', { name: '뒤로' }),
+  );
+
+  fireEvent.click(within(modal).getByRole('button', { name: '뒤로' }));
+  expect(within(modal).queryByTitle('카드로 후원 결제')).toBeNull();
+  const back = within(modal).getByRole('form', { name: '라임으로 후원' });
+  expect(
+    within(back)
+      .getByRole('button', { name: '5,000라임' })
+      .getAttribute('aria-pressed'),
+  ).toBe('true');
+  expect(within(back).getByLabelText<HTMLInputElement>(/메시지/).value).toBe(
+    '응원',
+  );
+});
+
+it('closes the modal and shows the donation once its frame reports the card payment', async () => {
+  stubMousePc();
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+  });
+  renderAt('/broadcasts/b1');
+  const modal = await openDonationModal();
+  fireEvent.click(within(modal).getByRole('button', { name: '카드로 후원' }));
+  const frame = paymentFrame(modal, '카드로 후원 결제');
+  const done = { type: 'payment-done', kind: 'donation' };
+
+  // 같은 출처라도 다른 창이 보낸 메시지와, 다른 출처가 보낸 메시지는 무시한다.
+  postFrom(window, done);
+  postFrom(frame.contentWindow, done, 'https://evil.example');
+  const paying = () => screen.queryByRole('dialog', { name: '카드로 후원' });
+  expect(paying()).not.toBeNull();
+  expect(screen.queryByText('후원이 반영되었습니다')).toBeNull();
+
+  postFrom(frame.contentWindow, done);
+  expect(paying()).toBeNull();
+  expect(donationModal()).toBeNull();
+  expect(await screen.findByText('후원이 반영되었습니다')).toBeDefined();
+});
+
+it('returns to the form with the new balance after a charge inside the modal', async () => {
+  stubMousePc();
+  const routes: Record<string, unknown> = {
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 0 },
+  };
+  stubApi(routes);
+  renderAt('/broadcasts/b1');
+  const form = await limeForm();
+  await within(form).findByText('0라임', { selector: 'strong' });
+  fireEvent.click(within(form).getByRole('button', { name: '충전하기' }));
+  const modal = screen.getByRole('dialog', { name: '라임 충전' });
+  const frame = paymentFrame(modal, '라임 충전 결제');
+  expect(frame.getAttribute('src')).toBe('/lime/charge');
+
+  routes[LIME] = { balance: 10_000 };
+  postFrom(frame.contentWindow, {
+    type: 'payment-done',
+    kind: 'charge',
+    amount: 10_000,
+  });
+  const back = within(
+    screen.getByRole('dialog', { name: '후원하기' }),
+  ).getByRole('form', { name: '라임으로 후원' });
+  expect(within(back).getByText('10,000라임을 충전했습니다.')).toBeDefined();
+  expect(
+    await within(back).findByText('10,000라임', { selector: 'strong' }),
+  ).toBeDefined();
+  expect(
+    within(back).getByRole('button', { name: '라임으로 후원' }),
+  ).toBeDefined();
+});
+
+it('goes back to the form when the frame asks to close the payment', async () => {
+  stubMousePc();
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+  });
+  renderAt('/broadcasts/b1');
+  const modal = await openDonationModal();
+  fireEvent.click(within(modal).getByRole('button', { name: '카드로 후원' }));
+  postFrom(paymentFrame(modal, '카드로 후원 결제').contentWindow, {
+    type: 'payment-close',
+  });
+  expect(within(modal).queryByTitle('카드로 후원 결제')).toBeNull();
+  expect(
+    within(modal).getByRole('form', { name: '라임으로 후원' }),
+  ).toBeDefined();
+});
+
+it('keeps payments in new tabs on a wide touch screen', async () => {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: !query.includes('pointer'),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+    [LIME]: { balance: 10_000 },
+  });
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  renderAt('/broadcasts/b1');
+  const modal = await openDonationModal();
+  fireEvent.click(within(modal).getByRole('button', { name: '카드로 후원' }));
+  expect(open).toHaveBeenCalledWith('/broadcasts/b1/donate', '_blank');
+  expect(within(modal).queryByTitle('카드로 후원 결제')).toBeNull();
+});
+
+it('draws a payment screen inside a frame without the header, but not other screens', async () => {
+  stubInFrame();
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+  });
+  renderAt('/broadcasts/b1/donate');
+  expect(
+    await screen.findByRole('heading', { level: 1, name: '후원하기' }),
+  ).toBeDefined();
+  expect(screen.queryByRole('banner')).toBeNull();
+  cleanup();
+
+  renderAt('/broadcasts/b1');
+  expect(
+    await screen.findByRole('heading', { level: 1, name: '저녁 방송' }),
+  ).toBeDefined();
+  expect(screen.getByRole('banner')).toBeDefined();
+});
+
+it('tells the modal about the paid donation and closes through it inside a frame', async () => {
+  stubInFrame();
+  stubApi({
+    'GET /api/auth/me': viewer,
+    [CONFIRM]: { ...donation(), broadcastId: 'b1' },
+  });
+  const post = vi.spyOn(window, 'postMessage');
+  const close = vi.spyOn(window, 'close');
+  renderAt(SUCCESS_PATH);
+  expect(
+    await screen.findByRole('heading', { name: '후원했습니다.' }),
+  ).toBeDefined();
+  expect(post).toHaveBeenCalledWith(
+    { type: 'payment-done', kind: 'donation' },
+    window.location.origin,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: '돌아가기' }));
+  expect(post).toHaveBeenLastCalledWith(
+    { type: 'payment-close' },
+    window.location.origin,
+  );
+  expect(close).not.toHaveBeenCalled();
+});
+
+it('tells the modal how much was charged inside a frame', async () => {
+  stubInFrame();
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'POST /api/lime/charges/confirm': {
+      orderId: 'lime_1',
+      amount: 10_000,
+      approvedAt: '2026-11-16T00:00:00.000Z',
+      balanceAfter: 12_000,
+    },
+  });
+  const post = vi.spyOn(window, 'postMessage');
+  renderAt('/lime/charge/success?orderId=lime_1&paymentKey=pk_1&amount=10000');
+  expect(
+    await screen.findByRole('heading', { name: '충전했습니다.' }),
+  ).toBeDefined();
+  expect(post).toHaveBeenCalledWith(
+    { type: 'payment-done', kind: 'charge', amount: 10_000 },
+    window.location.origin,
+  );
+});
+
+it('offers 돌아가기 on a canceled payment inside a frame even without the order’s broadcast', async () => {
+  stubInFrame();
+  stubApi({ 'GET /api/auth/me': viewer });
+  const post = vi.spyOn(window, 'postMessage');
+  renderAt('/donations/fail?code=PAY_PROCESS_CANCELED&orderId=unknown');
+  expect(
+    await screen.findByRole('heading', { name: '결제를 취소했습니다.' }),
+  ).toBeDefined();
+  fireEvent.click(screen.getByRole('button', { name: '돌아가기' }));
+  expect(post).toHaveBeenCalledWith(
+    { type: 'payment-close' },
+    window.location.origin,
+  );
 });

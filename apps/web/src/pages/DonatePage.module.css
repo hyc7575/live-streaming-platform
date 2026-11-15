@@ -8,6 +8,16 @@
   border-radius: var(--radius-lg);
 }
 
+/* 후원 모달 안 iframe(AppLayout의 결제 프레임)에서는 카드 테두리와 바깥
+   여백을 지워 모달 본문에 이어 붙인다. */
+:global([data-payment-frame]) .card {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+}
+
 .presets {
   display: flex;
   flex-wrap: wrap;

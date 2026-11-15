@@ -66,7 +66,7 @@ export function LimeChargePage() {
 
   return (
     <section className={styles.card}>
-      <h1 className={form.title}>라임 충전</h1>
+      <h1 className={`${form.title} ${form.titleInModal}`}>라임 충전</h1>
       <p className={form.notice}>
         1라임은 1원입니다. 충전한 라임으로 방송에 후원할 수 있습니다.
       </p>
@@ -136,7 +136,7 @@ export function LimeChargePage() {
       )}
       <button
         type="button"
-        className={`${styles.secondary} ${form.block}`}
+        className={`${styles.secondary} ${form.block} ${form.hiddenInFrame}`}
         onClick={() => closeTabOr('/', (to) => void navigate(to))}
       >
         돌아가기
