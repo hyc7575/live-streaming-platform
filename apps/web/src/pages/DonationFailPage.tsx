@@ -1,5 +1,6 @@
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { returnToBroadcast } from '../donation/donationChannel';
+import { closeTabOr, returnToBroadcast } from '../donation/donationChannel';
+import { inFrame } from '../donation/paymentFrame';
 import { broadcastOfOrder } from '../donations';
 import { useDocumentTitle } from '../use-document-title';
 import form from './AuthForm.module.css';
@@ -26,22 +27,28 @@ export function DonationFailPage() {
           {params.get('message') ?? '결제 중 문제가 생겼습니다.'}
         </p>
       )}
-      {broadcastId && (
+      {/* 후원 모달 안 iframe이면 돌아갈 방송을 몰라도 모달의 폼으로 돌아간다. */}
+      {(broadcastId || inFrame()) && (
         <button
           type="button"
           className={`${form.submit} ${form.block}`}
-          onClick={() =>
-            returnToBroadcast(broadcastId, (to) => void navigate(to))
-          }
+          onClick={() => {
+            const go = (to: string) => void navigate(to);
+            if (broadcastId) returnToBroadcast(broadcastId, go);
+            else closeTabOr('/', go);
+          }}
         >
-          방송으로 돌아가기
+          {/* 모달 안에서는 이미 방송 화면이라 폼으로 돌아간다. */}
+          {inFrame() ? '돌아가기' : '방송으로 돌아가기'}
         </button>
       )}
       <p className={form.footer}>
         {broadcastId ? (
           <Link to={`/broadcasts/${broadcastId}/donate`}>다시 후원하기</Link>
         ) : (
-          <Link to="/">방송 목록으로 가기</Link>
+          <Link to="/" className={form.hiddenInFrame}>
+            방송 목록으로 가기
+          </Link>
         )}
       </p>
     </section>

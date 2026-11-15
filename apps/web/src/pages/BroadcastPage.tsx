@@ -21,7 +21,7 @@ import { partStarts, type Playhead } from '../replay-chat';
 import { channelPath } from '../streamers';
 import type { Loadable } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
-import { useWideScreen } from '../use-wide-screen';
+import { useFinePointer, useWideScreen } from '../use-wide-screen';
 import styles from './BroadcastPage.module.css';
 
 const PLAYER_NOTICE: Record<Exclude<BroadcastStatus, 'LIVE'>, string> = {
@@ -195,6 +195,7 @@ function BroadcastView({
   } | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const wide = useWideScreen();
+  const finePointer = useFinePointer();
   // 후원 패널과 플레이어 위 배너(S5)가 같은 5초 폴링 응답을 쓴다. 새 후원은
   // LIVE일 때만 배너로 띄운다. 처음 읽은 후원은 훅이 기준선으로 거르고,
   // 순서와 묶음은 송출 토스트와 같은 큐가 정한다(#164).
@@ -255,7 +256,9 @@ function BroadcastView({
       broadcast={b}
       summary={donations.summary}
       reload={donations.reload}
-      donateIn={wide ? 'modal' : 'inline'}
+      donateIn={
+        wide ? (finePointer ? 'modal-with-payment' : 'modal') : 'inline'
+      }
     />
   );
 

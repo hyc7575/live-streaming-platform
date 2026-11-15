@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { announceCharge, closeTabOr } from '../donation/donationChannel';
+import { inFrame, postToParent } from '../donation/paymentFrame';
 import { formatLime, type ConfirmedCharge } from '../lime';
 import { useDocumentTitle } from '../use-document-title';
 import form from './AuthForm.module.css';
@@ -85,6 +86,13 @@ export function LimeChargeSuccessPage() {
           confirmation: { status: 'done', charge },
         });
         announceCharge();
+        if (inFrame()) {
+          postToParent({
+            type: 'payment-done',
+            kind: 'charge',
+            amount: charge.amount,
+          });
+        }
       },
       (err: unknown) => {
         if (err instanceof ApiError && err.status === 401) {

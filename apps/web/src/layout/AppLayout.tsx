@@ -16,6 +16,7 @@ import {
   searchPath,
 } from '../search';
 import { channelPath } from '../streamers';
+import { inFrame, isPaymentPath } from '../donation/paymentFrame';
 import { FollowsProvider } from '../follows/FollowsProvider';
 import styles from './AppLayout.module.css';
 import { FollowPanel } from './FollowPanel';
@@ -297,9 +298,20 @@ function Logo() {
 
 // 시청 페이지는 왼쪽에 팔로우 패널을 둔다. 스튜디오와 마이페이지는
 // 사용자 자신의 작업 공간이라 그 자리에 자기 메뉴를 보인다.
+//
+// 후원 모달 안 iframe에 뜬 결제 화면은 모달 본문의 연속처럼 보이게 헤더와
+// 왼쪽 열 없이 본문만 그린다(PRD-donation-modal 7.3).
 export function AppLayout() {
   const loggedIn = useAuth().state.status === 'authenticated';
-  const section = sectionOf(useLocation().pathname);
+  const { pathname } = useLocation();
+  const section = sectionOf(pathname);
+  if (isPaymentPath(pathname) && inFrame()) {
+    return (
+      <main className={styles.paymentFrame} data-payment-frame="">
+        <Outlet />
+      </main>
+    );
+  }
   return (
     <FollowsProvider>
       <div className={styles.shell}>

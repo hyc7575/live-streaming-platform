@@ -2,11 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { newIdempotencyKey } from '../donation/idempotencyKey';
-import {
-  onCharge,
-  openChargeTab,
-  openDonateTab,
-} from '../donation/donationChannel';
+import { onCharge } from '../donation/donationChannel';
+import type { PaymentKind } from '../donation/paymentFrame';
 import {
   DONATION_AMOUNT_PRESETS,
   DONATION_MAX_AMOUNT,
@@ -53,17 +50,23 @@ interface Attempt {
 // `onUnsettled`는 응답을 잃은 뒤에 실행한다. 후원이 처리됐을 경우에 대비해
 // 목록을 다시 읽게 한다. `offerCard`가 `'always'`면 잔액이 넉넉해도
 // "카드로 후원"을 보조 버튼으로 둔다. 후원 모달에는 카드 후원으로 가는
-// 다른 길이 없기 때문이다.
+// 다른 길이 없기 때문이다. "충전하기"·"카드로 후원"은 `onPay`가 새 탭이나
+// 모달 안 결제 보기로 연다. `charged`는 모달 안에서 마친 충전이고, 바뀔
+// 때마다 잔액을 다시 읽고 충전 문구를 띄운다.
 export function LimeDonationForm({
   broadcastId,
   offerCard,
   onDonated,
   onUnsettled,
+  onPay,
+  charged = null,
 }: {
   broadcastId: string;
   offerCard: 'always' | 'whenShort';
   onDonated: () => void;
   onUnsettled: () => void;
+  onPay: (kind: PaymentKind) => void;
+  charged?: { amount: number } | null;
 }) {
   const navigate = useNavigate();
   const { data: balanceData, reload: reloadBalance } =
@@ -76,6 +79,9 @@ export function LimeDonationForm({
   const [unsettled, setUnsettled] = useState<Attempt | null>(null);
 
   useEffect(() => onCharge(reloadBalance), [reloadBalance]);
+  useEffect(() => {
+    if (charged) reloadBalance();
+  }, [charged, reloadBalance]);
 
   const value = Number(amount);
   const balance =
@@ -149,7 +155,7 @@ export function LimeDonationForm({
     <button
       type="button"
       className={styles.secondary}
-      onClick={() => openDonateTab(broadcastId)}
+      onClick={() => onPay('donation')}
     >
       카드로 후원
     </button>
@@ -172,6 +178,14 @@ export function LimeDonationForm({
               : '확인 중'}
         </strong>
       </p>
+      {/* 늘 마운트해 두어, 문구가 들어올 때 스크린 리더가 읽게 한다. */}
+      <div className={styles.status} role="status">
+        {charged && (
+          <p className={styles.charged}>
+            {formatLime(charged.amount)}을 충전했습니다.
+          </p>
+        )}
+      </div>
       <fieldset className={styles.presets}>
         <legend className={styles.legend}>금액</legend>
         {DONATION_AMOUNT_PRESETS.map((preset) => (
@@ -235,7 +249,7 @@ export function LimeDonationForm({
             <button
               type="button"
               className={styles.primary}
-              onClick={openChargeTab}
+              onClick={() => onPay('charge')}
             >
               충전하기
             </button>

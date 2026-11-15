@@ -29,3 +29,22 @@ export function stubNarrowScreen(): void {
   }));
   stubModalDialog();
 }
+
+// 마우스를 쓰는 넓은 PC 화면이다. 모든 media query(`min-width: 1024px`,
+// `pointer: fine`)가 맞는다. 후원 모달이 결제를 모달 안 iframe에서 한다.
+export function stubMousePc(): void {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: true,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  stubModalDialog();
+}
+
+// 이 문서가 다른 창의 iframe 안에 있는 것처럼 `window.self`를 바꾼다.
+// jsdom의 최상위 창은 `parent`가 자기 자신이라, 부모에게 보낸 메시지는
+// 이 창의 `message` 이벤트로 돌아온다.
+export function stubInFrame(): void {
+  vi.stubGlobal('self', {});
+}

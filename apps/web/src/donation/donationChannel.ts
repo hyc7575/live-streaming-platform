@@ -1,3 +1,5 @@
+import { inFrame, postToParent } from './paymentFrame';
+
 // 결제는 따로 탭을 열어서, 시청 탭은 계속 재생된다
 // (PRD-lime 7.1). 승인 뒤 결제 탭이 이 채널로 시청 탭에 알린다.
 // 그러면 시청 탭은 다음 5 s 폴링을 기다리지 않고 후원을
@@ -82,11 +84,16 @@ export function openDonateTab(broadcastId: string): void {
 
 // 결제 탭은 시청 탭이 열었으므로, 닫으면 시청 탭으로 돌아간다.
 // 브라우저가 닫아 주지 않는 탭(주소창에 직접 입력한 뒤
-// Toss가 리다이렉트한 탭)은 대신 `fallback`으로 간다.
+// Toss가 리다이렉트한 탭)은 대신 `fallback`으로 간다. 후원 모달 안
+// iframe이면 모달에 결제 보기를 닫으라고 알린다.
 export function closeTabOr(
   fallback: string,
   navigate: (to: string) => void,
 ): void {
+  if (inFrame()) {
+    postToParent({ type: 'payment-close' });
+    return;
+  }
   window.close();
   if (!window.closed) navigate(fallback);
 }

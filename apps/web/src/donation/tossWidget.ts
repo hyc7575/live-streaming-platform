@@ -1,5 +1,6 @@
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
 import type { DonationOrder } from '../donations';
+import { inFrame } from './paymentFrame';
 
 export const PAYMENT_METHODS_ID = 'donation-payment-methods';
 export const AGREEMENT_ID = 'donation-agreement';
@@ -48,8 +49,12 @@ export function mountDonationWidget(
     signal.addEventListener('abort', () => void inTurn(teardown), {
       once: true,
     });
+    // 후원 모달 안 iframe에서는 결제 페이지를 이 iframe 안에서 연다. 기본값은
+    // 결제창을 iframe 오버레이로 띄우고, 승인 뒤 Toss가 우리 iframe의 주소를
+    // 바꾸려다 브라우저의 교차 출처 이동 차단에 막혀 승인되지 않는다(#179).
+    const windowTarget = inFrame() ? 'self' : undefined;
     return async (request) => {
-      await widgets.requestPayment(request);
+      await widgets.requestPayment({ ...request, windowTarget });
     };
   });
 }
