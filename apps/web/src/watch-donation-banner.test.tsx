@@ -63,6 +63,7 @@ const summaryOf = (list: Donation[]): DonationSummary => ({
   total: list.reduce((sum, d) => sum + d.amount, 0),
   count: list.length,
   donations: list,
+  ranking: [],
 });
 
 const DONATIONS = 'GET /api/broadcasts/b1/donations';
