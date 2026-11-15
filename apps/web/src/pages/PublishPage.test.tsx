@@ -25,6 +25,7 @@ import type {
 } from '../capture/pcCapture';
 import { PcCaptureError, startPcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
+import type { Donation, DonationSummary } from '../donations';
 import { startWhipPublish, type PublishEvent } from '../publish/whipPublisher';
 import { searchPath } from '../search';
 import { renderInDataRouter } from '../testing/renderInDataRouter';
@@ -1236,6 +1237,86 @@ it('shows the ended screen when the broadcast ends elsewhere while this page wai
     expect(await screen.findByText('방송이 종료되었습니다.')).toBeDefined();
     await waitFor(() => expect(page.capture.stop).toHaveBeenCalled());
     expect(screen.queryByLabelText('미리보기')).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+const DONATIONS = 'GET /api/broadcasts/b1/donations';
+
+function donation(overrides: Partial<Donation> = {}): Donation {
+  return {
+    id: 'd1',
+    method: 'TOSS',
+    amount: 5000,
+    message: '',
+    approvedAt: '2026-11-09T00:10:00.000Z',
+    donor: { id: 'u2', nickname: '시청자' },
+    ...overrides,
+  };
+}
+
+// API처럼 최신 순으로 받는다.
+const donations = (list: Donation[]) => ({
+  status: 200,
+  body: {
+    total: list.reduce((sum, d) => sum + d.amount, 0),
+    count: list.length,
+    donations: list,
+    ranking: [],
+  } satisfies DonationSummary,
+});
+
+it('toasts each new donation on a LIVE publish page for 6 seconds, but not the ones already there', async () => {
+  // waitFor·findBy가 기다릴 수 있게 가짜 시계도 실제 시간만큼 흐르게 둔다.
+  vi.useFakeTimers({
+    toFake: ['setInterval', 'setTimeout'],
+    shouldAdvanceTime: true,
+  });
+  try {
+    const before = donation({
+      id: 'd0',
+      amount: 1000,
+      message: '먼저 온 후원',
+    });
+    const page = renderPage({
+      'GET /api/broadcasts/b1': LIVE_ELSEWHERE,
+      [DONATIONS]: donations([before]),
+    });
+    await screen.findByRole('tab', { name: 'OBS로 송출' });
+    await waitFor(() => expect(page.calls).toContain(DONATIONS));
+
+    page.routes[DONATIONS] = donations([
+      donation({
+        id: 'd2',
+        method: 'LIME',
+        amount: 3000,
+        approvedAt: '2026-11-09T00:12:00.000Z',
+        donor: { id: 'u3', nickname: '라임팬' },
+      }),
+      donation({ id: 'd1', message: '화이팅' }),
+      before,
+    ]);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    const card = await screen.findByText('시청자님이 5,000원 후원');
+    const toasts = card.closest('[aria-live="polite"]') as HTMLElement;
+    expect(toasts).not.toBeNull();
+    expect(within(toasts).getByText('화이팅')).toBeDefined();
+    expect(within(toasts).getByText('라임팬님이 3,000라임 후원')).toBeDefined();
+    expect(within(toasts).queryByText('먼저 온 후원')).toBeNull();
+    expect(within(toasts).queryByText(/1,000원/)).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    // 두 장의 타이머가 한 렌더에 함께 반영된다고 기대하지 않고 둘 다 기다린다.
+    await waitFor(() => {
+      expect(screen.queryByText('시청자님이 5,000원 후원')).toBeNull();
+      expect(screen.queryByText('라임팬님이 3,000라임 후원')).toBeNull();
+    });
   } finally {
     vi.useRealTimers();
   }

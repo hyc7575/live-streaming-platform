@@ -19,6 +19,8 @@ import {
 import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
+import { useNewDonations } from '../donation/useNewDonations';
+import type { Donation } from '../donations';
 import type {
   CameraCapture,
   CameraCaptureState,
@@ -26,6 +28,7 @@ import type {
 } from '../capture/cameraCapture';
 import type { PcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
+import { DonationToasts } from '../components/DonationToasts';
 import { BrowserNotice, PcPreflight } from '../components/PcPreflight';
 import { PermissionGuide } from '../components/PermissionGuide';
 import { useThumbnailCapture } from '../publish/thumbnailCapture';
@@ -136,6 +139,16 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
   );
   const broadcast = polled.data.status === 'loaded' ? polled.data.data : opened;
   const { reload } = polled;
+  // 새 후원은 LIVE일 때만 띄운다. 처음 읽은 후원은 훅이 기준선으로 거른다.
+  const [toasts, setToasts] = useState<Donation[]>([]);
+  useNewDonations(opened.id, (fresh) => {
+    if (broadcast.status === 'LIVE') setToasts((shown) => [...shown, ...fresh]);
+  });
+  const dismissToast = useCallback(
+    (donationId: string) =>
+      setToasts((shown) => shown.filter((d) => d.id !== donationId)),
+    [],
+  );
   // 이게 없으면 방금 끊긴 이 페이지의 송출이 다음 폴링까지
   // 다른 쪽 송출로 읽힌다.
   useEffect(() => {
@@ -422,6 +435,7 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
           }
         />
       </div>
+      <DonationToasts donations={toasts} onExpire={dismissToast} />
       <LeaveConfirm blocker={leave} />
     </section>
   );
