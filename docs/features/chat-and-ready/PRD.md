@@ -4,7 +4,7 @@
 **Date**: 2026-11-11
 **Status**: 구현 완료 (2026-11-11, A #90: #93, B #91: #94, C #92: #95). 송출 중 대기 장면은 하지 않았다
 
-배경 논의: `docs/STRATEGY-chat-replay.md`, `docs/STRATEGY-standby-scene.md`. 이 문서가 두 문서의 결정을 확정한다.
+배경 논의: `docs/features/chat-and-ready/STRATEGY-chat-replay.md`, `docs/features/chat-and-ready/STRATEGY-standby-scene.md`. 이 문서가 두 문서의 결정을 확정한다.
 
 ### 1. Summary
 

@@ -10,7 +10,7 @@ export type RefreshGamesOptions = {
   timeoutMs: number;
 };
 
-// docs/DISCOVERY-broadcast-category.md "E1 결과"의 쿼리. P31=Q7889(비디오 게임)이면서
+// docs/features/category/DISCOVERY.md "E1 결과"의 쿼리. P31=Q7889(비디오 게임)이면서
 // 한국어 라벨이 있는 항목만 받는다.
 const GAMES_QUERY = `SELECT ?game ?ko ?en (GROUP_CONCAT(DISTINCT ?alias; separator="|") AS ?aliases) WHERE {
   ?game wdt:P31 wd:Q7889 ;

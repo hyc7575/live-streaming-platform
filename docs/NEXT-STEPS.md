@@ -33,18 +33,18 @@ PRD 7.1 표의 P1 보강·P2·P3 행과 기능별 PRD에서 나왔다.
 
 | 날짜 | 작업 | 이슈 | 근거 |
 |---|---|---|---|
-| 11/10~11 | 플레이어 컨트롤, 다시보기 컨트롤·재생 속도 | #56, #69 | [PRD-player-controls](./PRD-player-controls.md) |
-| 11/10~11 | 팔로우, 목록 카드 그림·캡처 썸네일·기본 대기 이미지 | #60, #61, #62, #63 | [STRATEGY-broadcast-extras](./STRATEGY-broadcast-extras.md) |
-| 11/11 | 방송 준비 중 노출, 채팅·댓글 분리, 다시보기 채팅 | #90, #91, #92 | [PRD-chat-and-ready](./PRD-chat-and-ready.md) |
+| 11/10~11 | 플레이어 컨트롤, 다시보기 컨트롤·재생 속도 | #56, #69 | [PRD-player-controls](./features/player-controls/PRD.md) |
+| 11/10~11 | 팔로우, 목록 카드 그림·캡처 썸네일·기본 대기 이미지 | #60, #61, #62, #63 | [STRATEGY-broadcast-extras](./features/thumbnail-standby/STRATEGY.md) |
+| 11/11 | 방송 준비 중 노출, 채팅·댓글 분리, 다시보기 채팅 | #90, #91, #92 | [PRD-chat-and-ready](./features/chat-and-ready/PRD.md) |
 | 11/11~12 | 방송 화면 레이아웃(넓은 화면 우측 패널, 모바일 한 화면) | #96, #98 | `apps/web/CLAUDE.md` |
 | 11/11~12 | 채점기 호환: 타입 인자 tagged template 제거와 lint 규칙 | #87 | `CLAUDE.md` 채점기 호환 |
 | 11/12 | LL-HLS 세그먼트 4초 | #102 | PRD §7.2 |
 | 11/13 | OBS 송출(방송별 송출 URL) | #88, #89 | PRD §7.1 |
-| 11/13 | 새 탭 후원, 라임 충전·후원, 방송을 지워도 후원 보존 | #108, #109, #110, #114 | [PRD-lime](./PRD-lime.md) |
-| 11/13 | 마이페이지, 받은 후원 합계, 채널 페이지, 프로필 편집 | #117, #118, #119, #120 | [PRD-mypage](./PRD-mypage.md) |
+| 11/13 | 새 탭 후원, 라임 충전·후원, 방송을 지워도 후원 보존 | #108, #109, #110, #114 | [PRD-lime](./features/lime/PRD.md) |
+| 11/13 | 마이페이지, 받은 후원 합계, 채널 페이지, 프로필 편집 | #117, #118, #119, #120 | [PRD-mypage](./features/mypage/PRD.md) |
 | 11/14 | CI 시간 단축(테스트 해시 비용) | #125 | |
-| 11/14~15 | 카테고리, 게임 타이틀 | #132, #133 | [PRD-category](./PRD-category.md) |
-| 11/15 | 서버 검색, 헤더 검색창 | #138, #139 | [PRD-search](./PRD-search.md) |
+| 11/14~15 | 카테고리, 게임 타이틀 | #132, #133 | [PRD-category](./features/category/PRD.md) |
+| 11/15 | 서버 검색, 헤더 검색창 | #138, #139 | [PRD-search](./features/search/PRD.md) |
 
 ### 0.3 남은 일 (마감 2026-11-19 23:59 KST)
 
@@ -114,7 +114,7 @@ PRD 8.1은 D2에 서버에서 OME 스파이크를 끝내는 일정이다. 서버
 | 무엇 | 어디 |
 |---|---|
 | 요구사항 해석, 기술 결정, 인가·상태·흐름, 일정·컷 규칙 | `docs/PRD.md` |
-| 기능별 상세 요구사항 | `docs/PRD-*.md` (PRD.md 7.1 표에서 링크) |
+| 기능별 상세 요구사항 | `docs/features/<기능>/` (PRD.md 7.1 표에서 링크, 목록은 `docs/README.md`) |
 | 기능 착수 전 가정과 검증 | `docs/DISCOVERY-*.md`, `docs/STRATEGY-*.md` |
 | 위험과 대응, Go/No-Go 체크리스트 | `docs/PRE-MORTEM.md` |
 | 이 작업 목록 | `docs/NEXT-STEPS.md` |

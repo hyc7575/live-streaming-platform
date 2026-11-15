@@ -13,7 +13,7 @@
 - **C. 공개 채널 페이지 `/channels/:id`**: 프로필, 팔로워 수, LIVE 여부, 지난 방송·다시보기, 팔로우
 - **D. 프로필 편집**: 소개, 프로필 이미지, 닉네임(테스트 계정 제외)
 
-근거는 [DISCOVERY-mypage](./DISCOVERY-mypage.md)다.
+근거는 [DISCOVERY](./DISCOVERY.md)다.
 
 ## 2. Contacts
 

@@ -10,7 +10,7 @@
 
 게임 타이틀은 사람이 관리하지 않는다. 한국어 이름이 있는 비디오 게임 목록을 Wikidata에서 일괄로 받아 저장소에 스냅샷 파일로 두고, 우리 DB에서 검색한다. 서비스가 도는 동안에는 외부 API를 부르지 않는다.
 
-근거는 [DISCOVERY-broadcast-category](./DISCOVERY-broadcast-category.md)다.
+근거는 [DISCOVERY](./DISCOVERY.md)다.
 
 > **PRD §8.2와 어긋남**: PRD §8.2는 "카테고리·검색"을 첫 버전에서 하지 않는다고 정했다. 이 문서가 그중 카테고리를 들인다. 이유는 3장 마지막 두 항목이다. 구현 PR은 본문에 이 사실을 쓰고 §8.2를 고친다.
 

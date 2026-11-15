@@ -4,9 +4,9 @@
 **Stage**: MVP (마감 2026-11-19 23:59 KST, 남은 8일)
 **Author**: kh.jeon
 
-> 결과: 결정은 `PRD-chat-and-ready.md`가 확정했다(#90·#91·#92). 방송 전 채팅과 READY 목록 노출 논의는 `STRATEGY-standby-scene.md`를 거쳐 그 PRD로 갔다.
+> 결과: 결정은 `PRD.md`가 확정했다(#90·#91·#92). 방송 전 채팅과 READY 목록 노출 논의는 `STRATEGY-standby-scene.md`를 거쳐 그 PRD로 갔다.
 
-> 범위: 공모전 제출물 안의 기능 묶음 전략이다. `STRATEGY-broadcast-extras.md`의 후속이다. Growth Engine·Defensibility는 공모전 맥락이라 짧게 둔다.
+> 범위: 공모전 제출물 안의 기능 묶음 전략이다. `../thumbnail-standby/STRATEGY.md`의 후속이다. Growth Engine·Defensibility는 공모전 맥락이라 짧게 둔다.
 
 ### 0. 현재 코드 상태 (2026-11-11 확인)
 
