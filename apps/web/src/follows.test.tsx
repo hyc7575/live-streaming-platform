@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 const viewer = { id: 'u-viewer', email: 'v@example.com', nickname: '구경꾼' };
-const streamer = { id: 'u-streamer', nickname: '불씨' };
+const streamer = { id: 'u-streamer', nickname: '불씨', avatarUrl: null };
 
 function broadcast(overrides: Partial<Broadcast> = {}): Broadcast {
   return {
@@ -158,7 +158,7 @@ it('shows anonymous visitors up to five LIVE broadcasts and a login link that co
     broadcast({
       id: `b-live-${i}`,
       title: `방송 ${i}`,
-      streamer: { id: `s${i}`, nickname: `스트리머${i}` },
+      streamer: { id: `s${i}`, nickname: `스트리머${i}`, avatarUrl: null },
     }),
   );
   const calls = stubApi({ me: null, live });

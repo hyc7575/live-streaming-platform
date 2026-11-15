@@ -24,7 +24,7 @@ function card(
     recordingParts: [],
     thumbnailUrl: null,
     standbyImageUrl: null,
-    streamer: { id: 'u1', nickname },
+    streamer: { id: 'u1', nickname, avatarUrl: null },
   };
 }
 

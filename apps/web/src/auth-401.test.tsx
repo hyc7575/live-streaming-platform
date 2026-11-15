@@ -10,7 +10,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const streamer = { id: 'u1', nickname: '불씨' };
+const streamer = { id: 'u1', nickname: '불씨', avatarUrl: null };
 const viewer = {
   id: 'u2',
   email: 'b@example.com',

@@ -13,6 +13,7 @@ import { LivePlayer } from '../components/LivePlayer';
 import { OwnerActions } from '../components/OwnerActions';
 import { ReplayParts, ReplayPlayer } from '../components/ReplayPlayer';
 import { StatusBadge } from '../components/StatusBadge';
+import { UserAvatar } from '../components/UserAvatar';
 import { useDonationAlerts } from '../donation/donationAlerts';
 import { useNewDonations } from '../donation/useNewDonations';
 import { FollowButton } from '../follows/FollowButton';
@@ -241,8 +242,21 @@ function BroadcastView({
     </>
   );
   const follow = !isOwner && <FollowButton streamerId={b.streamer.id} />;
+  // 프로필 원 링크는 닉네임 링크와 같은 곳이라 탭 순서와 읽기 순서에서 뺀다.
   const streamer = (
     <p className={styles.streamer}>
+      <Link
+        to={channelPath(b.streamer.id)}
+        className={styles.avatarLink}
+        tabIndex={-1}
+        aria-hidden="true"
+      >
+        <UserAvatar
+          nickname={b.streamer.nickname}
+          avatarUrl={b.streamer.avatarUrl}
+          className={styles.avatar}
+        />
+      </Link>
       <Link to={channelPath(b.streamer.id)}>{b.streamer.nickname}</Link>
     </p>
   );

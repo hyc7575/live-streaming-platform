@@ -5,6 +5,7 @@ import request from 'supertest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AuthUser } from '../src/auth/auth-user.js';
+import type { BroadcastView } from '../src/broadcasts/broadcasts.service.js';
 import { TEST_ACCOUNT_NICKNAME_MESSAGE } from '../src/channel/profile.service.js';
 import { IMAGE_RULES } from '../src/images/image-rules.js';
 import type { StreamerProfile } from '../src/streamers/streamers.service.js';
@@ -165,6 +166,33 @@ describe('profile editing', () => {
     expect(await exists(userFile(user.user.id, 'avatar.png'))).toBe(false);
     expect(await exists(userFile(user.user.id, 'standby.jpg'))).toBe(true);
     expect((await user.agent.delete('/api/me/avatar')).status).toBe(204);
+  });
+
+  it('puts the profile image on the streamer of every broadcast view', async () => {
+    const created = await user.agent
+      .post('/api/broadcasts')
+      .send({ title: '프로필 원' });
+    expect(created.status).toBe(201);
+    const id = (created.body as BroadcastView).id;
+    expect((created.body as BroadcastView).streamer.avatarUrl).toBeNull();
+
+    const saved = await user.agent
+      .put('/api/me/avatar')
+      .attach('image', PNG, 'a.png');
+    const { avatarUrl } = saved.body as AuthUser;
+    expect(avatarUrl).not.toBeNull();
+
+    const detail = await anonymous().get(`/api/broadcasts/${id}`);
+    expect((detail.body as BroadcastView).streamer).toEqual({
+      id: user.user.id,
+      nickname: '불씨',
+      avatarUrl,
+    });
+    const list = await anonymous().get('/api/broadcasts');
+    expect(
+      (list.body as BroadcastView[]).find((b) => b.id === id)?.streamer
+        .avatarUrl,
+    ).toBe(avatarUrl);
   });
 
   it('lets a test account change its profile image', async () => {
