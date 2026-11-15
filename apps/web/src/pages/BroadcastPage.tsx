@@ -50,9 +50,11 @@ function isWaitingForReplay(b: Broadcast, readAt: number): boolean {
   return readAt - Date.parse(b.endedAt) < REPLAY_WAIT_MS;
 }
 
-// 방송이 사라지거나, ENDED가 되어 더 기다릴 것이 없을 때까지
+// 방송이 사라지거나(404), ENDED가 되어 더 기다릴 것이 없을 때까지
 // 방송을 다시 읽는다 (isWaitingForReplay 참고). 다른 이유로 다시 읽기에
-// 실패하면 마지막 응답을 유지한다.
+// 실패하면 마지막 응답을 유지한다. 첫 조회가 404가 아닌 이유(네트워크,
+// 5xx)로 실패해도 계속 다시 읽어, 재배포 중에 연 화면이 새로고침 없이
+// 뜬다 (#149).
 function useWatchedBroadcast(path: string): {
   broadcast: Loadable<Broadcast>;
   waitingForReplay: boolean;
@@ -72,7 +74,9 @@ function useWatchedBroadcast(path: string): {
     current?.loadable.status === 'loaded' &&
     isWaitingForReplay(current.loadable.data, current.readAt);
   const settled =
-    broadcast.status === 'failed' ||
+    (broadcast.status === 'failed' &&
+      broadcast.error instanceof ApiError &&
+      broadcast.error.status === 404) ||
     (broadcast.status === 'loaded' &&
       broadcast.data.status === 'ENDED' &&
       !waitingForReplay);
