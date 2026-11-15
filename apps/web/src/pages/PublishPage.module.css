@@ -22,6 +22,27 @@
   font-size: var(--font-size-xl);
 }
 
+/* 송출 조작과 오른쪽 사이드 패널(받은 후원). 패널은 시청 화면의 채팅 패널과
+   같은 폭·같은 자리다. 좁으면 패널이 송출 조작 아래로 내려간다. */
+.workspace {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) var(--side-panel-width);
+  }
+}
+
+/* 미리보기와 송출 조작을 나란히 둘지는 화면 폭이 아니라 이 칸의 폭으로
+   정한다. 사이드 패널이 옆에 서면 같은 화면 폭에서도 칸이 좁아진다. */
+.studioArea {
+  container: studio / inline-size;
+  min-width: 0;
+}
+
 .studio {
   display: grid;
   gap: var(--space-4);
@@ -80,8 +101,10 @@
   display: none;
 }
 
-/* 나란히 두어 점검 항목과 시작 버튼이 첫 화면 안에 머물게 한다. */
-@media (min-width: 960px) {
+/* 나란히 두어 점검 항목과 시작 버튼이 첫 화면 안에 머물게 한다. 680px이면
+   오른쪽 칸 최소 320px 옆에 미리보기가 340px 넘게 남는다. 1280px 화면(이 칸
+   약 690px)도 나란히 선다. */
+@container studio (min-width: 680px) {
   .studio {
     grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
   }
@@ -125,6 +148,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: var(--space-4);
+  text-align: center;
 }
 
 .note,
