@@ -4,7 +4,6 @@ import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import { onDonation, openDonateTab } from '../donation/donationChannel';
 import {
-  formatDonationAmount,
   formatWon,
   type DonationRank,
   type DonationSummary,
@@ -17,15 +16,10 @@ import { LimeDonationForm } from './LimeDonationForm';
 // 결제 탭이 결과를 알린 뒤 "후원이 반영되었습니다"가 남아 있는 시간.
 const DONATED_NOTICE_MS = 4000;
 
-const timeFormat = new Intl.DateTimeFormat('ko-KR', {
-  month: 'numeric',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-// 후원 목록은 페이지(`BroadcastPage`)가 읽어 넘긴다. 플레이어 위 새 후원
-// 배너(S5)와 같은 5초 폴링 응답을 써서 요청이 늘지 않는다.
+// 합계·건수와 후원자별 누적만 보인다. 개별 후원과 메시지는 채팅의 후원
+// 줄에 있다(#166). 후원 목록 API는 그대로 개별 내역을 준다. 후원 목록은
+// 페이지(`BroadcastPage`)가 읽어 넘긴다. 플레이어 위 새 후원 배너(S5)와
+// 같은 5초 폴링 응답을 써서 요청이 늘지 않는다.
 export function DonationPanel({
   broadcast,
   summary,
@@ -107,27 +101,11 @@ export function DonationPanel({
       {summary.status === 'failed' && (
         <p className={styles.empty}>후원 내역을 불러오지 못했습니다.</p>
       )}
-      {loaded && loaded.donations.length === 0 && (
+      {loaded && loaded.count === 0 && (
         <p className={styles.empty}>아직 후원이 없습니다.</p>
       )}
       {loaded && loaded.ranking.length > 0 && (
         <DonationRanking ranking={loaded.ranking} />
-      )}
-      {loaded && loaded.donations.length > 0 && (
-        <ol className={styles.list} aria-label="최근 후원">
-          {loaded.donations.map((d) => (
-            <li key={d.id} className={styles.item}>
-              <div className={styles.meta}>
-                <span className={styles.donor}>{d.donor.nickname}</span>
-                <span className={styles.amount}>{formatDonationAmount(d)}</span>
-                <time dateTime={d.approvedAt} className={styles.time}>
-                  {timeFormat.format(new Date(d.approvedAt))}
-                </time>
-              </div>
-              {d.message && <p className={styles.message}>{d.message}</p>}
-            </li>
-          ))}
-        </ol>
       )}
     </section>
   );
