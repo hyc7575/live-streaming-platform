@@ -22,6 +22,8 @@
 - `docs/private/CONTEST-BRIEF.md`: 공모 원문. gitignore 대상이라 원본 체크아웃에만 있다. PRD 해석이 의심스러울 때 읽는다.
 - `docs/features/<기능>/`: 기능마다 입구 문서 `README.md`(요구사항 위치, 이슈·PR, 코드 위치)와 DISCOVERY·STRATEGY·PRD를 둔다. 새 기능 문서도 여기에 만든다. 규칙과 목록은 `docs/README.md`에 있다.
 
+기능 하나에 관한 문서(탐색, 스토리, 레드팀, PRD, 사전 부검, 시나리오)는 처음부터 `docs/features/<기능>/<종류>.md`로 만든다. `docs/` 바로 아래에 `DISCOVERY-<기능>.md`처럼 두지 않는다. 스킬이 저장 위치를 따로 말해도 이 규칙이 우선한다. 새 기능 폴더를 만들면 입구 `README.md`와 `docs/README.md` 기능 표 줄을 같은 커밋에 넣는다. `pnpm lint`의 `scripts/check-docs-layout.mjs`가 어긋나면 실패한다.
+
 UI 작업 전 `apps/web/CLAUDE.md`를 읽는다.
 
 PRD의 결정과 다르게 구현해야 하면 PR 본문에 "PRD §x와 어긋남"과 이유를 쓰고 보고에 올린다.

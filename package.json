@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "pnpm --parallel --recursive run dev",
     "typecheck": "pnpm --recursive run typecheck",
-    "lint": "pnpm --recursive run lint && prettier --check .",
+    "lint": "pnpm --recursive run lint && node scripts/check-docs-layout.mjs && prettier --check .",
     "build": "pnpm --recursive run build",
     "test": "pnpm --recursive run test",
     "format": "prettier --write ."

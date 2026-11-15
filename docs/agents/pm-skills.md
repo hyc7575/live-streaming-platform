@@ -24,6 +24,10 @@
 
 이슈 본문에 수락 기준이 있으면 이 단계가 끝난 것이다.
 
+## 결과 문서 위치
+
+스킬이 만든 문서는 `docs/features/<기능>/<종류>.md`에 저장한다(`DISCOVERY.md`, `STORIES.md`, `RED-TEAM.md`, `PRD.md`, `PRE-MORTEM.md`, `SCENARIOS.md`). 같은 종류가 둘이면 `PRD-<주제>.md`처럼 주제를 붙인다. 스킬이 "작업 공간에 저장"이라고만 하면 이 위치를 쓴다. `docs/` 바로 아래에 두지 않는다. 폴더 규칙은 `docs/README.md`에 있다.
+
 ## 단계별 스킬
 
 - 고르기: `/pm-product-discovery:triage-requests`. 새 기능을 이슈로 만들기 전에 열린 이슈 전체와 함께 넣고, 평가 기준과 남은 기간으로 순위를 매긴다. 결과는 "할 것", "하지 않을 것", 기능 동결일이다.
