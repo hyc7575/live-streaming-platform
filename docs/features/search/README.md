@@ -34,4 +34,4 @@
 ## 확인
 
 - 인수 시나리오: `PRD.md` §8.3 26~29
-- 수동 확인 절차: 루트 `README.md` "기능 확인"의 17절, 18절
+- 수동 확인 절차: [`docs/VERIFICATION.md`](../../VERIFICATION.md)의 17절, 18절

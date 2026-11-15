@@ -42,4 +42,4 @@
 - 인수 시나리오: `PRD.md` §8.3 15, 16, 30, 31, 32
 - e2e: `apps/web/e2e/donationModal.spec.ts`(넓은 화면 모달, 1366×768 모달 안 카드 결제 화면, 결제 밖 화면의 iframe 헤더, 좁은 화면 시트)
 - 스크린샷: `docs/screenshots/181/`(1366×768 폼 → 결제 보기 → iframe 안 Toss 결제 페이지 → 충전 뒤 폼, 카드 결제 취소와 복귀)
-- 수동 확인 절차: 루트 `README.md` "기능 확인"의 10절
+- 수동 확인 절차: [`docs/VERIFICATION.md`](../../VERIFICATION.md)의 10절

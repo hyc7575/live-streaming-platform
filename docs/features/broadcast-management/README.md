@@ -31,7 +31,7 @@
 
 - 시나리오: [SCENARIOS.md](./SCENARIOS.md) (기기별 체크리스트)
 - 인수 시나리오: `PRD.md` §8.3 1, 2-1, 4, 7
-- 수동 확인 절차: 루트 `README.md` "기능 확인"의 1절, 2절
+- 수동 확인 절차: [`docs/VERIFICATION.md`](../../VERIFICATION.md)의 1절, 2절
 
 ## 관련 기능
 
