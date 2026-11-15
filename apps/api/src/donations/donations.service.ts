@@ -72,10 +72,20 @@ export type ConfirmedDonation = Prisma.DonationGetPayload<{
   select: typeof confirmedSelect;
 }>;
 
+// 한 후원자가 이 방송에 보낸 PAID 후원의 합. 카드(원)와 라임은 1:1이다.
+export interface DonationRank {
+  donor: { id: string; nickname: string };
+  total: number;
+}
+
 export interface DonationList {
   total: number;
   count: number;
   donations: DonationView[];
+  // 후원자별 누적. 누적 금액이 큰 순, 같으면 이 방송에 먼저 후원한 순으로
+  // 최대 DONATION_LIST_LIMIT명. 최근 목록과 달리 PAID 후원 전부로 센다.
+  // 송출 화면 후원 패널(#160)도 이 모양을 그대로 쓴다.
+  ranking: DonationRank[];
 }
 
 // 호출자 본인의 내역에 쓰는, 호출자가 보낸 후원. 누가 보냈는지가 아니라
@@ -146,7 +156,7 @@ export class DonationsService {
   async list(broadcastId: string): Promise<DonationList> {
     await this.broadcasts.get(broadcastId);
     const where = { broadcastId, status: 'PAID' } as const;
-    const [aggregate, donations] = await Promise.all([
+    const [aggregate, donations, ranking] = await Promise.all([
       this.prisma.donation.aggregate({
         where,
         _sum: { amount: true },
@@ -158,12 +168,37 @@ export class DonationsService {
         take: DONATION_LIST_LIMIT,
         select: donationSelect,
       }),
+      this.ranking(where),
     ]);
     return {
       total: aggregate._sum.amount ?? 0,
       count: aggregate._count,
       donations,
+      ranking,
     };
+  }
+
+  // groupBy는 관계를 못 읽으므로 닉네임은 고른 후원자만 따로 읽어 붙인다.
+  private async ranking(
+    where: Prisma.DonationWhereInput,
+  ): Promise<DonationRank[]> {
+    const groups = await this.prisma.donation.groupBy({
+      by: ['donorId'],
+      where,
+      _sum: { amount: true },
+      _min: { approvedAt: true },
+      orderBy: [{ _sum: { amount: 'desc' } }, { _min: { approvedAt: 'asc' } }],
+      take: DONATION_LIST_LIMIT,
+    });
+    const donors = await this.prisma.user.findMany({
+      where: { id: { in: groups.map((group) => group.donorId) } },
+      select: { id: true, nickname: true },
+    });
+    const byId = new Map(donors.map((donor) => [donor.id, donor]));
+    return groups.flatMap((group) => {
+      const donor = byId.get(group.donorId);
+      return donor ? [{ donor, total: group._sum.amount ?? 0 }] : [];
+    });
   }
 
   // PENDING 주문은 뺀다. 결제된 적이 없고, 라임 후원은

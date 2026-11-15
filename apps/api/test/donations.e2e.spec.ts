@@ -35,10 +35,16 @@ interface DonationJson {
   broadcastId?: string | null;
 }
 
+interface RankingJson {
+  donor: { id: string; nickname: string };
+  total: number;
+}
+
 interface DonationListJson {
   total: number;
   count: number;
   donations: DonationJson[];
+  ranking: RankingJson[];
 }
 
 const UNKNOWN_ID = '00000000-0000-4000-8000-000000000000';
@@ -126,7 +132,12 @@ describe('donations', () => {
 
     it('does not count an unpaid order', async () => {
       await ordered(3000);
-      expect(await list()).toEqual({ total: 0, count: 0, donations: [] });
+      expect(await list()).toEqual({
+        total: 0,
+        count: 0,
+        donations: [],
+        ranking: [],
+      });
     });
 
     it.each([DONATION_MIN_AMOUNT, DONATION_MAX_AMOUNT])(
@@ -214,6 +225,7 @@ describe('donations', () => {
         total: 5000,
         count: 1,
         donations: [{ ...confirmed, broadcastId: undefined }],
+        ranking: [{ donor: confirmed.donor, total: 5000 }],
       });
     });
 
@@ -474,6 +486,137 @@ describe('donations', () => {
       expect(toss.calls).toHaveLength(1);
     });
   });
+
+  // S12(#163): 순위는 최근 50건이 아니라 이 방송의 PAID 후원 전부로 센다.
+  describe('ranking', () => {
+    const start = Date.parse('2026-11-10T00:00:00.000Z');
+    let seq = 0;
+
+    // 승인 시각 순서를 테스트가 정하도록 행을 직접 넣는다.
+    const seed = (
+      donorId: string,
+      amount: number,
+      {
+        method = 'TOSS',
+        status = 'PAID',
+        at = seq,
+        id = broadcastId,
+      }: {
+        method?: 'TOSS' | 'LIME';
+        status?: 'PAID' | 'PENDING';
+        at?: number;
+        id?: string;
+      } = {},
+    ) => {
+      seq += 1;
+      return prisma.donation.create({
+        data: {
+          orderId: `don_rank_${seq}`,
+          broadcastId: id,
+          donorId,
+          amount,
+          method,
+          status,
+          paymentKey: method === 'TOSS' ? `pay_rank_${seq}` : null,
+          approvedAt: status === 'PAID' ? new Date(start + at * 1000) : null,
+        },
+      });
+    };
+
+    it('ranks donors by their card and lime donations added together', async () => {
+      const other = await signUpAndLogIn(app, { nickname: '큰손' });
+      await seed(donor.user.id, 3000);
+      await seed(other.user.id, 1000);
+      await seed(other.user.id, 4000, { method: 'LIME' });
+      await seed(donor.user.id, 1000, { method: 'LIME' });
+
+      expect((await list()).ranking).toEqual([
+        { donor: { id: other.user.id, nickname: '큰손' }, total: 5000 },
+        { donor: { id: donor.user.id, nickname: '후원자' }, total: 4000 },
+      ]);
+    });
+
+    it('puts the donor who gave first above a tie', async () => {
+      const late = await signUpAndLogIn(app, { nickname: '나중' });
+      const early = await signUpAndLogIn(app, { nickname: '먼저' });
+      // 늦게 시작한 사람이 마지막 후원은 먼저 했어도, 첫 후원으로 가린다.
+      await seed(late.user.id, 1000, { at: 20 });
+      await seed(early.user.id, 1000, { at: 10 });
+      await seed(early.user.id, 1000, { at: 40 });
+      await seed(late.user.id, 1000, { at: 30 });
+
+      expect((await list()).ranking.map((rank) => rank.donor.nickname)).toEqual(
+        ['먼저', '나중'],
+      );
+    });
+
+    it('counts donations older than the latest list', async () => {
+      const old = await signUpAndLogIn(app, { nickname: '옛 후원자' });
+      await seed(old.user.id, 10_000, { at: 0 });
+      await prisma.donation.createMany({
+        data: Array.from({ length: DONATION_LIST_LIMIT }, (_, i) => ({
+          orderId: `don_recent_${i}`,
+          broadcastId,
+          donorId: donor.user.id,
+          amount: 1000,
+          status: 'PAID' as const,
+          paymentKey: `pay_recent_${i}`,
+          approvedAt: new Date(start + (100 + i) * 1000),
+        })),
+      });
+
+      const { donations, ranking } = await list();
+      expect(donations.map((d) => d.donor.id)).not.toContain(old.user.id);
+      expect(ranking).toEqual([
+        {
+          donor: { id: donor.user.id, nickname: '후원자' },
+          total: DONATION_LIST_LIMIT * 1000,
+        },
+        { donor: { id: old.user.id, nickname: '옛 후원자' }, total: 10_000 },
+      ]);
+    });
+
+    it('skips unpaid orders and donations to other broadcasts', async () => {
+      const elsewhere = await prisma.broadcast.create({
+        data: { streamerId: streamer.user.id, title: '다른 방송' },
+      });
+      const other = await signUpAndLogIn(app, { nickname: '다른 시청자' });
+      await seed(donor.user.id, 1000);
+      await seed(donor.user.id, 50_000, { status: 'PENDING' });
+      await seed(other.user.id, 50_000, { id: elsewhere.id });
+
+      expect((await list()).ranking).toEqual([
+        { donor: { id: donor.user.id, nickname: '후원자' }, total: 1000 },
+      ]);
+    });
+
+    it(`lists up to ${DONATION_LIST_LIMIT} donors`, async () => {
+      // 가입 API를 51번 부르지 않고 사용자 행을 바로 넣는다.
+      const fans = Array.from({ length: DONATION_LIST_LIMIT + 1 }, (_, i) => ({
+        email: `fan${i}@example.com`,
+        nickname: `팬${i}`,
+        passwordHash: 'unused',
+      }));
+      await prisma.user.createMany({ data: fans });
+      const rows = await prisma.user.findMany({
+        where: { email: { in: fans.map((fan) => fan.email) } },
+        select: { id: true, nickname: true },
+      });
+      for (const row of rows) {
+        await seed(row.id, 1000 * (Number(row.nickname.slice(1)) + 1));
+      }
+
+      const { ranking } = await list();
+      expect(ranking).toHaveLength(DONATION_LIST_LIMIT);
+      expect(ranking[0]?.donor.nickname).toBe(`팬${DONATION_LIST_LIMIT}`);
+      expect(ranking.map((rank) => rank.donor.nickname)).not.toContain('팬0');
+    });
+
+    it('is empty without paid donations', async () => {
+      await seed(donor.user.id, 1000, { status: 'PENDING' });
+      expect((await list()).ranking).toEqual([]);
+    });
+  });
 });
 
 describe('donations without Toss keys', () => {
@@ -513,6 +656,11 @@ describe('donations without Toss keys', () => {
     expect(await prisma.donation.count()).toBe(0);
     const listed = await request(app.getHttpServer()).get(url);
     expect(listed.status).toBe(200);
-    expect(listed.body).toEqual({ total: 0, count: 0, donations: [] });
+    expect(listed.body).toEqual({
+      total: 0,
+      count: 0,
+      donations: [],
+      ranking: [],
+    });
   });
 });

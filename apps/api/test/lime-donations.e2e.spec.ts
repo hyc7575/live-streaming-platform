@@ -150,6 +150,7 @@ describe('lime donations', () => {
         total: 3_000,
         count: 1,
         donations: [{ ...donation, broadcastId: undefined }],
+        ranking: [{ donor: donation.donor, total: 3_000 }],
       });
     });
 

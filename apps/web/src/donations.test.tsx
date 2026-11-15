@@ -152,6 +152,7 @@ const summary = (s: Partial<DonationSummary> = {}): DonationSummary => ({
   total: 0,
   count: 0,
   donations: [],
+  ranking: [],
   ...s,
 });
 
@@ -233,6 +234,47 @@ it('re-reads the donations as soon as the payment tab reports one', async () => 
   expect(within(panel).getByRole('status').textContent).toBe(
     '후원이 반영되었습니다',
   );
+});
+
+// S12(#163): 순위는 서버가 전체 후원으로 센 값을 그대로 그린다.
+it('ranks the top donors by their running total, in won', async () => {
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+    [DONATIONS]: summary({
+      total: 9000,
+      count: 3,
+      donations: [donation({ id: 'd3', method: 'LIME', amount: 4000 })],
+      ranking: [
+        { donor: { id: 'u3', nickname: '큰손' }, total: 5000 },
+        { donor: { id: viewer.id, nickname: viewer.nickname }, total: 4000 },
+      ],
+    }),
+  });
+  renderAt('/broadcasts/b1');
+  const panel = await donationPanel();
+  const ranking = await within(panel).findByRole('list', { name: '후원 순위' });
+  const ranks = within(ranking).getAllByRole('listitem');
+  expect(ranks.map((rank) => rank.textContent)).toEqual([
+    '1큰손5,000원',
+    `2${viewer.nickname}4,000원`,
+  ]);
+  // 순위 금액은 카드·라임을 합친 값이라 라임 후원뿐이어도 원으로 적는다.
+  const recent = within(panel).getByRole('list', { name: '최근 후원' });
+  expect(within(recent).getByText('4,000라임')).toBeDefined();
+});
+
+it('hides the ranking until someone donates', async () => {
+  stubApi({
+    'GET /api/auth/me': viewer,
+    'GET /api/broadcasts/b1': broadcast(),
+    [DONATIONS]: summary(),
+  });
+  renderAt('/broadcasts/b1');
+  const panel = await donationPanel();
+  await within(panel).findByText('아직 후원이 없습니다.');
+  expect(within(panel).queryByRole('list', { name: '후원 순위' })).toBeNull();
+  expect(within(panel).queryByText('후원 순위')).toBeNull();
 });
 
 it('says when there are no donations yet', async () => {
