@@ -14,8 +14,8 @@ import { LivePlayer } from '../components/LivePlayer';
 import { OwnerActions } from '../components/OwnerActions';
 import { ReplayParts, ReplayPlayer } from '../components/ReplayPlayer';
 import { StatusBadge } from '../components/StatusBadge';
+import { useDonationAlerts } from '../donation/donationAlerts';
 import { useNewDonations } from '../donation/useNewDonations';
-import type { Donation } from '../donations';
 import { FollowButton } from '../follows/FollowButton';
 import { partStarts, type Playhead } from '../replay-chat';
 import { channelPath } from '../streamers';
@@ -196,16 +196,12 @@ function BroadcastView({
   const [sheetOpen, setSheetOpen] = useState(false);
   const wide = useWideScreen();
   // 후원 패널과 플레이어 위 배너(S5)가 같은 5초 폴링 응답을 쓴다. 새 후원은
-  // LIVE일 때만 배너로 띄운다. 처음 읽은 후원은 훅이 기준선으로 거른다.
-  const [banners, setBanners] = useState<Donation[]>([]);
+  // LIVE일 때만 배너로 띄운다. 처음 읽은 후원은 훅이 기준선으로 거르고,
+  // 순서와 묶음은 송출 토스트와 같은 큐가 정한다(#164).
+  const banners = useDonationAlerts();
   const donations = useNewDonations(b.id, (fresh) => {
-    if (b.status === 'LIVE') setBanners((shown) => [...shown, ...fresh]);
+    if (b.status === 'LIVE') banners.enqueue(fresh);
   });
-  const dismissBanner = useCallback(
-    (donationId: string) =>
-      setBanners((shown) => shown.filter((d) => d.id !== donationId)),
-    [],
-  );
 
   const standbyImageUrl = b.status === 'READY' ? b.standbyImageUrl : null;
   const playhead = heard?.broadcastId === b.id ? heard.playhead : null;
@@ -284,8 +280,8 @@ function BroadcastView({
                 onPlaybackError={recheck}
                 overlay={
                   <DonationBanners
-                    donations={banners}
-                    onExpire={dismissBanner}
+                    alert={banners.current}
+                    onExpire={banners.advance}
                   />
                 }
               />

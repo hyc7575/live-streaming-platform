@@ -1,49 +1,33 @@
-import { useEffect, useEffectEvent } from 'react';
-import { formatDonationAmount, type Donation } from '../donations';
+import type { DonationAlert } from '../donation/donationAlerts';
+import { DonationAlertCard } from './DonationAlertCard';
 import styles from './DonationToasts.module.css';
 
-// 토스트 한 장이 떠 있는 시간.
-export const DONATION_TOAST_MS = 6000;
-
 /**
- * 새 후원 토스트 묶음. 들어온 순서대로 아래로 쌓고, 한 장마다 6초 뒤
- * `onExpire`로 내린다. 영역은 늘 그려 두어, 토스트가 들어올 때 화면 읽기
- * 프로그램이 읽게 한다.
+ * 송출 화면 새 후원 토스트(S1). 표시 순서는 시청 배너와 같은 큐
+ * (`donation/donationAlerts`, S6)가 정하고, 여기서는 지금 장 하나만 그린다.
+ * 영역은 늘 그려 두어, 토스트가 들어올 때 화면 읽기 프로그램이 읽게 한다.
  */
 export function DonationToasts({
-  donations,
+  alert,
   onExpire,
 }: {
-  donations: Donation[];
-  onExpire: (id: string) => void;
+  alert: DonationAlert | null;
+  onExpire: () => void;
 }) {
   return (
     <div className={styles.toasts} aria-live="polite">
-      {donations.map((d) => (
-        <Toast key={d.id} donation={d} onExpire={onExpire} />
-      ))}
-    </div>
-  );
-}
-
-function Toast({
-  donation,
-  onExpire,
-}: {
-  donation: Donation;
-  onExpire: (id: string) => void;
-}) {
-  const expire = useEffectEvent(() => onExpire(donation.id));
-  useEffect(() => {
-    const timer = setTimeout(expire, DONATION_TOAST_MS);
-    return () => clearTimeout(timer);
-  }, []);
-  return (
-    <div className={styles.toast}>
-      <p className={styles.title}>
-        {`${donation.donor.nickname}님이 ${formatDonationAmount(donation)} 후원`}
-      </p>
-      {donation.message && <p className={styles.message}>{donation.message}</p>}
+      {alert && (
+        <DonationAlertCard
+          key={alert.key}
+          alert={alert}
+          onExpire={onExpire}
+          classNames={{
+            card: styles.toast,
+            title: styles.title,
+            message: styles.message,
+          }}
+        />
+      )}
     </div>
   );
 }

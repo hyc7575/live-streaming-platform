@@ -1267,7 +1267,7 @@ const donations = (list: Donation[]) => ({
   } satisfies DonationSummary,
 });
 
-it('toasts each new donation on a LIVE publish page for 6 seconds, but not the ones already there', async () => {
+it('toasts new donations on a LIVE publish page one at a time for 6 seconds each, but not the ones already there', async () => {
   // waitFor·findBy가 기다릴 수 있게 가짜 시계도 실제 시간만큼 흐르게 둔다.
   vi.useFakeTimers({
     toFake: ['setInterval', 'setTimeout'],
@@ -1301,22 +1301,30 @@ it('toasts each new donation on a LIVE publish page for 6 seconds, but not the o
       vi.advanceTimersByTime(5000);
     });
 
+    // 시청 화면 배너와 같은 큐(#164): 오래된 것부터 한 장씩 뜬다.
     const card = await screen.findByText('시청자님이 5,000원 후원');
     const toasts = card.closest('[aria-live="polite"]') as HTMLElement;
     expect(toasts).not.toBeNull();
     expect(within(toasts).getByText('화이팅')).toBeDefined();
-    expect(within(toasts).getByText('라임팬님이 3,000라임 후원')).toBeDefined();
+    expect(within(toasts).queryByText('라임팬님이 3,000라임 후원')).toBeNull();
     expect(within(toasts).queryByText('먼저 온 후원')).toBeNull();
     expect(within(toasts).queryByText(/1,000원/)).toBeNull();
 
+    // 지금 토스트의 타이머 effect가 걸린 뒤에 시계를 넘긴다.
+    await act(async () => {});
     act(() => {
       vi.advanceTimersByTime(6000);
     });
-    // 두 장의 타이머가 한 렌더에 함께 반영된다고 기대하지 않고 둘 다 기다린다.
-    await waitFor(() => {
-      expect(screen.queryByText('시청자님이 5,000원 후원')).toBeNull();
-      expect(screen.queryByText('라임팬님이 3,000라임 후원')).toBeNull();
+    expect(
+      await within(toasts).findByText('라임팬님이 3,000라임 후원'),
+    ).toBeDefined();
+    expect(within(toasts).queryByText('시청자님이 5,000원 후원')).toBeNull();
+
+    await act(async () => {});
+    act(() => {
+      vi.advanceTimersByTime(6000);
     });
+    await waitFor(() => expect(toasts.textContent).toBe(''));
   } finally {
     vi.useRealTimers();
   }
