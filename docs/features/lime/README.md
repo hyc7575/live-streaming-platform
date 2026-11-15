@@ -8,6 +8,7 @@
 ## 문서
 
 - [PRD.md](./PRD.md)
+- 후원 모달과 PC 결제 화면 유지(#178): [DISCOVERY](./DISCOVERY-donation-modal.md) → [RED-TEAM](./RED-TEAM-donation-modal.md) → [PRD](./PRD-donation-modal.md) → [PRE-MORTEM](./PRE-MORTEM-donation-modal.md)
 
 ## 요구사항 위치
 
@@ -23,6 +24,7 @@
 | #108 | #111 | 후원 결제를 새 탭에서 열기 |
 | #109 | #112 | 라임 충전과 한 번만 적립 |
 | #110 | #113 | 라임으로 시청 화면에서 후원 |
+| #178 | | PC에서 후원·충전 결제를 방송 화면 위 모달에서 끝낸다 (하위 #179 스파이크, #180 모달, #181 모달 안 결제) |
 
 ## 코드
 
