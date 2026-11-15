@@ -1,4 +1,4 @@
-import { formatLime, type DonationTarget } from './lime';
+import type { DonationTarget } from './lime';
 
 // apps/api/src/donations의 후원 view와 같은 모양이다. PAID 후원만
 // 보여 주므로 approvedAt은 늘 값이 있다.
@@ -50,11 +50,16 @@ export interface SentDonationSummary {
   donations: SentDonation[];
 }
 
-// 1 라임 = 1원이라, 목록에서는 단위만으로 결제 수단을 구분한다.
+// 1 라임 = 1원이라, 배너·목록·읽어 주기는 단위만으로 결제 수단을 구분한다.
+export const DONATION_UNIT: Record<DonationMethod, '원' | '라임'> = {
+  TOSS: '원',
+  LIME: '라임',
+};
+
 export function formatDonationAmount(
   d: Pick<Donation, 'method' | 'amount'>,
 ): string {
-  return d.method === 'LIME' ? formatLime(d.amount) : formatWon(d.amount);
+  return `${d.amount.toLocaleString('ko-KR')}${DONATION_UNIT[d.method]}`;
 }
 
 // POST /broadcasts/:id/donations: 결제 위젯에 필요한 값이다.
