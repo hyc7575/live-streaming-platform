@@ -40,7 +40,7 @@
 | `apps/web` | React + Vite 웹 앱 (TypeScript strict). UI 지침은 `apps/web/CLAUDE.md` |
 | `compose.yaml` | 로컬 개발용 PostgreSQL, OvenMediaEngine, 녹화·썸네일 정적 서버 |
 | `deploy/` | 운영 서버 compose(Caddy, API, OME, PostgreSQL, 백업). 절차는 [docs/OPERATIONS.md](docs/OPERATIONS.md) |
-| `docs/` | PRD와 기능별 PRD, pre-mortem, 작업 목록, 결정 기록(`docs/adr/`), 운영 문서. 용어는 루트의 `GLOSSARY.md` |
+| `docs/` | PRD, pre-mortem, 작업 목록, 운영 문서, 결정 기록(`docs/adr/`), 기능별 문서(`docs/features/<기능>/`). 문서 지도는 [docs/README.md](docs/README.md), 용어는 루트의 `GLOSSARY.md` |
 
 ## 기능 확인
 
