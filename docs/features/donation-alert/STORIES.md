@@ -1,7 +1,7 @@
 ## Backlog: 후원 알림
 
 **Format**: User Stories
-**출처**: [DISCOVERY-donation-alert](./DISCOVERY-donation-alert.md). 2026-11-15 E2 통과(#17에 쓸 시간이 충분하다는 판단).
+**출처**: [DISCOVERY](./DISCOVERY.md). 2026-11-15 E2 통과(#17에 쓸 시간이 충분하다는 판단).
 **Total stories**: 14 + 스파이크 1 (S12·S13 후원 순위는 11/15 추가)
 **Estimated total effort**: 약 46시간 (S≈2h, M≈4h, L≈8h). 11/18까지 다 들어가지 않는다. 아래 Story Map의 자르는 선을 따른다.
 
