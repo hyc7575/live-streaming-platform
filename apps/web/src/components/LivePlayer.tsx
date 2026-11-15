@@ -1,13 +1,10 @@
 import Hls from 'hls.js';
-import {
-  useEffect,
-  useEffectEvent,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import type { DonationAlertQueue } from '../donation/donationAlerts';
+import { useDonationSpeech } from '../donation/useDonationSpeech';
 import { llhlsPath, playbackPath, RETRY_DELAY_MS } from '../playback';
+import { DonationBanners } from './DonationBanners';
+import { DonationSpeechButton } from './DonationSpeechButton';
 import styles from './LivePlayer.module.css';
 import { PlayerControls, type LiveEdge } from './player/PlayerControls';
 
@@ -31,16 +28,16 @@ export function LivePlayer({
   broadcastId,
   startMuted,
   onPlaybackError,
-  overlay,
+  donationAlerts,
 }: {
   broadcastId: string;
   startMuted: boolean;
   // 재생 실패는 방송 종료를 뜻할 수 있으므로, 페이지가 다음 폴링을 기다리지
   // 않고 상태를 다시 확인한다(PRD §7.4 T9).
   onPlaybackError?: () => void;
-  // 영상 위, 컨트롤 아래에 그릴 것(새 후원 배너 #161). 플레이어 컨테이너
-  // 안이라 컨테이너 전체 화면에서도 보인다.
-  overlay?: ReactNode;
+  // 새 후원 알림 큐(#164). 배너(S5)와 읽어 주기(S14)가 같은 장을 쓴다.
+  // 플레이어 컨테이너 안에 그려 컨테이너 전체 화면에서도 보인다.
+  donationAlerts: DonationAlertQueue;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   // 재시도마다 교체되므로, 라이브 엣지는 그때 현재인 것을 읽는다.
@@ -48,6 +45,7 @@ export function LivePlayer({
   const [playing, setPlaying] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
   const reportError = useEffectEvent(() => onPlaybackError?.());
+  const speech = useDonationSpeech(videoRef, donationAlerts.current);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -128,7 +126,11 @@ export function LivePlayer({
   }, []);
 
   return (
-    <PlayerControls videoRef={videoRef} live={live}>
+    <PlayerControls
+      videoRef={videoRef}
+      live={live}
+      extraControls={speech && <DonationSpeechButton {...speech} />}
+    >
       <video
         ref={videoRef}
         className={styles.video}
@@ -146,7 +148,10 @@ export function LivePlayer({
             : '방송을 불러오는 중입니다'}
         </p>
       )}
-      {overlay}
+      <DonationBanners
+        alert={donationAlerts.current}
+        onExpire={donationAlerts.advance}
+      />
     </PlayerControls>
   );
 }

@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import type { Donation } from '../donations';
+import { voice } from '../testing/speechSynthesis';
 import type { DonationAlert } from './donationAlerts';
 import { pickKoreanVoice, spokenLine } from './donationSpeech';
 
@@ -44,20 +45,6 @@ it('reads a bundle card as 외 N건 후원', () => {
     '외 3건 후원',
   );
 });
-
-function voice(
-  lang: string,
-  name: string,
-  isDefault = false,
-): SpeechSynthesisVoice {
-  return {
-    lang,
-    name,
-    voiceURI: name,
-    default: isDefault,
-    localService: true,
-  };
-}
 
 it('picks a Korean voice whether lang is written ko-KR, ko_KR or ko', () => {
   const english = voice('en-US', 'Samantha');

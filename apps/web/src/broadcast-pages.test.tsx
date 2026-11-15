@@ -16,6 +16,7 @@ import type { Comment } from './comments';
 import { searchPath } from './search';
 import { stubNarrowScreen } from './testing/modalDialog';
 import { renderInDataRouter } from './testing/renderInDataRouter';
+import { KOREAN_VOICE, stubSpeech } from './testing/speechSynthesis';
 
 beforeEach(() => {
   // jsdom의 play()는 아무것도 돌려주지 않고, 브라우저의 play()는 promise를 돌려준다.
@@ -379,6 +380,22 @@ it('plays the recording of an ENDED broadcast under the ended notice', async () 
   expect(
     screen.getByText('방송이 끝났습니다. 녹화된 방송을 다시 볼 수 있습니다.'),
   ).toBeDefined();
+});
+
+it('neither offers 후원 읽기 nor speaks on a replay', async () => {
+  const speech = stubSpeech({ voices: [KOREAN_VOICE] });
+  stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({
+      status: 'ENDED',
+      recordingFiles: ['b1/1_0.mp4'],
+    }),
+  });
+  renderAt('/broadcasts/b1');
+  const replay = await screen.findByLabelText('다시보기 화면');
+  fireEvent.click(replay);
+  expect(screen.queryByRole('button', { name: '후원 읽기' })).toBeNull();
+  expect(speech.calls).toEqual([]);
 });
 
 it('says the broadcast ended when it has no recording', async () => {
