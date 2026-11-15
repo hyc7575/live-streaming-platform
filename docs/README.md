@@ -27,10 +27,10 @@
 
 | 기능 | 우선순위 | 폴더 안 문서 |
 |---|---|---|
-| [인증](./features/auth/) | P0 | README |
-| [방송 관리](./features/broadcast-management/) | P0 | README |
-| [송출](./features/publish/) (PC·모바일·OBS·사전 점검) | P0 | README |
-| [시청](./features/watch/) | P0 | README |
+| [인증](./features/auth/) | P0 | README, SCENARIOS |
+| [방송 관리](./features/broadcast-management/) | P0 | README, SCENARIOS |
+| [송출](./features/publish/) (PC·모바일·OBS·사전 점검) | P0 | README, SCENARIOS |
+| [시청](./features/watch/) | P0 | README, SCENARIOS |
 | [댓글](./features/comments/) | P1 | README |
 | [녹화·다시보기](./features/recording-replay/) | P2 | README |
 | [도네이션](./features/donation/) | P2 | README |
