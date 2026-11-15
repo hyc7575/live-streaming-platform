@@ -40,7 +40,7 @@
 | `apps/web` | React + Vite 웹 앱 (TypeScript strict). UI 지침은 `apps/web/CLAUDE.md` |
 | `compose.yaml` | 로컬 개발용 PostgreSQL, OvenMediaEngine, 녹화·썸네일 정적 서버 |
 | `deploy/` | 운영 서버 compose(Caddy, API, OME, PostgreSQL, 백업). 절차는 [docs/OPERATIONS.md](docs/OPERATIONS.md) |
-| `docs/` | PRD와 기능별 PRD, pre-mortem, 작업 목록, 결정 기록(`docs/adr/`), 운영 문서. 용어는 루트의 `GLOSSARY.md` |
+| `docs/` | PRD, pre-mortem, 작업 목록, 운영 문서, 결정 기록(`docs/adr/`), 기능별 문서(`docs/features/<기능>/`). 문서 지도는 [docs/README.md](docs/README.md), 용어는 루트의 `GLOSSARY.md` |
 
 ## 기능 확인
 
@@ -1214,7 +1214,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -b a-jar.txt -X DELETE $API/me/avatar  
 
 ### 15. 방송 카테고리 (#132)
 
-방송에 대분류 카테고리(게임·소통·음악·공부/작업·스포츠·기타)를 붙이고, 홈 목록에서 카테고리로 거른다([PRD-category](docs/PRD-category.md) 1단계, PRD §8.3 시나리오 22·23). 게임 타이틀은 다음 단계(#133)다.
+방송에 대분류 카테고리(게임·소통·음악·공부/작업·스포츠·기타)를 붙이고, 홈 목록에서 카테고리로 거른다([PRD-category](docs/features/category/PRD.md) 1단계, PRD §8.3 시나리오 22·23). 게임 타이틀은 다음 단계(#133)다.
 
 규칙:
 
@@ -1258,11 +1258,11 @@ curl -s -b a-jar.txt -X PATCH $API/broadcasts/$ID -H 'Content-Type: application/
 
 ### 16. 게임 타이틀 (#133)
 
-게임 방송에 게임 타이틀을 붙인다. 게임은 Wikidata 게임 목록에서 고르거나 직접 입력한다([PRD-category](docs/PRD-category.md) 2단계, PRD §8.3 시나리오 24·25).
+게임 방송에 게임 타이틀을 붙인다. 게임은 Wikidata 게임 목록에서 고르거나 직접 입력한다([PRD-category](docs/features/category/PRD.md) 2단계, PRD §8.3 시나리오 24·25).
 
 규칙:
 
-- 게임 목록은 사람이 관리하지 않는다. Wikidata에서 한 번에 받은 스냅샷 `apps/api/data/games.json`(한국어 이름이 있는 비디오 게임 6,365건, CC0)을 커밋해 두고, 우리 DB의 `Game` 테이블에서 검색한다. **API는 실행 중에 Wikidata를 부르지 않는다.** Wikidata 실시간 검색은 1회에 1.2~2.8초가 걸렸고, 요청 간격이 2초여도 429가 났다([DISCOVERY](docs/DISCOVERY-broadcast-category.md) E1).
+- 게임 목록은 사람이 관리하지 않는다. Wikidata에서 한 번에 받은 스냅샷 `apps/api/data/games.json`(한국어 이름이 있는 비디오 게임 6,365건, CC0)을 커밋해 두고, 우리 DB의 `Game` 테이블에서 검색한다. **API는 실행 중에 Wikidata를 부르지 않는다.** Wikidata 실시간 검색은 1회에 1.2~2.8초가 걸렸고, 요청 간격이 2초여도 429가 났다([DISCOVERY](docs/features/category/DISCOVERY.md) E1).
 - `GET /api/games?q=`는 로그인이 필요하다. `q`는 공백을 뺀 1~50자이고, 최대 10건을 돌려준다. 공백과 대소문자를 무시하고 한국어 이름·한국어 별칭·영어 이름에서 찾는다. 그래서 "리그오브레전드", "롤", "LOL"이 모두 "리그 오브 레전드"를 1위로 찾는다. 순서는 한국어 이름 완전 일치 → 별칭·영어 이름 완전 일치 → 앞부분 일치 → 포함 → 이름이 짧은 순이다.
 - 방송에는 저장할 때의 게임을 스냅샷(`gameQid`, `gameName`)으로 둔다. 다음 갱신에서 그 게임이 목록에서 빠져도 방송은 그대로 보인다.
   - 목록에서 고르면 서버가 이름을 목록의 한국어 이름으로 채운다. 클라이언트가 보낸 이름은 쓰지 않는다.
@@ -1329,13 +1329,13 @@ pnpm --filter @lsp/api games:seed      # 로컬 DB에 반영. 운영은 재배�
 
 ### 17. 서버 검색과 결과 화면 (#138)
 
-어느 탭인지와 관계없이 서버가 스트리머·방송·지난 방송을 한 번에 찾는다([PRD-search](docs/PRD-search.md) 1단계, PRD §8.3 시나리오 26·27·29). 헤더 검색창은 18절이다.
+어느 탭인지와 관계없이 서버가 스트리머·방송·지난 방송을 한 번에 찾는다([PRD-search](docs/features/search/PRD.md) 1단계, PRD §8.3 시나리오 26·27·29). 헤더 검색창은 18절이다.
 
 규칙:
 
 - `GET /api/search?q=`는 로그인 없이 부른다. `q`는 앞뒤 공백을 뺀 1~50자이고, 아니면 400이다.
 - 공백과 대소문자를 무시하고 제목·스트리머 닉네임·게임 이름의 일부로 찾는다. 그래서 "리그오브"가 "리그 오브 레전드"를 찾는다.
-- 게임 별칭은 완전히 같을 때만 찾는다. "롤"은 "리그 오브 레전드" 방송을 찾지만, 별칭 일부에 "롤"이 들어 있는 게임은 찾지 않는다. 별칭을 부분 일치로 보면 "롤" 하나가 게임 30개에 걸린다([DISCOVERY-search](docs/DISCOVERY-search.md) E2).
+- 게임 별칭은 완전히 같을 때만 찾는다. "롤"은 "리그 오브 레전드" 방송을 찾지만, 별칭 일부에 "롤"이 들어 있는 게임은 찾지 않는다. 별칭을 부분 일치로 보면 "롤" 하나가 게임 30개에 걸린다([DISCOVERY-search](docs/features/search/DISCOVERY.md) E2).
 - 범위는 공개 목록과 같다. LIVE, 방송 종료, 만든 지 24시간 안의 방송 준비 중이다. 스트리머는 공개 목록에 방송이 하나라도 있는 사용자만 나온다.
 - 응답은 `{ streamers, broadcasts, past }`이고 최대 10·30·30개다. 페이지네이션은 없다.
 - 인덱스 없이 훑는다. 방송 수백 개 규모에서는 충분하다. 대신 IP당 1분에 60회로 묶고, 넘으면 429다.
@@ -1365,7 +1365,7 @@ curl -s -o /dev/null -w '%{http_code}\n' "$API/search?q=%20"       # 400
 
 ### 18. 헤더 검색 (#139)
 
-어느 화면에서든 헤더에서 검색해 결과 화면(17절)으로 간다([PRD-search](docs/PRD-search.md) 2단계, PRD §8.3 시나리오 28·29). 홈 검색창은 없앴다.
+어느 화면에서든 헤더에서 검색해 결과 화면(17절)으로 간다([PRD-search](docs/features/search/PRD.md) 2단계, PRD §8.3 시나리오 28·29). 홈 검색창은 없앴다.
 
 규칙:
 

@@ -151,7 +151,7 @@ describe('games', () => {
     });
   });
 
-  // KR2. E1 검색어 20개(DISCOVERY-broadcast-category.md)와 #133의 표기 변형을
+  // KR2. E1 검색어 20개(docs/features/category/DISCOVERY.md)와 #133의 표기 변형을
   // 커밋된 실제 목록으로 검색한다. 정답은 games.json에서 그 이름을 가진 게임을
   // 직접 골랐다. 목록을 새로 받아 이 표가 깨지면 순위나 데이터를 다시 본다.
   it('puts the right game first for every E1 search term in the committed list', async () => {
