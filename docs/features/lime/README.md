@@ -34,7 +34,8 @@
 - api: `apps/api/src/lime/`
 - web: `apps/web/src/pages/LimeChargePage.tsx`, `LimeChargeSuccessPage.tsx`, `LimeChargeFailPage.tsx`
 - web: `apps/web/src/components/LimeDonationForm.tsx`(`offerCard`, `onPay`), `DonationPanel.tsx`(후원 모달, `donateIn`, 결제 보기)
-- web: `apps/web/src/donation/paymentFrame.ts`(iframe 판별, 결제 화면 경로, `postMessage` 프로토콜), `tossWidget.ts`(iframe 안 `windowTarget: 'self'`)
+- web: `apps/web/src/donation/paymentFrame.ts`(iframe 판별, 결제 화면 경로, 결제 탭 열기), `tossWidget.ts`(iframe 안 `windowTarget: 'self'`)
+- web: `apps/web/src/donation/paymentNotice.ts`(결제 완료 알림: 새 탭이면 BroadcastChannel, 모달 iframe이면 `postMessage` 하나로만 보내고 받기, 탭 닫기), `useConfirmPayment.ts`(성공 화면의 확정 한 번과 알림, #199)
 - web: `apps/web/src/lime.ts`
 
 ## 확인

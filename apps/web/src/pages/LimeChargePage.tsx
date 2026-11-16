@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
-import { closeTabOr } from '../donation/donationChannel';
+import { closeTabOr } from '../donation/paymentNotice';
 import { PaymentStep } from '../donation/PaymentStep';
 import {
   LIME_CHARGE_MAX_AMOUNT,

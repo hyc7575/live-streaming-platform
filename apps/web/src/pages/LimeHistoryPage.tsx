@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { onCharge, openChargeTab } from '../donation/donationChannel';
+import { openChargeTab } from '../donation/paymentFrame';
+import { onCharge } from '../donation/paymentNotice';
 import { formatLime, type LimeBalance, type LimeLedgerEntry } from '../lime';
 import { HISTORY_LIMIT } from '../history';
 import { usePolledApi } from '../use-api';

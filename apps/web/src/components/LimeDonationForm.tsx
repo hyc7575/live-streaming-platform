@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { newIdempotencyKey } from '../donation/idempotencyKey';
-import { onCharge } from '../donation/donationChannel';
+import { onCharge } from '../donation/paymentNotice';
 import type { PaymentKind } from '../donation/paymentFrame';
 import {
   DONATION_AMOUNT_PRESETS,

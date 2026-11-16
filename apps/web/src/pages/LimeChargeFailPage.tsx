@@ -1,5 +1,5 @@
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { closeTabOr } from '../donation/donationChannel';
+import { closeTabOr } from '../donation/paymentNotice';
 import { useDocumentTitle } from '../use-document-title';
 import form from './AuthForm.module.css';
 
