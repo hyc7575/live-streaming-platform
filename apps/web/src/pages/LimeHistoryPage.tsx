@@ -63,8 +63,8 @@ export function LimeHistoryPage() {
   useEffect(
     () =>
       onCharge(() => {
-        reloadBalance();
-        reloadLedger();
+        void reloadBalance();
+        void reloadLedger();
       }),
     [reloadBalance, reloadLedger],
   );

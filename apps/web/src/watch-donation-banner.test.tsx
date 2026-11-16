@@ -113,7 +113,8 @@ function renderWatch(
 }
 
 // 화면이 첫 후원 응답을 받아 기준선을 잡을 때까지 기다린다. 첫 요청이
-// 아직 오는 중이면 다음 다시 읽기는 건너뛰므로, 응답을 바꾸기 전에 부른다.
+// 아직 오는 중이면 다음 주기 요청은 건너뛰므로(usePolledApi), 응답을
+// 바꾸기 전에 부른다.
 async function donationsLoaded() {
   const panel = await eventually(() =>
     screen.getByRole('region', { name: '후원' }),

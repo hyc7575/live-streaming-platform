@@ -149,7 +149,7 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
   // 이게 없으면 방금 끊긴 이 페이지의 송출이 다음 폴링까지
   // 다른 쪽 송출로 읽힌다.
   useEffect(() => {
-    reload();
+    void reload();
   }, [session.state.kind, reload]);
   const [slot, setSlot] = useState<CaptureSlot>({ kind: 'off', notice: null });
   const [support] = useState(currentScreenAudioSupport);
