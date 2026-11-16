@@ -8,6 +8,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { BroadcastLifecycle } from '../broadcasts/broadcast-lifecycle.js';
 import { PrismaService } from '../database/database.module.js';
 import { OME_API, type OmeApi } from '../ome/ome-api.js';
 import {
@@ -44,6 +45,7 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(OME_API) private readonly ome: OmeApi,
+    private readonly lifecycle: BroadcastLifecycle,
     @Inject(RECORDINGS_CONFIG) private readonly config: RecordingsConfig,
     @Inject(RECONCILE_INTERVAL_MS) private readonly intervalMs: number | null,
   ) {}
@@ -94,15 +96,12 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
       select: { id: true },
     });
     const liveIds = new Set(live.map((b) => b.id));
+    // 실패는 BroadcastLifecycle이 로그로 남기고, 다음 틱이 다시 시도한다.
     for (const id of tasks.filter((task) => !liveIds.has(task))) {
-      await this.attempt(`Stopping the recording of ${id}`, () =>
-        this.ome.stopRecord(id),
-      );
+      await this.lifecycle.stopRecording(id);
     }
     for (const id of [...liveIds].filter((id) => !tasks.includes(id))) {
-      await this.attempt(`Starting the recording of ${id}`, () =>
-        this.ome.startRecord(id),
-      );
+      await this.lifecycle.startRecording(id);
     }
   }
 
@@ -158,14 +157,6 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
       recursive: true,
       force: true,
     });
-  }
-
-  private async attempt(what: string, run: () => Promise<void>): Promise<void> {
-    try {
-      await run();
-    } catch (error) {
-      this.logger.error(`${what} failed`, error);
-    }
   }
 }
 

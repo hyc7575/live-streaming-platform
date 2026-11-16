@@ -48,6 +48,10 @@ _Avoid_: 방송 중, ON_AIR
 방송이 끝난 상태. 다시 LIVE로 돌아가지 않는다. 화면에는 "방송 종료"로 표시한다.
 _Avoid_: 종료됨, OFFLINE, STOPPED
 
+**방송 상태 전이 (Broadcast Lifecycle)**:
+방송이 READY → LIVE → ENDED로 앞으로만 옮겨 가는 규칙과, 그에 딸린 송출 연결 끊김·재접속 기록. 서버만 옮긴다. 코드에서는 `BroadcastLifecycle` 한 곳이 맡는다.
+_Avoid_: 상태 머신, 방송 생애주기
+
 **유예 시간 (Grace Period)**:
 LIVE 방송의 송출 연결이 끊긴 뒤 ENDED로 바꾸기 전까지 같은 방송에 재접속을 허용하는 30초.
 

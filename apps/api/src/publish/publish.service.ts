@@ -1,14 +1,15 @@
-import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
+import {
+  BroadcastLifecycle,
+  type GoLiveResult,
+  type ReconnectResult,
+} from '../broadcasts/broadcast-lifecycle.js';
 import { CLOCK, type Clock } from '../clock.js';
 import { PrismaService } from '../database/database.module.js';
-import { Prisma } from '../generated/prisma/client.js';
-import { OME_API, type OmeApi } from '../ome/ome-api.js';
 import {
   decideAdmission,
-  graceWindow,
   publishPath,
-  publishPhaseOf,
   type AdmissionDecision,
   type PublishTarget,
 } from './admission.js';
@@ -34,13 +35,11 @@ const uuid = z.uuid();
 
 @Injectable()
 export class PublishService {
-  private readonly logger = new Logger(PublishService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     @Inject(PUBLISH_CONFIG) private readonly config: PublishConfig,
     @Inject(CLOCK) private readonly clock: Clock,
-    @Inject(OME_API) private readonly ome: OmeApi,
+    private readonly lifecycle: BroadcastLifecycle,
   ) {}
 
   // 호출자는 이미 BroadcastOwnerGuard를 통과했다. 그래서 방송이 있고
@@ -100,69 +99,19 @@ export class PublishService {
     switch (plan.kind) {
       case 'reject':
         return { allowed: false, reason: plan.reason };
+      // 판정이 고른 전이는 BroadcastLifecycle이 조건부 쓰기로 한다. 판정과
+      // 쓰기 사이에 상태가 바뀌면 쓰기 쪽 결과가 이긴다.
       case 'go-live':
-        return this.goLive(target.broadcastId, now);
+        return decisionOf(await this.lifecycle.goLive(target.broadcastId));
       case 'reconnect':
-        return this.reconnect(target.broadcastId, now);
+        return decisionOf(await this.lifecycle.reconnect(target.broadcastId));
     }
   }
+}
 
-  async disconnect(broadcastId: string): Promise<boolean> {
-    if (!uuid.safeParse(broadcastId).success) return false;
-    const { count } = await this.prisma.broadcast.updateMany({
-      where: { id: broadcastId, status: 'LIVE', disconnectedAt: null },
-      data: { disconnectedAt: this.clock.now() },
-    });
-    return count === 1;
-  }
-
-  // status 필터로 READY → LIVE를 조건부 쓰기 한 번으로 만든다. 그래서 한 방송을 두고
-  // 경합하는 송출 허가 두 개 중 정확히 하나만 통과한다. 부분
-  // unique index는 한 스트리머의 방송들 사이에서 같은 일을 한다.
-  private async goLive(id: string, now: Date): Promise<AdmissionDecision> {
-    try {
-      const { count } = await this.prisma.broadcast.updateMany({
-        where: { id, status: 'READY' },
-        data: { status: 'LIVE', startedAt: now },
-      });
-      if (count !== 1) return { allowed: false, reason: 'broadcast not ready' };
-      this.startRecording(id);
-      return { allowed: true };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        return { allowed: false, reason: 'streamer already live' };
-      }
-      throw error;
-    }
-  }
-
-  // OME는 송출 허가 응답을 최대 3초 기다리고, 시간이 넘으면 송출을
-  // 거부한다. 그래서 응답은 녹화 요청을 기다리지 않는다. OME는 스트림이
-  // 생기기 전에도 작업을 시작하고, 시작에 실패하면 RecordingReconciler가
-  // 재시도한다.
-  private startRecording(id: string): void {
-    this.ome
-      .startRecord(id)
-      .catch((error: unknown) =>
-        this.logger.error(`Starting the recording of ${id} failed`, error),
-      );
-  }
-
-  private async reconnect(id: string, now: Date): Promise<AdmissionDecision> {
-    const { count } = await this.prisma.broadcast.updateMany({
-      where: { id, status: 'LIVE', disconnectedAt: graceWindow(now).within },
-      data: { disconnectedAt: null },
-    });
-    if (count === 1) return { allowed: true };
-    const row = await this.prisma.broadcast.findUnique({
-      where: { id },
-      select: { status: true, disconnectedAt: true },
-    });
-    return row && publishPhaseOf(row, now) === 'connected'
-      ? { allowed: false, reason: 'broadcast already live' }
-      : { allowed: false, reason: 'broadcast ended' };
-  }
+// 전이의 실패 결과는 그대로 송출 허가 거절 사유다.
+function decisionOf(result: GoLiveResult | ReconnectResult): AdmissionDecision {
+  return result === 'live' || result === 'reconnected'
+    ? { allowed: true }
+    : { allowed: false, reason: result };
 }
