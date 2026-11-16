@@ -1,5 +1,5 @@
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { closeTabOr, returnToBroadcast } from '../donation/donationChannel';
+import { closeTabOr, returnToBroadcast } from '../donation/paymentNotice';
 import { inFrame } from '../donation/paymentFrame';
 import { broadcastOfOrder } from '../donations';
 import { useDocumentTitle } from '../use-document-title';

@@ -10,16 +10,16 @@ import { Link } from 'react-router';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import {
-  onDonation,
   openChargeTab,
   openDonateTab,
-} from '../donation/donationChannel';
-import {
   paymentPath,
-  readPaymentMessage,
-  type PaymentFrameMessage,
   type PaymentKind,
 } from '../donation/paymentFrame';
+import {
+  onDonation,
+  readPaymentMessage,
+  type PaymentFrameMessage,
+} from '../donation/paymentNotice';
 import {
   formatWon,
   type DonationRank,
