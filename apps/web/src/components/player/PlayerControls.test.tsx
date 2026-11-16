@@ -385,3 +385,18 @@ it('places an extra control in the bar, between the volume and fullscreen', () =
     screen.getAllByRole('button').map((b) => b.getAttribute('aria-label')),
   ).toEqual(['재생', '음소거', '전체화면']);
 });
+
+// Safari(iPhone)는 재생 중 currentTime을 읽을 때마다 새 값을 준다. Chrome은 한
+// 작업 안에서 같은 값을 준다. 스냅숏이 읽을 때마다 바뀌면 React가 렌더를
+// 끝없이 다시 해 #185(Maximum update depth exceeded)로 멈춘다.
+it('survives a currentTime that advances on every read, as in Safari', () => {
+  render(<Player />);
+  let now = 0;
+  Object.defineProperty(video(), 'currentTime', {
+    configurable: true,
+    get: () => (now += 0.001),
+  });
+  act(() => setPaused(video(), false));
+  expect(() => fireEvent(video(), new Event('timeupdate'))).not.toThrow();
+  expect(button('일시정지')).toBeTruthy();
+});
