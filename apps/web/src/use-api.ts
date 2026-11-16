@@ -67,6 +67,35 @@ export type Polled<T> = {
 
 const NOTHING = Promise.resolve();
 
+// 주기적으로 다시 읽는 GET이 응답을 기다리는 최대 시간(#205). 폴링은 진행
+// 중 요청이 끝나야 다음 요청을 보내므로, 응답이 오지 않는 요청 하나가
+// 폴링 전체를 멈춘다. 시청 화면의 상태 주기가 5초라 8초에 끊으면 멈춘
+// 요청이 시작된 뒤 10초 안에 다음 요청이 나간다(PRD §7.4 T9). 주기와 같게
+// 두지 않는 것은 느리지만 살아 있는 서버(채팅 1초 주기에 응답 1.2초)에서
+// 모든 요청이 끊기지 않게 하려는 것이다. 변경 요청(POST 등)에는 걸지 않는다.
+// 결제 확정은 정상이어도 20초까지 걸린다.
+export const POLL_TIMEOUT_MS = 8000;
+
+// `path`를 GET하되 `POLL_TIMEOUT_MS` 안에 응답이 없거나 `signal`이 끊기면
+// (화면을 떠남, 경로가 바뀜) 요청을 끊고 AbortError로 실패한다. 폴링만 쓴다.
+// iOS 17.4 미만 Safari에 없는 `AbortSignal.any`를 쓰지 않는다.
+export async function pollFetch<T>(
+  path: string,
+  signal: AbortSignal,
+): Promise<T> {
+  const request = new AbortController();
+  const abort = () => request.abort();
+  const timer = setTimeout(abort, POLL_TIMEOUT_MS);
+  if (signal.aborted) abort();
+  else signal.addEventListener('abort', abort);
+  try {
+    return await apiFetch<T>(path, { signal: request.signal });
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', abort);
+  }
+}
+
 // useApi와 같지만, `intervalMs`마다와 `reload()` 때 다시 읽는다.
 // `path`가 null이면 읽지 않는다.
 //
@@ -103,13 +132,15 @@ export function usePolledApi<T>(
   useEffect(() => {
     if (path === null || stopped) return;
     let cancelled = false;
+    // 이 effect가 끝나면(화면을 떠남, 경로·키가 바뀜, 멈춤) 진행 중 요청을 끊는다.
+    const life = new AbortController();
     let latest = 0;
     let inFlight = 0;
     const load = async (): Promise<void> => {
       const mine = ++latest;
       inFlight += 1;
       try {
-        const data = await apiFetch<T>(path);
+        const data = await pollFetch<T>(path, life.signal);
         if (cancelled || mine !== latest) return;
         setResult({
           path,
@@ -145,6 +176,7 @@ export function usePolledApi<T>(
     reloadRef.current = load;
     return () => {
       cancelled = true;
+      life.abort();
       clearInterval(timer);
       reloadRef.current = () => NOTHING;
     };
