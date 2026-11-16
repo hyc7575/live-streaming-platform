@@ -115,6 +115,34 @@ describe('reconnect grace', () => {
     expect((await rowOf(id)).disconnectedAt).toBeNull();
   });
 
+  // 송출 허가는 판정에 쓴 시각 하나로 쓰기까지 한다. 요청 안에서 시각을
+  // 다시 읽으면 유예 경계 직전의 재접속이 쓰기 단계에서 거절된다.
+  it('reconnects 1 ms before the grace ends even if time passes during the webhook', async () => {
+    const id = await liveBroadcast();
+    await drop(id);
+    const token = await tokenFor(id);
+    clock.advance(GRACE_MS - 1);
+    clock.advanceOnEachRead(1000);
+    const res = await openPublish(app, id, token);
+    clock.advanceOnEachRead(0);
+    expect(res.body).toEqual({ allowed: true });
+    expect((await rowOf(id)).disconnectedAt).toBeNull();
+  });
+
+  it('records startedAt as the admission time even if time passes during the webhook', async () => {
+    const created = await owner.agent
+      .post('/api/broadcasts')
+      .send({ title: '시작 시각' });
+    const id = (created.body as { id: string }).id;
+    const token = await tokenFor(id);
+    const admittedAt = clock.now();
+    clock.advanceOnEachRead(1000);
+    const res = await openPublish(app, id, token);
+    clock.advanceOnEachRead(0);
+    expect(res.body).toEqual({ allowed: true });
+    expect((await rowOf(id)).startedAt).toEqual(admittedAt);
+  });
+
   it('keeps the first time when the same closing arrives twice', async () => {
     const id = await liveBroadcast();
     await drop(id);

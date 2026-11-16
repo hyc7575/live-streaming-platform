@@ -553,7 +553,7 @@ curl -s -b jar.txt -o /dev/null -w '%{http_code}\n' -X POST $API/broadcasts/$ID/
 
 자동 테스트:
 
-- `apps/api/test/reconnect-grace.e2e.spec.ts` (실제 PostgreSQL, 가짜 시계와 가짜 OME 목록): `closing` 뒤 29초 재접속 허가(같은 방송, `startedAt` 그대로), 30초 뒤 정리에서 `ENDED`(29초 정리에서는 그대로)와 그 뒤 재접속 거절, 같은 `closing` 두 번에 같은 행, `READY`·`ENDED`에 온 `closing`은 변화 없음, 재접속 뒤 늦게 온 `closing`을 정리가 지우고 그 뒤로 끝내지 않음, 정리 시작 뒤에 온 끊김은 다음 회차로 미룸, `closing` 없이 목록에서 빠진 방송은 첫 정리에서 유예 시작 후 30초 뒤 `ENDED`, OME 목록 실패 때 행 하나도 안 바뀜, 연결 중 두 번째 연결 거절, 유예가 지났지만 정리 전인 재접속 거절, 재접속 둘이 겹치면 하나만 허가, 재접속과 정리가 겹쳐도 결과가 하나(정확히 30초는 `ENDED`, 29.999초는 `LIVE`), 타이머가 스스로 정리를 돈다.
+- `apps/api/test/reconnect-grace.e2e.spec.ts` (실제 PostgreSQL, 가짜 시계와 가짜 OME 목록): `closing` 뒤 29초 재접속 허가(같은 방송, `startedAt` 그대로), 30초 뒤 정리에서 `ENDED`(29초 정리에서는 그대로)와 그 뒤 재접속 거절, 같은 `closing` 두 번에 같은 행, `READY`·`ENDED`에 온 `closing`은 변화 없음, 재접속 뒤 늦게 온 `closing`을 정리가 지우고 그 뒤로 끝내지 않음, 정리 시작 뒤에 온 끊김은 다음 회차로 미룸, `closing` 없이 목록에서 빠진 방송은 첫 정리에서 유예 시작 후 30초 뒤 `ENDED`, OME 목록 실패 때 행 하나도 안 바뀜, 연결 중 두 번째 연결 거절, 유예가 지났지만 정리 전인 재접속 거절, 재접속 둘이 겹치면 하나만 허가, 재접속과 정리가 겹쳐도 결과가 하나(정확히 30초는 `ENDED`, 29.999초는 `LIVE`), 타이머가 스스로 정리를 돈다. 송출 허가는 판정에 쓴 시각 하나로 상태를 기록한다(#196): 요청을 처리하는 동안 시계가 흘러도 유예 끝 1ms 전의 재접속은 허가되고, 첫 송출의 `startedAt`은 판정 시각과 같다(`FakeClock.advanceOnEachRead`로 읽을 때마다 시계를 민다).
 - `apps/api/test/authorization-matrix.e2e.spec.ts`: "OME 송출 연결 (Webhook 판정)" 행. 비로그인(토큰 없음)·타인(타인 id로 서명한 토큰)은 모든 상태에서 거절. 소유자는 `READY` 허용, `LIVE` 연결 중 거절, `LIVE` 유예 중 허용, `LIVE` 유예 초과 거절, `ENDED` 거절. 거절된 칸은 DB가 그대로다.
 - `apps/api/test/publish.e2e.spec.ts`: `closing`이 유예를 시작한다(토큰이 만료돼도). 재생 연결이나 모르는 스트림의 `closing`은 아무것도 바꾸지 않는다.
 - `apps/api/test/admission.spec.ts`: 판정 표. 29.999초는 재접속, 정확히 30초는 거절.

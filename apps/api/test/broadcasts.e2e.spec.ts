@@ -714,7 +714,7 @@ describe('broadcasts', () => {
       );
       const ended = await row(id);
       expect(ended).toMatchObject({ status: 'ENDED' });
-      expect(ended?.endedAt).toBeInstanceOf(Date);
+      expect(ended?.endedAt).toEqual(clock.now());
 
       ome.failing = false;
       const retried = await agent.post(`/api/broadcasts/${id}/end`);

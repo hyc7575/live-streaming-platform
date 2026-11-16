@@ -1,6 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
-import type { BroadcastStatus } from '../generated/prisma/client.js';
+import {
+  publishPhaseOf,
+  type PublishPhase,
+  type PublishState,
+} from '../broadcasts/broadcast-lifecycle.js';
 import { OME_APP } from '../ome/ome-api.js';
 
 export function publishPath(broadcastId: string, token: string): string {
@@ -62,36 +66,6 @@ export type AdmissionRejection =
 
 export type AdmissionDecision =
   { allowed: true } | { allowed: false; reason: AdmissionRejection };
-
-// PRD §7.4
-export const RECONNECT_GRACE_MS = 30_000;
-
-// 유예 경계의 양쪽이 하나의 기준 시각에서 나온다. 그래서 웹훅과
-// sweeper가 같은 방송에 함께 손대는 일은 없다.
-export function graceWindow(now: Date) {
-  const cutoff = new Date(now.getTime() - RECONNECT_GRACE_MS);
-  return {
-    within: { gt: cutoff },
-    past: { lte: cutoff },
-    contains: (disconnectedAt: Date) => disconnectedAt > cutoff,
-  };
-}
-
-export interface PublishState {
-  status: BroadcastStatus;
-  disconnectedAt: Date | null;
-}
-
-export type PublishPhase = 'ready' | 'connected' | 'reconnectable' | 'ended';
-
-export function publishPhaseOf(state: PublishState, now: Date): PublishPhase {
-  if (state.status === 'READY') return 'ready';
-  if (state.status === 'ENDED') return 'ended';
-  if (state.disconnectedAt === null) return 'connected';
-  return graceWindow(now).contains(state.disconnectedAt)
-    ? 'reconnectable'
-    : 'ended';
-}
 
 export type AdmissionPlan =
   | { kind: 'go-live' }

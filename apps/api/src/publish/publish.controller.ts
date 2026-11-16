@@ -10,6 +10,7 @@ import {
 import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
+import { BroadcastLifecycle } from '../broadcasts/broadcast-lifecycle.js';
 import { BroadcastOwnerGuard } from '../broadcasts/broadcast-owner.guard.js';
 import { ZodBodyPipe } from '../zod-body.pipe.js';
 import {
@@ -30,7 +31,10 @@ const issueSchema = z
 export class PublishController {
   private readonly logger = new Logger(PublishController.name);
 
-  constructor(private readonly publish: PublishService) {}
+  constructor(
+    private readonly publish: PublishService,
+    private readonly lifecycle: BroadcastLifecycle,
+  ) {}
 
   @Post('broadcasts/:id/publish-token')
   @UseGuards(LoggedInGuard, BroadcastOwnerGuard)
@@ -56,7 +60,7 @@ export class PublishController {
     // 허용한 연결에만 이것을 보낸다.
     if (status === 'closing') {
       if (direction === 'incoming' && target) {
-        const started = await this.publish.disconnect(target.broadcastId);
+        const started = await this.lifecycle.disconnect(target.broadcastId);
         this.logger.log(
           `closing ${masked(url)} → ${started ? 'grace started' : 'no change'}`,
         );

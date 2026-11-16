@@ -3,6 +3,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { BroadcastsModule } from './broadcasts/broadcasts.module.js';
 import { ChannelModule } from './channel/channel.module.js';
 import { ChatModule } from './chat/chat.module.js';
+import { ClockModule } from './clock.js';
 import { CommentsModule } from './comments/comments.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DonationsModule } from './donations/donations.module.js';
@@ -18,6 +19,7 @@ import { SearchModule } from './search/search.module.js';
 @Module({
   imports: [
     DatabaseModule,
+    ClockModule,
     AuthModule,
     BroadcastsModule,
     ChannelModule,

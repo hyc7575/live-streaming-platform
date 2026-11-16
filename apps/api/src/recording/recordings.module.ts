@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BroadcastsModule } from '../broadcasts/broadcasts.module.js';
 import { OmeModule } from '../ome/ome.module.js';
 import {
   DEFAULT_RECONCILE_INTERVAL_MS,
@@ -11,7 +12,7 @@ import {
 } from './recordings-config.js';
 
 @Module({
-  imports: [OmeModule],
+  imports: [BroadcastsModule, OmeModule],
   providers: [
     RecordingReconciler,
     {

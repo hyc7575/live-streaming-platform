@@ -60,8 +60,10 @@ enum BroadcastCategory {
   ETC
 }
 
-// status는 서버만 앞으로 옮긴다(READY -> LIVE -> ENDED). 송출 허가 흐름에서
-// 옮긴다. startedAt과 endedAt은 그 전이 시각을 기록한다.
+// status는 서버만 앞으로 옮긴다(READY -> LIVE -> ENDED). status·startedAt·
+// endedAt·disconnectedAt은 BroadcastLifecycle(src/broadcasts/broadcast-lifecycle.ts)
+// 에서만 쓴다. startedAt과 endedAt은 전이 시각, disconnectedAt은 LIVE 중 송출
+// 연결이 끊긴 시각(유예 시간의 시작)이다.
 model Broadcast {
   id                 String            @id @default(uuid()) @db.Uuid
   streamerId         String            @db.Uuid

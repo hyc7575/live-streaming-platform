@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { CLOCK, type Clock } from '../clock.js';
+import { BroadcastLifecycle } from './broadcast-lifecycle.js';
 import { PrismaService } from '../database/database.module.js';
 import {
   Prisma,
@@ -20,7 +21,6 @@ import {
   userImageUrl,
   thumbnailUrl,
 } from '../images/image-store.js';
-import { OME_API, type OmeApi } from '../ome/ome-api.js';
 import {
   NO_GAME,
   resolveGameUpdate,
@@ -179,9 +179,9 @@ export class BroadcastsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(OME_API) private readonly ome: OmeApi,
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly images: ImageStore,
+    private readonly lifecycle: BroadcastLifecycle,
   ) {}
 
   async create(
@@ -357,34 +357,17 @@ export class BroadcastsService {
     }
   }
 
-  // PRD §7.4: OME가 스트림을 끊기 전에 데이터베이스가 먼저 ENDED가 된다. 그래서
-  // 그 사이에 다시 연결하는 송출자는 Admission Webhook에서 거부된다.
-  // 순서를 뒤집으면 다시 끼어들 수 있다. ENDED 방송에도 끊기를 다시
-  // 보내므로, 끊기에 실패한 뒤 재시도하면 같은 상태로 수렴한다. 녹화 중지는
-  // 맨 마지막이고 실패해도 된다. RecordingReconciler가 방송이 더 이상
-  // LIVE가 아닌 작업을 모두 멈춘다.
+  // 종료 순서와 OME 부수효과는 BroadcastLifecycle.end()가 정한다.
   async end(id: string): Promise<BroadcastView> {
-    await this.prisma.broadcast.updateMany({
-      where: { id, status: 'LIVE' },
-      data: { status: 'ENDED', endedAt: new Date() },
-    });
-    const broadcast = await this.get(id);
-    // §7.4에는 READY → ENDED 전이가 없다. READY 방송은 대신 삭제한다.
-    if (broadcast.status === 'READY') {
-      throw new ConflictException(END_READY_MESSAGE);
+    const result = await this.lifecycle.end(id, () => this.get(id));
+    switch (result.kind) {
+      case 'ready':
+        throw new ConflictException(END_READY_MESSAGE);
+      case 'drop failed':
+        throw new BadGatewayException(DROP_STREAM_FAILED_MESSAGE);
+      case 'ended':
+        return result.broadcast;
     }
-    try {
-      await this.ome.dropStream(id);
-    } catch (error) {
-      this.logger.error(`Dropping the stream of ${id} failed`, error);
-      throw new BadGatewayException(DROP_STREAM_FAILED_MESSAGE);
-    }
-    try {
-      await this.ome.stopRecord(id);
-    } catch (error) {
-      this.logger.error(`Stopping the recording of ${id} failed`, error);
-    }
-    return broadcast;
   }
 
   // READY 방송은 스트림을 가진 적이 없으므로 바로 삭제한다. 그 밖의
