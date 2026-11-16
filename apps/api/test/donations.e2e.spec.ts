@@ -11,7 +11,10 @@ import {
   type DonationOrder,
 } from '../src/donations/donations.service.js';
 import { TossPaymentsError } from '../src/donations/toss-payments.js';
-import type { BroadcastStatus } from '../src/generated/prisma/client.js';
+import {
+  Prisma,
+  type BroadcastStatus,
+} from '../src/generated/prisma/client.js';
 import {
   createTestApp,
   logIn,
@@ -72,6 +75,20 @@ describe('donations', () => {
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     const { orderId } = res.body as DonationOrder;
     return { paymentKey: `pay_${orderId}`, orderId, amount };
+  };
+
+  // 이 DB에서 행 잠금을 기다리는 연결이 생길 때까지 기다린다.
+  const untilSomeoneWaitsForALock = async () => {
+    for (let tries = 0; tries < 100; tries += 1) {
+      const [row] = await prisma.$queryRaw<{ waiting: number }[]>(
+        Prisma.sql`
+          SELECT count(*)::int AS waiting FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+      );
+      if (row && row.waiting > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('No connection waited for a lock within 5 seconds');
   };
 
   const setStatus = (status: BroadcastStatus) =>
@@ -484,6 +501,42 @@ describe('donations', () => {
         broadcastId: null,
       });
       expect(toss.calls).toHaveLength(1);
+    });
+
+    // 사전 부검 T1(#207): 확정은 방송 행을 먼저 잠그고 후원 행을 잠근다.
+    // 삭제는 방송 행을 잠근 뒤 후원 행을 기다린다(SetNull). 확정이 순서를
+    // 뒤집으면 둘이 서로 기다리고, Postgres가 한쪽을 40P01로 끊어 500이 된다.
+    // 이 테스트는 Toss를 기다리는 동안 삭제를 겹치므로, 방송 행 잠금이
+    // Toss 승인 뒤로 밀리거나 빠지면 실패한다. 두 잠금 사이(Toss 전)의 짧은
+    // 틈은 붙잡을 곳이 없어 잡지 못한다.
+    it('makes a delete wait for a confirm holding Toss, then unlinks the paid donation', async () => {
+      const payment = await ordered(4000, '마지막 후원');
+      const held = toss.hold();
+      const confirming = confirm(donor.agent, payment).then((res) => res);
+      await held.reached;
+
+      let removedEarly = false;
+      const removing = streamer.agent
+        .delete(`/api/broadcasts/${broadcastId}`)
+        .then((res) => {
+          removedEarly = true;
+          return res;
+        });
+      await untilSomeoneWaitsForALock();
+      expect(removedEarly).toBe(false);
+
+      held.release();
+      const [confirmed, removed] = await Promise.all([confirming, removing]);
+      expect(confirmed.status, JSON.stringify(confirmed.body)).toBe(200);
+      expect(confirmed.body).toMatchObject({ amount: 4000, broadcastId });
+      expect(removed.status, JSON.stringify(removed.body)).toBe(204);
+      expect(toss.calls).toHaveLength(1);
+      expect(
+        await prisma.donation.findUniqueOrThrow({
+          where: { orderId: payment.orderId },
+        }),
+      ).toMatchObject({ status: 'PAID', amount: 4000, broadcastId: null });
+      expect(await prisma.broadcast.count()).toBe(0);
     });
   });
 
