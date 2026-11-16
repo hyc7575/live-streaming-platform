@@ -42,7 +42,8 @@ export type GoLiveResult =
   'live' | 'broadcast not ready' | 'streamer already live';
 export type ReconnectResult =
   'reconnected' | 'broadcast already live' | 'broadcast ended';
-export type EndResult = 'ended' | 'ready' | 'missing' | 'drop failed';
+export type EndResult<T> =
+  { kind: 'ended'; broadcast: T } | { kind: 'ready' } | { kind: 'drop failed' };
 
 const uuid = z.uuid();
 
@@ -63,12 +64,13 @@ export class BroadcastLifecycle {
 
   // READY → LIVE. status 필터로 조건부 쓰기 한 번으로 만든다. 그래서 한
   // 방송을 두고 경합하는 송출 허가 두 개 중 정확히 하나만 통과한다. 부분
-  // unique index는 한 스트리머의 방송들 사이에서 같은 일을 한다.
-  async goLive(id: string): Promise<GoLiveResult> {
+  // unique index는 한 스트리머의 방송들 사이에서 같은 일을 한다. `now`는
+  // 송출 허가 판정에 쓴 시각이다. startedAt이 판정과 같은 순간이 된다.
+  async goLive(id: string, now: Date): Promise<GoLiveResult> {
     try {
       const { count } = await this.prisma.broadcast.updateMany({
         where: { id, status: 'READY' },
-        data: { status: 'LIVE', startedAt: this.clock.now() },
+        data: { status: 'LIVE', startedAt: now },
       });
       if (count !== 1) return 'broadcast not ready';
     } catch (error) {
@@ -88,9 +90,9 @@ export class BroadcastLifecycle {
     return 'live';
   }
 
-  // 유예 시간 안에 같은 방송으로 다시 연결되면 끊긴 시각을 지운다.
-  async reconnect(id: string): Promise<ReconnectResult> {
-    const now = this.clock.now();
+  // 유예 시간 안에 같은 방송으로 다시 연결되면 끊긴 시각을 지운다. `now`는
+  // 송출 허가 판정에 쓴 시각이다. 판정과 쓰기가 같은 유예 경계를 본다.
+  async reconnect(id: string, now: Date): Promise<ReconnectResult> {
     const { count } = await this.prisma.broadcast.updateMany({
       where: { id, status: 'LIVE', disconnectedAt: graceWindow(now).within },
       data: { disconnectedAt: null },
@@ -122,26 +124,28 @@ export class BroadcastLifecycle {
   // 다시 보내므로, 끊기에 실패한 뒤 재시도하면 같은 상태로 수렴한다. 녹화
   // 중지는 맨 마지막이고 실패해도 된다. RecordingReconciler가 방송이 더 이상
   // LIVE가 아닌 작업을 모두 멈춘다.
-  async end(id: string): Promise<EndResult> {
+  //
+  // `read`는 ENDED를 저장한 직후 방송을 읽는다(없으면 호출자가 던진다).
+  // 그 값이 OME 호출 뒤 그대로 돌아간다.
+  async end<T extends { status: BroadcastStatus }>(
+    id: string,
+    read: () => Promise<T>,
+  ): Promise<EndResult<T>> {
     await this.prisma.broadcast.updateMany({
       where: { id, status: 'LIVE' },
       data: { status: 'ENDED', endedAt: this.clock.now() },
     });
-    const row = await this.prisma.broadcast.findUnique({
-      where: { id },
-      select: { status: true },
-    });
-    if (!row) return 'missing';
+    const broadcast = await read();
     // §7.4에는 READY → ENDED 전이가 없다. READY 방송은 대신 삭제한다.
-    if (row.status === 'READY') return 'ready';
+    if (broadcast.status === 'READY') return { kind: 'ready' };
     try {
       await this.ome.dropStream(id);
     } catch (error) {
       this.logger.error(`Dropping the stream of ${id} failed`, error);
-      return 'drop failed';
+      return { kind: 'drop failed' };
     }
     await this.stopRecording(id);
-    return 'ended';
+    return { kind: 'ended', broadcast };
   }
 
   // PRD §7.4 좀비 정리(T8). OME의 `closing`은 빠지거나, 그보다 먼저 와야 할

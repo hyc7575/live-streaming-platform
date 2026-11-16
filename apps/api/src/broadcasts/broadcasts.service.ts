@@ -359,15 +359,14 @@ export class BroadcastsService {
 
   // 종료 순서와 OME 부수효과는 BroadcastLifecycle.end()가 정한다.
   async end(id: string): Promise<BroadcastView> {
-    switch (await this.lifecycle.end(id)) {
-      case 'missing':
-        throw new NotFoundException('Broadcast not found');
+    const result = await this.lifecycle.end(id, () => this.get(id));
+    switch (result.kind) {
       case 'ready':
         throw new ConflictException(END_READY_MESSAGE);
       case 'drop failed':
         throw new BadGatewayException(DROP_STREAM_FAILED_MESSAGE);
       case 'ended':
-        return this.get(id);
+        return result.broadcast;
     }
   }
 

@@ -100,11 +100,14 @@ export class PublishService {
       case 'reject':
         return { allowed: false, reason: plan.reason };
       // 판정이 고른 전이는 BroadcastLifecycle이 조건부 쓰기로 한다. 판정과
-      // 쓰기 사이에 상태가 바뀌면 쓰기 쪽 결과가 이긴다.
+      // 같은 `now`를 넘겨 startedAt과 유예 경계가 판정 시각과 같다. 그사이
+      // 상태가 바뀌면 쓰기 쪽 결과가 이긴다.
       case 'go-live':
-        return decisionOf(await this.lifecycle.goLive(target.broadcastId));
+        return decisionOf(await this.lifecycle.goLive(target.broadcastId, now));
       case 'reconnect':
-        return decisionOf(await this.lifecycle.reconnect(target.broadcastId));
+        return decisionOf(
+          await this.lifecycle.reconnect(target.broadcastId, now),
+        );
     }
   }
 }
