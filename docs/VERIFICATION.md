@@ -698,6 +698,7 @@ OBS 실기 확인은 #88에서 OBS Studio 33.0.1(macOS, x264)로 했다(2026-11-
 - `apps/api/test/publish.e2e.spec.ts`: 본문 없는 발급은 정확히 5분, `{"client":"obs"}`는 정확히 12시간 뒤 만료다. 모르는 `client`는 400이다. 발급 5분 뒤의 OBS 토큰으로 송출을 열면 Webhook이 허가한다.
 - `apps/api/test/authorization-matrix.e2e.spec.ts`: "송출 토큰 발급"과 같은 행렬로 OBS 발급도 비로그인 401, 다른 사용자 403이다.
 - `apps/web/src/pages/PublishPage.test.tsx`: OBS 탭의 발급·복사·다시 발급·만료 안내, 다른 곳에서 송출 중일 때 "방송 시작"을 막는 것(유예 중에는 막지 않음), OBS 송출 중 이탈 확인창이 뜨지 않는 것과 미리보기 자리 안내, 폴링이 `ENDED`를 읽으면 종료 화면으로 바뀌는 것, 종료 화면의 "OBS에서도 방송 중단" 안내(OBS URL을 발급했거나 다른 곳의 송출을 봤을 때만).
+- `apps/web/src/publish/publishOwner.test.ts`(#198): 송출 화면의 화면 결정(`decidePublishScreen`)을 렌더 없이 표로 확인한다. 브라우저 송출 상태 7가지 × 읽은 방송(`READY`·`LIVE`·유예 중 `LIVE`·`ENDED`) × 기억(이 탭이 연결된 적, OBS 주소 발급, 다른 쪽 송출을 본 적)에서 시작 막기, 방송 종료 버튼(확인·다시 종료하기·없음), 종료 화면(이 탭이 끝냄·다른 쪽이 끝냄)과 OBS 멈춤 안내가 나오는지 본다.
 - `apps/web/e2e-stack/obsPublish.spec.ts` (실제 OME, `e2e:stack`): OBS 대신 로그인하지 않은 페이지의 최소 WHIP 클라이언트(H.264)가 화면에서 복사한 URL만으로 송출한다. 송출 화면 OBS 탭이 LIVE와 "송출이 연결되어 있습니다."를 보이고, 브라우저 탭의 "방송 시작"이 막히며, 시청 화면이 재생된다. "방송 종료" 뒤에는 WHIP 연결이 끊기고 같은 URL로 다시 연결하면 거절된다. OBS 자체의 설정 화면과 자동 재접속은 이 테스트가 확인하지 않는다.
 
 화면에서 확인 (OBS Studio 30 이상, 3절과 같이 PostgreSQL·OME·API·웹을 띄운 상태):

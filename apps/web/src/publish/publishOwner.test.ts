@@ -98,6 +98,23 @@ describe('누가 송출 중인가', () => {
       input({ kind: 'connecting' }, 'LIVE'),
       studio(true, false, null),
     ],
+    [
+      '송출 토큰을 받는 중에는 종료 버튼이 없다',
+      input({ kind: 'requesting' }, 'READY'),
+      studio(false, false, null),
+    ],
+    [
+      '연결 중에 읽은 LIVE가 유예 시간이어도 다른 쪽 송출로 보지 않는다',
+      input({ kind: 'connecting' }, 'LIVE', {
+        disconnectedAt: DISCONNECTED_AT,
+      }),
+      studio(true, false, null),
+    ],
+    [
+      '이 탭이 끊긴 뒤 다시 연결하는 중에는 종료 버튼이 없다',
+      input({ kind: 'connecting' }, 'READY', { sessionWentLive: true }),
+      studio(true, false, null),
+    ],
   ])('%s', (_name, given, expected) => {
     expect(decidePublishScreen(given)).toEqual(expected);
   });
@@ -141,6 +158,25 @@ describe('종료 화면', () => {
         sawPublishingElsewhere: true,
       }),
       ended('me', true),
+    ],
+    [
+      '이 탭의 송출이 끊긴 뒤 ENDED를 읽으면 다른 쪽이 끝낸 것으로 보이고 OBS 안내는 없다',
+      input({ kind: 'idle', error: '끊김', retry: false }, 'ENDED', {
+        sessionWentLive: true,
+      }),
+      ended('elsewhere'),
+    ],
+    [
+      '종료에 실패한 뒤 ENDED를 읽어도 종료 화면이 아니라 다시 종료하기다',
+      input({ kind: 'end-failed', error: '실패' }, 'ENDED', {
+        sessionWentLive: true,
+      }),
+      studio(true, false, 'retry'),
+    ],
+    [
+      '종료 요청 중에 ENDED를 읽어도 종료 화면은 이 탭의 종료 응답을 기다린다',
+      input({ kind: 'ending' }, 'ENDED', { sessionWentLive: true }),
+      studio(true, false, null),
     ],
     [
       '브라우저로만 송출했으면 OBS 안내가 없다',
