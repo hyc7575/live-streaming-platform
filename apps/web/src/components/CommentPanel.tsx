@@ -56,7 +56,7 @@ export function CommentPanel({ broadcastId }: { broadcastId: string }) {
               comment={c}
               broadcastId={broadcastId}
               mine={me?.id === c.author.id}
-              onChanged={reload}
+              onChanged={() => void reload()}
             />
           ))}
         </ol>
@@ -73,7 +73,7 @@ export function CommentPanel({ broadcastId }: { broadcastId: string }) {
           setDraft={setDraft}
           onPosted={() => {
             stick();
-            reload();
+            void reload();
           }}
         />
       )}

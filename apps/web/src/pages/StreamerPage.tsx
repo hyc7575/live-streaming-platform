@@ -32,7 +32,7 @@ export function StreamerPage() {
 
   // 방문자가 여기서 팔로우하거나 취소하면 팔로워 수가 바뀐다.
   useEffect(() => {
-    reloadProfile();
+    void reloadProfile();
   }, [following, reloadProfile]);
 
   if (profile.data.status === 'failed') {

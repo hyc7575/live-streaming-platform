@@ -78,9 +78,9 @@ export function LimeDonationForm({
   // 응답을 잃은 시도. 없으면 비어 있다.
   const [unsettled, setUnsettled] = useState<Attempt | null>(null);
 
-  useEffect(() => onCharge(reloadBalance), [reloadBalance]);
+  useEffect(() => onCharge(() => void reloadBalance()), [reloadBalance]);
   useEffect(() => {
-    if (charged) reloadBalance();
+    if (charged) void reloadBalance();
   }, [charged, reloadBalance]);
 
   const value = Number(amount);
@@ -123,7 +123,7 @@ export function LimeDonationForm({
       setUnsettled(null);
       setMessage('');
       onDonated();
-      reloadBalance();
+      void reloadBalance();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         const next: LoginPageState = { from: `/broadcasts/${broadcastId}` };
@@ -133,13 +133,13 @@ export function LimeDonationForm({
       if (err instanceof ApiError && err.status < 500) {
         // 서버가 이 시도를 판정했으므로, 다음 누름은 새 시도다.
         setUnsettled(null);
-        if (err.status === 409) reloadBalance();
+        if (err.status === 409) void reloadBalance();
         setError(refusalMessage(err));
         return;
       }
       setUnsettled(body);
       setError(UNSETTLED_MESSAGE);
-      reloadBalance();
+      void reloadBalance();
       onUnsettled();
     } finally {
       setSending(false);

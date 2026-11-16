@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
 import type { Donation, DonationSummary } from '../donations';
 import { usePolledApi, type Loadable } from '../use-api';
 
@@ -17,10 +17,12 @@ export function useNewDonations(
   broadcastId: string,
   onNew: (donations: Donation[]) => void,
 ): { summary: Loadable<DonationSummary>; reload: () => void } {
-  const { data: summary, reload } = usePolledApi<DonationSummary>(
+  const { data: summary, reload: reloadNow } = usePolledApi<DonationSummary>(
     `/broadcasts/${encodeURIComponent(broadcastId)}/donations`,
     DONATION_POLL_MS,
   );
+  // 패널·폼은 다시 읽기가 끝나기를 기다리지 않는다.
+  const reload = useCallback(() => void reloadNow(), [reloadNow]);
   // 이 방송에서 이미 본 후원 id. 방송이 바뀌면 기준선부터 다시 잡는다.
   const seen = useRef<{ broadcastId: string; ids: Set<string> } | null>(null);
   const report = useEffectEvent(onNew);

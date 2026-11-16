@@ -63,7 +63,9 @@ async function poll(
   calls: () => number,
 ) {
   const before = calls();
-  act(() => hook.result.current.reload());
+  act(() => {
+    void hook.result.current.reload();
+  });
   await waitFor(() => expect(calls()).toBe(before + 1));
   // 응답을 반영한 렌더와 그 effect까지 기다린다.
   await act(async () => {});

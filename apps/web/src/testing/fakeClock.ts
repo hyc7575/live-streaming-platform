@@ -10,8 +10,12 @@ import { vi } from 'vitest';
 // RTL의 `findBy`·`waitFor`는 가짜 `setTimeout`을 기다리다 멈추므로 이 시계와
 // 함께 쓰지 않는다.
 
+// clear*도 함께 가짜로 바꾼다. 빼면 진짜 clearInterval이 가짜 타이머 id를
+// 받아 아무것도 지우지 못해, 언마운트·정리한 폴링이 테스트에서 계속 돈다.
 export function useFakeClock(): void {
-  vi.useFakeTimers({ toFake: ['setInterval', 'setTimeout'] });
+  vi.useFakeTimers({
+    toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'],
+  });
 }
 
 // 시계를 `ms`만큼 넘기고, 그 사이 걸린 타이머와 그 뒤 렌더·effect를 돌린다.

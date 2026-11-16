@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ApiError, apiFetch } from '../api';
+import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
 import type { Broadcast } from '../broadcasts';
 import { ActionSheet } from '../components/ActionSheet';
@@ -19,7 +19,7 @@ import { useNewDonations } from '../donation/useNewDonations';
 import { FollowButton } from '../follows/FollowButton';
 import { partStarts, type Playhead } from '../replay-chat';
 import { channelPath } from '../streamers';
-import type { Loadable } from '../use-api';
+import { usePolledApi, type Loadable } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
 import { useFinePointer, useWideScreen } from '../use-wide-screen';
 import styles from './BroadcastPage.module.css';
@@ -63,74 +63,35 @@ function useWatchedBroadcast(path: string): {
   waitingForReplay: boolean;
   recheck: () => void;
 } {
-  const [result, setResult] = useState<{
-    path: string;
-    loadable: Loadable<Broadcast>;
-    readAt: number;
-  } | null>(null);
-  const recheckRef = useRef<() => void>(() => {});
-  const current = result?.path === path ? result : null;
-  const broadcast: Loadable<Broadcast> = current
-    ? current.loadable
-    : { status: 'loading' };
+  const {
+    data: broadcast,
+    readAt,
+    reload,
+  } = usePolledApi<Broadcast>(path, STATUS_POLL_MS, {
+    isTerminal: isGone,
+    stopWhen: isSettled,
+  });
   const waitingForReplay =
-    current?.loadable.status === 'loaded' &&
-    isWaitingForReplay(current.loadable.data, current.readAt);
-  const settled =
-    (broadcast.status === 'failed' &&
-      broadcast.error instanceof ApiError &&
-      broadcast.error.status === 404) ||
-    (broadcast.status === 'loaded' &&
-      broadcast.data.status === 'ENDED' &&
-      !waitingForReplay);
-
-  useEffect(() => {
-    if (settled) return;
-    let cancelled = false;
-    let inFlight = false;
-    const load = () => {
-      if (inFlight) return;
-      inFlight = true;
-      apiFetch<Broadcast>(path)
-        .then(
-          (data) => {
-            if (!cancelled)
-              setResult({
-                path,
-                loadable: { status: 'loaded', data },
-                readAt: Date.now(),
-              });
-          },
-          (error: unknown) => {
-            if (cancelled) return;
-            const gone = error instanceof ApiError && error.status === 404;
-            setResult((prev) =>
-              !gone && prev?.path === path && prev.loadable.status === 'loaded'
-                ? prev
-                : {
-                    path,
-                    loadable: { status: 'failed', error },
-                    readAt: Date.now(),
-                  },
-            );
-          },
-        )
-        .finally(() => {
-          inFlight = false;
-        });
-    };
-    load();
-    const timer = setInterval(load, STATUS_POLL_MS);
-    recheckRef.current = load;
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-      recheckRef.current = () => {};
-    };
-  }, [path, settled]);
-
-  const recheck = useCallback(() => recheckRef.current(), []);
+    broadcast.status === 'loaded' &&
+    readAt !== null &&
+    isWaitingForReplay(broadcast.data, readAt);
+  // 종료 버튼·재생 오류는 다시 읽기가 끝나기를 기다리지 않는다.
+  const recheck = useCallback(() => void reload(), [reload]);
   return { broadcast, waitingForReplay, recheck };
+}
+
+function isGone(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
+// 방송이 지워졌거나, 끝났고 더 기다릴 다시보기도 없으면 그만 읽는다.
+function isSettled(broadcast: Loadable<Broadcast>, readAt: number): boolean {
+  if (broadcast.status === 'failed') return isGone(broadcast.error);
+  return (
+    broadcast.status === 'loaded' &&
+    broadcast.data.status === 'ENDED' &&
+    !isWaitingForReplay(broadcast.data, readAt)
+  );
 }
 
 export function BroadcastPage() {
