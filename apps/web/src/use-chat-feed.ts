@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { apiFetch } from './api';
+import { pollFetch } from './use-api';
 import {
   CHAT_PAGE_LIMIT,
   chatFeed,
@@ -59,6 +59,10 @@ export function useChatFeed(
 
   useEffect(() => {
     let cancelled = false;
+    // 이 effect가 끝나면(화면을 떠남, 방송이 바뀜) 진행 중 요청을 끊는다.
+    // 응답이 오지 않는 요청은 pollFetch가 제한 시간에 끊으므로, 다음 요청을
+    // 예약하는 아래 루프가 멈추지 않는다(#205).
+    const life = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const path = `/broadcasts/${encodeURIComponent(broadcastId)}/chat`;
     const later = () => {
@@ -68,8 +72,9 @@ export function useChatFeed(
       const { cursor } = heldFor(latest.current, broadcastId).feed;
       let page: ChatMessage[];
       try {
-        page = await apiFetch<ChatMessage[]>(
+        page = await pollFetch<ChatMessage[]>(
           cursor ? `${path}?after=${encodeURIComponent(cursor)}` : path,
+          life.signal,
         );
       } catch {
         if (cancelled) return;
@@ -88,6 +93,7 @@ export function useChatFeed(
     void poll();
     return () => {
       cancelled = true;
+      life.abort();
       clearTimeout(timer);
     };
   }, [broadcastId, pollMs, update]);

@@ -2,23 +2,29 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from './api';
 import { advanceClock, eventually, useFakeClock } from './testing/fakeClock';
-import { usePolledApi, type Loadable } from './use-api';
+import { POLL_TIMEOUT_MS, usePolledApi, type Loadable } from './use-api';
 
 // apiFetch 요청마다 응답 시점을 테스트가 정한다.
 type Pending = {
   path: string;
   resolve: (value: unknown) => void;
   reject: (error: unknown) => void;
+  signal: AbortSignal | null;
 };
 const pending: Pending[] = [];
 
+// 실제 fetch처럼 signal이 끊기면 AbortError로 끝난다.
 vi.mock('./api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./api')>();
   return {
     ...actual,
-    apiFetch: (path: string) =>
+    apiFetch: (path: string, init?: RequestInit) =>
       new Promise((resolve, reject) => {
-        pending.push({ path, resolve, reject });
+        const signal = init?.signal ?? null;
+        pending.push({ path, resolve, reject, signal });
+        signal?.addEventListener('abort', () => {
+          reject(new DOMException('aborted', 'AbortError'));
+        });
       }),
   };
 });
@@ -194,6 +200,51 @@ describe('usePolledApi', () => {
 
     await answer(1, 'bob-data');
     expect(dataOf(result.current.data)).toBe('bob-data');
+  });
+
+  it('응답이 8초 안에 오지 않으면 끊고, 다음 주기 요청이 나가 ENDED를 읽는다(T9)', async () => {
+    // 시청 화면의 상태 폴링과 같은 5초 주기.
+    const { result } = renderHook(() => usePolledApi<string>('/x', 5000));
+    await answer(0, 'LIVE');
+
+    // 5초 주기 요청이 응답 없이 걸린다. 진행 중이라 10초 주기는 건너뛴다.
+    await advanceClock(5000);
+    expect(pending).toHaveLength(2);
+
+    // 그 요청을 8초에 끊는다. 화면은 마지막 응답을 둔다.
+    await advanceClock(POLL_TIMEOUT_MS);
+    expect(pending[1].signal?.aborted).toBe(true);
+    expect(dataOf(result.current.data)).toBe('LIVE');
+
+    // 끊긴 뒤 첫 주기(15초)에 새 요청이 나가고, 그 응답이 화면에 온다.
+    await advanceClock(2000);
+    expect(pending).toHaveLength(3);
+    await answer(2, 'ENDED');
+    expect(dataOf(result.current.data)).toBe('ENDED');
+  });
+
+  it('응답이 제한 시간 안에 오면 끊지 않는다', async () => {
+    const { result } = renderHook(() => usePolledApi<string>('/x', 1000));
+    await advanceClock(POLL_TIMEOUT_MS - 1);
+    expect(pending[0].signal?.aborted).toBe(false);
+    await answer(0, 'slow-but-alive');
+    expect(dataOf(result.current.data)).toBe('slow-but-alive');
+  });
+
+  it('화면을 떠나면 진행 중 요청을 끊는다', () => {
+    const { unmount } = renderHook(() => usePolledApi<string>('/x', 1000));
+    unmount();
+    expect(pending[0].signal?.aborted).toBe(true);
+  });
+
+  it('경로가 바뀌면 이전 경로의 진행 중 요청을 끊는다', () => {
+    const { rerender } = renderHook(
+      ({ path }) => usePolledApi<string>(path, 1000),
+      { initialProps: { path: '/a' } },
+    );
+    rerender({ path: '/b' });
+    expect(pending[0].signal?.aborted).toBe(true);
+    expect(pending[1].signal?.aborted).toBe(false);
   });
 
   it('경로가 null이면 읽지 않는다', async () => {
