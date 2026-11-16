@@ -25,6 +25,11 @@ export type PublishSessionState =
 
 export interface PublishSession {
   state: PublishSessionState;
+  /**
+   * 이 페이지의 송출이 한 번이라도 연결되었다. 송출이 끊겨 `idle`로 돌아간
+   * 뒤에도 방송은 LIVE일 수 있어, 폴링이 그걸 읽기 전에도 종료 버튼을 남긴다.
+   */
+  wentLive: boolean;
   /** `stream`을 송출한다. 트랙은 계속 호출한 쪽이 가진다. */
   start: (stream: MediaStream) => void;
   /**
@@ -77,6 +82,7 @@ export function usePublishSession(broadcastId: string): PublishSession {
     kind: 'idle',
     error: null,
   });
+  const [wentLive, setWentLive] = useState(false);
   const publisher = useRef<WhipPublisher | null>(null);
   // 진행 중인 작업이 의미를 잃을 때마다 값을 올린다. 그래서 늦게 온 토큰이나
   // 상태 응답이 아무도 기다리지 않는 시도를 위해 움직이지 않는다.
@@ -120,6 +126,7 @@ export function usePublishSession(broadcastId: string): PublishSession {
             if (!current()) return;
             if (event.kind === 'connected') {
               setState({ kind: 'live' });
+              setWentLive(true);
               return;
             }
             publisher.current = null;
@@ -182,5 +189,5 @@ export function usePublishSession(broadcastId: string): PublishSession {
     publisher.current?.releaseTrack(kind);
   }, []);
 
-  return { state, start, end, cancel, replaceTrack, releaseTrack };
+  return { state, wentLive, start, end, cancel, replaceTrack, releaseTrack };
 }

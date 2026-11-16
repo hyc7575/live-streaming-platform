@@ -32,6 +32,7 @@ import { DonationToasts } from '../components/DonationToasts';
 import { BrowserNotice, PcPreflight } from '../components/PcPreflight';
 import { PermissionGuide } from '../components/PermissionGuide';
 import { PublishSidePanel } from '../components/PublishSidePanel';
+import { usePublishOwner } from '../publish/publishOwner';
 import { useThumbnailCapture } from '../publish/thumbnailCapture';
 import {
   usePublishSession,
@@ -121,17 +122,6 @@ function Heading({ broadcast }: { broadcast: Broadcast }) {
 // 있고, 그건 서버만 안다.
 const POLL_MS = 5000;
 
-type EndedBy = 'me' | 'elsewhere';
-
-function endedBy(
-  session: PublishSessionState,
-  status: Broadcast['status'],
-): EndedBy | null {
-  if (session.kind === 'ended') return session.elsewhere ? 'elsewhere' : 'me';
-  if (session.kind === 'idle' && status === 'ENDED') return 'elsewhere';
-  return null;
-}
-
 function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
   const session = usePublishSession(opened.id);
   const polled = usePolledApi<Broadcast>(
@@ -159,28 +149,12 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
   // 페이지가 사라진 뒤에 resolve된 캡처도 멈춰야 한다. 그러지 않으면
   // 브라우저가 화면이나 카메라를 쓰는 중이라고 계속 표시한다.
   const alive = useRef(false);
-  const ended = endedBy(session.state, broadcast.status);
-  // 송출이 끊겨도 서버는 방송을 LIVE로 유지하고, OBS나 LIVE 방송에서 연
-  // 페이지는 이 페이지 없이 송출한다. 어느 쪽이든
-  // 스트리머에게는 방송을 끝낼 방법이 필요하다.
-  const [onAir, setOnAir] = useState(broadcast.status === 'LIVE');
-  if ((session.state.kind === 'live' || broadcast.status === 'LIVE') && !onAir)
-    setOnAir(true);
-  // 방송 하나는 송출 하나만 받는다. 송출이 끊긴 LIVE 방송
-  // (disconnectedAt)은 유예 시간 중이고, 이 페이지가 그 자리를 채울 수 있다.
-  const publishingElsewhere =
-    broadcast.status === 'LIVE' &&
-    broadcast.disconnectedAt === null &&
-    session.state.kind === 'idle';
-  // OBS는 방송이 끝난 뒤에도 재연결을 계속한다(#88). 그래서 OBS를 썼을 수
-  // 있으면 종료 화면이 스트리머에게 OBS를 멈추라고 알린다. 여기서 URL을
-  // 발급했거나, 이 페이지가 하지 않은 송출이 있었던 경우다.
-  const [obsMayPublish, setObsMayPublish] = useState(false);
-  if (publishingElsewhere && !obsMayPublish) setObsMayPublish(true);
+  const owner = usePublishOwner(session, broadcast);
+  const { screen } = owner;
   // 방송이 끝나면 캡처는 더 쓸 데가 없다. 여기서 버리면
   // 아래 effect가 트랙을 멈춘다.
   const active: ActiveCapture | null =
-    slot.kind === 'on' && ended === null ? slot : null;
+    slot.kind === 'on' && screen.kind === 'studio' ? slot : null;
   const capture = active?.capture ?? null;
   const camera = useCameraState(
     active?.source === 'camera' ? active.capture : null,
@@ -265,19 +239,21 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
     session.start(next.capture.stream);
   }
 
-  if (ended !== null) {
+  if (screen.kind === 'ended') {
     const notice = slot.kind === 'off' ? slot.notice : null;
     return (
       <section className={styles.page}>
         <Heading broadcast={broadcast} />
         <div className={styles.ended}>
           <p role="status" className={styles.endedText}>
-            {ended === 'elsewhere'
+            {screen.endedBy === 'elsewhere'
               ? '방송이 종료되었습니다.'
               : '방송을 종료했습니다.'}
           </p>
           {notice && <p className={styles.note}>{notice}</p>}
-          {obsMayPublish && <p className={styles.note}>{OBS_STOP_REMINDER}</p>}
+          {screen.obsStopReminder && (
+            <p className={styles.note}>{OBS_STOP_REMINDER}</p>
+          )}
           <div className={styles.actions}>
             <Link to={`/broadcasts/${broadcast.id}`} className={styles.primary}>
               시청 화면 보기
@@ -298,13 +274,13 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
     session.state.kind === 'end-failed';
   const offer = CAPTURE_SOURCES[sources[0]].offer;
   const desktop = sources.includes('screen');
+  const { onAir, publishingElsewhere } = screen;
   const endControl =
-    session.state.kind === 'end-failed' ? (
+    screen.endControl === 'retry' ? (
       <button type="button" className={styles.danger} onClick={session.end}>
         다시 종료하기
       </button>
-    ) : session.state.kind === 'live' ||
-      (session.state.kind === 'idle' && onAir) ? (
+    ) : screen.endControl === 'confirm' ? (
       <EndControl onEnd={session.end} />
     ) : null;
 
@@ -431,7 +407,7 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
                 <ObsPanel
                   broadcast={broadcast}
                   endControl={endControl}
-                  onIssued={() => setObsMayPublish(true)}
+                  onIssued={owner.noteObsUrlIssued}
                 />
               }
             />
