@@ -42,9 +42,12 @@ const INITIAL: MediaState = {
 };
 
 // useSyncExternalStore는 바뀐 것이 없는 동안 같은 객체를 돌려받아야 한다.
+// 스냅숏은 video 이벤트가 올 때만 다시 읽는다. Safari(iPhone)는 재생 중
+// currentTime을 읽을 때마다 새 값을 주므로, getSnapshot이 매번 video를 읽으면
+// 렌더 뒤 재확인마다 값이 달라 렌더가 끝나지 않는다(React #185).
 const snapshots = new WeakMap<HTMLVideoElement, MediaState>();
 
-function read(video: HTMLVideoElement): MediaState {
+function refresh(video: HTMLVideoElement): MediaState {
   const next: MediaState = {
     paused: video.paused,
     muted: video.muted,
@@ -75,18 +78,27 @@ export function useMediaState(
     (onChange: () => void) => {
       const video = videoRef.current;
       if (!video) return () => {};
-      for (const name of VIDEO_EVENTS) video.addEventListener(name, onChange);
-      document.addEventListener('fullscreenchange', onChange);
+      const update = () => {
+        refresh(video);
+        onChange();
+      };
+      for (const name of VIDEO_EVENTS) video.addEventListener(name, update);
+      document.addEventListener('fullscreenchange', update);
+      // 첫 렌더와 구독 사이에 바뀐 것을 놓치지 않는다.
+      update();
       return () => {
         for (const name of VIDEO_EVENTS) {
-          video.removeEventListener(name, onChange);
+          video.removeEventListener(name, update);
         }
-        document.removeEventListener('fullscreenchange', onChange);
+        document.removeEventListener('fullscreenchange', update);
       };
     },
     [videoRef],
   );
-  return useSyncExternalStore(subscribe, () =>
-    videoRef.current ? read(videoRef.current) : INITIAL,
-  );
+  const getSnapshot = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return INITIAL;
+    return snapshots.get(video) ?? refresh(video);
+  }, [videoRef]);
+  return useSyncExternalStore(subscribe, getSnapshot);
 }
