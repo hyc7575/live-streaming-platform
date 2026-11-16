@@ -121,7 +121,8 @@ describe('usePolledApi', () => {
     const gone = new ApiError(404, 'not found');
     const { result } = renderHook(() =>
       usePolledApi<string>('/x', 1000, {
-        isTerminal: (error) => error instanceof ApiError && error.status === 404,
+        isTerminal: (error) =>
+          error instanceof ApiError && error.status === 404,
       }),
     );
     await answer(0, 'first');
