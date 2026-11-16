@@ -67,7 +67,7 @@
 
 | 실험 | 결과 |
 |---|---|
-| E1 | Chrome 부분 통과. 기본 `windowTarget`으로는 승인 뒤 Toss가 우리 iframe 주소를 바꾸려다 교차 출처 이동 차단에 막혀 실패했다. 결제 수단은 퀵계좌이체였다. Safari는 하지 않았다 |
+| E1 | Chrome 부분 통과. 기본 `windowTarget`으로는 승인 뒤 Toss가 우리 iframe 주소를 바꾸려다 교차 출처 이동 차단에 막혀 실패했다. 결제 수단은 퀵계좌이체였다. Safari는 이때 하지 않았고, 2단계 머지 뒤(11-16) PC Safari에서 LIVE 방송을 보며 모달 안 충전과 카드 후원을 끝까지 마쳐 통과했다. 방송 탭 URL은 그대로였고 영상은 멈추지 않았다([PRD-donation-modal](./PRD-donation-modal.md) 8.1 결과) |
 | E2 | 통과. `windowTarget: 'self'`면 iframe 안에서 Toss 결제 페이지로 갔다가 `successUrl`로 돌아와 충전이 끝났다. 방송 탭 URL은 그대로였다(#179 운영, #181 로컬) |
 | E3 | 결제 취소 화면이 iframe 안에서 열리고 "돌아가기"로 폼에 돌아온다(#181, 실패 URL을 직접 열어 확인). 카드 거절은 하지 않았다 |
 | E4 | 통과. 1366×768에서 "결제하기"까지 스크롤 없이 닿는다(`docs/screenshots/181/`) |
