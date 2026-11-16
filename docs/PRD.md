@@ -162,6 +162,7 @@ stateDiagram-v2
 ```
 
 - 상태 전이는 서버만 한다. 클라이언트는 요청만 보낸다.
+- **구현 위치**: 위 전이와 유예 시간, 그에 딸린 OME 호출(녹화 시작·중지, 송출 강제 종료)과 그 실패 처리는 모두 `apps/api/src/broadcasts/broadcast-lifecycle.ts`의 `BroadcastLifecycle` 한 곳에 있다(#196). `status`·`startedAt`·`endedAt`·`disconnectedAt`을 쓰는 운영 코드는 이 파일뿐이고, 전이 시각은 주입된 시계(`CLOCK`) 하나에서 온다.
 - `LIVE`에서 삭제를 요청하면 서버가 먼저 종료 처리한 뒤 삭제한다.
 - `ENDED`는 다시 `LIVE`로 돌아가지 않는다. 다시 방송하려면 새 방송을 만든다.
 - **종료 시 송출 중단**: NestJS가 **먼저** DB 상태를 `ENDED`로 저장하고, **그다음** OME 관리 API `DELETE /v1/vhosts/{vhost}/apps/{app}/streams/{stream}`으로 송출 연결을 끊는다. OME는 끊긴 송출자의 재접속을 막지 않으므로, 재접속은 Webhook이 `ENDED`를 보고 거절한다. 순서가 바뀌면 그 사이 재접속이 허용될 수 있다.
