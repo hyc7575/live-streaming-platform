@@ -32,6 +32,7 @@ import {
   signUp,
   type TestUser,
 } from './support/app.js';
+import { fakeClockOf, type FakeClock } from './support/fake-clock.js';
 import { fakeOmeApiOf, type FakeOmeApi } from './support/fake-ome-api.js';
 import { omeMp4 } from './support/mp4.js';
 
@@ -41,16 +42,25 @@ describe('recording reconciler', () => {
   let ome: FakeOmeApi;
   let reconciler: RecordingReconciler;
   let config: RecordingsConfig;
+  let clock: FakeClock;
   let streamer: TestUser;
+
+  const HOUR = 60 * 60 * 1000;
+  const defaults = {
+    maxBytes: 1024 ** 3,
+    perBroadcastMaxBytes: 1024 ** 3,
+    perBroadcastMaxMs: 3 * HOUR,
+  };
 
   beforeAll(async () => {
     config = {
       dir: await mkdtemp(join(tmpdir(), 'lsp-recordings-')),
-      maxBytes: 1024 ** 3,
+      ...defaults,
     };
     app = await createTestApp({ recordings: config });
     prisma = app.get(PrismaService);
     ome = fakeOmeApiOf(app);
+    clock = fakeClockOf(app);
     reconciler = reconcilerOf(app);
   });
 
@@ -59,7 +69,8 @@ describe('recording reconciler', () => {
     ome.reset();
     await rm(config.dir, { recursive: true, force: true });
     await mkdir(config.dir);
-    config.maxBytes = 1024 ** 3;
+    Object.assign(config, defaults);
+    clock.set(new Date());
     streamer = await signUp(app);
   });
 
@@ -71,13 +82,14 @@ describe('recording reconciler', () => {
   async function seed(
     status: BroadcastStatus,
     endedAt: Date | null = status === 'ENDED' ? new Date() : null,
+    owner: TestUser = streamer,
   ): Promise<string> {
     const row = await prisma.broadcast.create({
       data: {
-        streamerId: streamer.id,
+        streamerId: owner.id,
         title: `${status} 방송`,
         status,
-        startedAt: status === 'READY' ? null : new Date(),
+        startedAt: status === 'READY' ? null : clock.now(),
         endedAt,
       },
     });
@@ -352,10 +364,11 @@ describe('recording reconciler', () => {
   });
 
   describe('cap', () => {
-    it('deletes the oldest ENDED recordings first and never a LIVE one', async () => {
+    it('deletes the oldest ENDED recordings first while the LIVE one fits', async () => {
       const oldest = await seed('ENDED', new Date('2026-11-01T00:00:00Z'));
       const newer = await seed('ENDED', new Date('2026-11-02T00:00:00Z'));
       const live = await seed('LIVE');
+      ome.records = [live];
       await record(oldest, '1_0.mp4', 1000, 40);
       await record(newer, '1_0.mp4', 1000, 40);
       await record(live, 'tmp_1', 1000, 40);
@@ -367,12 +380,68 @@ describe('recording reconciler', () => {
       expect(existsSync(join(config.dir, oldest))).toBe(false);
       expect(await filesOf(oldest)).toEqual([]);
       expect(await replayIds()).toEqual([newer]);
-      expect(existsSync(join(config.dir, live))).toBe(true);
-
-      config.maxBytes = 10;
-      await reconciler.reconcile();
-      expect(await replayIds()).toEqual([]);
       expect(existsSync(join(config.dir, live, 'tmp_1'))).toBe(true);
+      expect(ome.recordCalls).toEqual([]);
+    });
+
+    // #209 회귀: LIVE 녹화 하나가 상한을 넘겨도 다른 사람의 다시보기는
+    // 지우지 않는다. 그 LIVE 녹화를 멈추고, 넘은 동안 다시 켜지 않는다.
+    it('stops a LIVE recording that alone exceeds the cap and keeps the ENDED replays', async () => {
+      const oldest = await seed('ENDED', new Date('2026-11-01T00:00:00Z'));
+      const newer = await seed('ENDED', new Date('2026-11-02T00:00:00Z'));
+      const live = await seed('LIVE');
+      ome.records = [live];
+      await record(oldest, '1_0.mp4', 1000, 40);
+      await record(newer, '1_0.mp4', 1000, 40);
+      await record(live, 'tmp_1', 1000, 40);
+      config.maxBytes = 30;
+      await reconciler.reconcile();
+
+      expect(ome.recordCalls).toEqual([
+        { kind: 'stop', broadcastId: live, statusAtCall: 'LIVE' },
+      ]);
+      expect(ome.records).toEqual([]);
+      expect(await replayIds()).toEqual([newer, oldest]);
+      expect(await filesOf(oldest)).toEqual([`${oldest}/1_0.mp4`]);
+      expect(existsSync(join(config.dir, oldest))).toBe(true);
+      const row = await prisma.broadcast.findUniqueOrThrow({
+        where: { id: live },
+      });
+      expect(row.status).toBe('LIVE');
+
+      await reconciler.reconcile();
+      expect(ome.recordCalls).toHaveLength(1);
+      expect(ome.records).toEqual([]);
+    });
+
+    it('stops a LIVE recording that reaches the per-broadcast size and keeps it stopped', async () => {
+      const big = await seed('LIVE');
+      const small = await seed('LIVE', null, await signUp(app));
+      ome.records = [big, small];
+      await record(big, 'tmp_1', 1000, 20);
+      await record(small, 'tmp_1', 1000, 10);
+      config.perBroadcastMaxBytes = 20;
+      await reconciler.reconcile();
+      expect(ome.records).toEqual([small]);
+
+      await reconciler.reconcile();
+      expect(ome.records).toEqual([small]);
+      expect(ome.recordCalls.map((call) => call.kind)).toEqual(['stop']);
+    });
+
+    it('stops a LIVE recording that has run for the per-broadcast time', async () => {
+      const live = await seed('LIVE');
+      ome.records = [live];
+      await record(live, 'tmp_1', 1000, 10);
+      clock.advance(3 * HOUR - 1);
+      await reconciler.reconcile();
+      expect(ome.records).toEqual([live]);
+
+      clock.advance(1);
+      await reconciler.reconcile();
+      expect(ome.records).toEqual([]);
+      await reconciler.reconcile();
+      expect(ome.records).toEqual([]);
     });
   });
 });
@@ -381,7 +450,12 @@ describe('reconcile timer', () => {
   it('reconciles on its own every interval until the app closes', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'lsp-recordings-'));
     const app = await createTestApp({
-      recordings: { dir, maxBytes: 1024 ** 3 },
+      recordings: {
+        dir,
+        maxBytes: 1024 ** 3,
+        perBroadcastMaxBytes: 1024 ** 3,
+        perBroadcastMaxMs: 3 * 60 * 60 * 1000,
+      },
       reconcileIntervalMs: 20,
     });
     await resetDatabase(app);

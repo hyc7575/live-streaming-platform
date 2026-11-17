@@ -19,6 +19,7 @@ export interface RecordingDir {
 export interface RecordingRow {
   id: string;
   status: BroadcastStatus;
+  startedAt: Date | null;
   endedAt: Date | null;
   recordingFiles: string[];
   recordingStartedAt: Date[];
@@ -33,8 +34,20 @@ export interface RecordingPlan {
   // startedAt은 파일마다 시작 시각 하나를 담는다. 하나라도 모르면 비운다.
   // 파트들에 걸쳐 채팅을 맞추려면 전부 필요하기 때문이다.
   setFiles: { id: string; files: string[]; startedAt: Date[] }[];
-  // 지울 수 있는 디렉터리를 모두 빼고도 상한을 넘는 바이트 수.
+  // 녹화를 멈추고, 멈춘 채로 둘 LIVE 방송들(#209). 디스크와 시각에서
+  // 매 주기 새로 나온다. LIVE 녹화의 크기와 경과 시간은 줄지 않으므로
+  // 한 번 걸린 방송은 LIVE인 동안 계속 걸린다.
+  stopLive: string[];
+  // 계획대로 지운 뒤에도 상한을 넘는 바이트 수.
   overCapBytes: number;
+}
+
+export interface RecordingLimits {
+  // 녹화 폴더 전체의 상한.
+  maxBytes: number;
+  // LIVE 방송 하나의 녹화 크기와 녹화 시간 상한. 넘으면 그 녹화를 멈춘다.
+  perBroadcastMaxBytes: number;
+  perBroadcastMaxMs: number;
 }
 
 // OME는 tmp_<random>에 쓰다가 파일이 완성되면 최종 .mp4로
@@ -47,8 +60,10 @@ const WRITING_PREFIX = 'tmp_';
 export function planRecordings(
   dirs: RecordingDir[],
   rows: RecordingRow[],
-  capBytes: number,
+  limits: RecordingLimits,
+  now: Date,
 ): RecordingPlan {
+  const capBytes = limits.maxBytes;
   const rowById = new Map(rows.map((row) => [row.id, row]));
   const dirById = new Map(dirs.map((dir) => [dir.broadcastId, dir]));
 
@@ -58,14 +73,42 @@ export function planRecordings(
 
   const kept = dirs.filter((dir) => rowById.has(dir.broadcastId));
   let total = kept.reduce((sum, dir) => sum + bytesOf(dir), 0);
-  const evictable = kept
-    .filter((dir) => rowById.get(dir.broadcastId)?.status === 'ENDED')
-    .sort(
-      (a, b) =>
-        endedAtMs(rowById.get(a.broadcastId)) -
-          endedAtMs(rowById.get(b.broadcastId)) ||
-        a.broadcastId.localeCompare(b.broadcastId),
-    );
+  const isEnded = (dir: RecordingDir) =>
+    rowById.get(dir.broadcastId)?.status === 'ENDED';
+  const unevictable = kept.filter((dir) => !isEnded(dir));
+  const unevictableBytes = unevictable.reduce(
+    (sum, dir) => sum + bytesOf(dir),
+    0,
+  );
+
+  // ENDED를 모두 지워도 상한 아래로 못 내려가면 하나도 지우지 않는다.
+  // 그만큼은 LIVE 녹화가 차지한 것이므로, 다른 방송의 다시보기 대신
+  // LIVE 녹화를 멈춘다.
+  const liveOverCap = unevictableBytes > capBytes;
+  const stopLive = unevictable
+    .filter((dir) => {
+      const row = rowById.get(dir.broadcastId);
+      if (row?.status !== 'LIVE') return false;
+      return (
+        liveOverCap ||
+        bytesOf(dir) >= limits.perBroadcastMaxBytes ||
+        (row.startedAt !== null &&
+          now.getTime() - row.startedAt.getTime() >= limits.perBroadcastMaxMs)
+      );
+    })
+    .map((dir) => dir.broadcastId)
+    .sort();
+
+  const evictable = liveOverCap
+    ? []
+    : kept
+        .filter(isEnded)
+        .sort(
+          (a, b) =>
+            endedAtMs(rowById.get(a.broadcastId)) -
+              endedAtMs(rowById.get(b.broadcastId)) ||
+            a.broadcastId.localeCompare(b.broadcastId),
+        );
   const evict: string[] = [];
   for (const dir of evictable) {
     if (total <= capBytes) break;
@@ -102,6 +145,7 @@ export function planRecordings(
     evict,
     remove,
     setFiles,
+    stopLive,
     overCapBytes: Math.max(0, total - capBytes),
   };
 }

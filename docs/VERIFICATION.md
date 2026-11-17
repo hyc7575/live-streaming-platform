@@ -816,6 +816,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -b b-jar.txt -X DELETE $API/comments/$C
    - OME의 녹화 작업 목록과 DB의 `LIVE` 방송을 대조해, `LIVE`가 아닌 방송의 작업은 멈추고 작업이 없는 `LIVE` 방송은 시작한다.
    - 녹화 폴더를 읽어 `ENDED` 방송의 다 쓴 `.mp4` 목록을 `recordingFiles`에 적는다(오래된 파일 먼저). 아직 `tmp_` 파일이 있으면 다음 회차로 미룬다. 폴더가 사라진 방송은 목록을 비운다. 방송이 지워진 폴더는 지운다.
    - 폴더 전체 크기가 `RECORDINGS_MAX_GB`(기본 10, GiB)를 넘으면 오래 전에 끝난 방송의 녹화부터 지운다. DB 목록을 먼저 비우고 폴더를 지우므로 다시보기 목록에 없는 파일이 남지 않는다. `LIVE` 방송의 녹화는 지우지 않는다.
+   - `LIVE` 녹화만으로 상한을 넘으면 `ENDED` 녹화는 하나도 지우지 않고 `LIVE` 녹화 작업을 멈춘다(#209). 방송 하나가 `RECORDINGS_MAX_GB_PER_BROADCAST`(기본 3) 이상 쓰거나 `LIVE`가 된 지 `RECORDINGS_MAX_HOURS_PER_BROADCAST`(기본 3)시간이 지나도 그 방송의 녹화를 멈춘다. 멈춘 방송은 `LIVE`인 동안 녹화를 다시 켜지 않는다. 송출과 시청은 그대로다.
 6. `GET /api/replays`는 `ENDED`이면서 `recordingFiles`가 있는 방송만 늦게 끝난 순으로 준다(최대 100개). 녹화 파일은 같은 출처 `/recordings/<방송 id>/<파일>.mp4`로 재생한다. 운영에서는 Caddy가, 개발에서는 compose의 `recordings` 정적 서버가 내주고 Vite가 `/recordings`를 그리로 넘긴다. Caddy는 `tmp_…`와 `.xml`을 숨기고 Range 요청에 206으로 답한다.
 7. 시청 화면은 `ENDED`이면서 녹화가 있으면 다시보기 플레이어를 띄우고, 그 아래에 "방송이 끝났습니다. 녹화된 방송을 다시 볼 수 있습니다."를 둔다. 시청 중에 방송이 끝난 시청자도 종료를 알 수 있다(T9).
 
