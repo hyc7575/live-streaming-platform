@@ -47,18 +47,19 @@ const INITIAL: MediaState = {
 // 렌더 뒤 재확인마다 값이 달라 렌더가 끝나지 않는다(React #185).
 const snapshots = new WeakMap<HTMLVideoElement, MediaState>();
 
-function refresh(video: HTMLVideoElement): MediaState {
+function refresh(video: HTMLVideoElement, trackTime = true): MediaState {
+  const previous = snapshots.get(video);
   const next: MediaState = {
     paused: video.paused,
     muted: video.muted,
     volume: video.volume,
     ready: video.readyState >= HTMLMediaElement.HAVE_METADATA,
     fullscreen: document.fullscreenElement?.contains(video) ?? false,
-    currentTime: video.currentTime,
+    // 시간을 따라가지 않으면 이전 값을 그대로 둬, timeupdate가 스냅숏을 바꾸지 않는다.
+    currentTime: trackTime ? video.currentTime : (previous?.currentTime ?? 0),
     duration: video.duration,
     playbackRate: video.playbackRate,
   };
-  const previous = snapshots.get(video);
   if (
     previous &&
     (Object.keys(next) as (keyof MediaState)[]).every((key) =>
@@ -71,15 +72,18 @@ function refresh(video: HTMLVideoElement): MediaState {
   return next;
 }
 
+// trackTime을 끄면 currentTime이 바뀌어도 다시 렌더하지 않는다(라이브: 시간 표시가 없다).
+// 이때 snapshot.currentTime은 갱신되지 않으므로 읽지 않는다.
 export function useMediaState(
   videoRef: RefObject<HTMLVideoElement | null>,
+  trackTime = true,
 ): MediaState {
   const subscribe = useCallback(
     (onChange: () => void) => {
       const video = videoRef.current;
       if (!video) return () => {};
       const update = () => {
-        refresh(video);
+        refresh(video, trackTime);
         onChange();
       };
       for (const name of VIDEO_EVENTS) video.addEventListener(name, update);
@@ -93,12 +97,12 @@ export function useMediaState(
         document.removeEventListener('fullscreenchange', update);
       };
     },
-    [videoRef],
+    [videoRef, trackTime],
   );
   const getSnapshot = useCallback(() => {
     const video = videoRef.current;
     if (!video) return INITIAL;
-    return snapshots.get(video) ?? refresh(video);
-  }, [videoRef]);
+    return snapshots.get(video) ?? refresh(video, trackTime);
+  }, [videoRef, trackTime]);
   return useSyncExternalStore(subscribe, getSnapshot);
 }
