@@ -78,14 +78,6 @@ export function DeleteBroadcast({ broadcastId }: { broadcastId: string }) {
             </p>
             <div className={styles.row}>
               <button
-                type="button"
-                className={buttons.danger}
-                disabled={busy}
-                onClick={() => void run()}
-              >
-                삭제하기
-              </button>
-              <button
                 ref={cancel}
                 type="button"
                 className={buttons.button}
@@ -93,6 +85,14 @@ export function DeleteBroadcast({ broadcastId }: { broadcastId: string }) {
                 onClick={() => setConfirming(false)}
               >
                 취소
+              </button>
+              <button
+                type="button"
+                className={buttons.danger}
+                disabled={busy}
+                onClick={() => void run()}
+              >
+                삭제하기
               </button>
             </div>
           </div>
