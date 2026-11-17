@@ -392,6 +392,35 @@ it('offers no end before the broadcast has started', async () => {
   expect(screen.queryByRole('button', { name: '방송 종료' })).toBeNull();
 });
 
+it('송출을 시작하기 전에는 확인을 거쳐 방송을 삭제하고 내 방송으로 간다', async () => {
+  const { calls } = renderPage({
+    'DELETE /api/broadcasts/b1': 204,
+    'GET /api/me/broadcasts': { status: 200, body: [] },
+  });
+  fireEvent.click(await screen.findByRole('button', { name: '방송 삭제' }));
+  expect(calls).not.toContain('DELETE /api/broadcasts/b1');
+
+  fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
+  expect(await screen.findByRole('heading', { name: '내 방송' })).toBeDefined();
+  expect(calls).toContain('DELETE /api/broadcasts/b1');
+});
+
+it('삭제 확인에서 취소하면 방송을 지우지 않는다', async () => {
+  const { calls } = renderPage({});
+  fireEvent.click(await screen.findByRole('button', { name: '방송 삭제' }));
+  fireEvent.click(screen.getByRole('button', { name: '취소' }));
+  expect(screen.getByRole('button', { name: '방송 삭제' })).toBeDefined();
+  expect(calls).not.toContain('DELETE /api/broadcasts/b1');
+});
+
+it('송출 중에는 삭제를 보이지 않는다', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+  });
+  await goLive(page);
+  expect(screen.queryByRole('button', { name: '방송 삭제' })).toBeNull();
+});
+
 it('shows the API’s 409 message and keeps the preview', async () => {
   renderPage({
     'POST /api/broadcasts/b1/publish-token': {

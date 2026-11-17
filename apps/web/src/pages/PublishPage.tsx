@@ -28,6 +28,7 @@ import type {
 } from '../capture/cameraCapture';
 import type { PcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
+import { DeleteBroadcast } from '../components/DeleteBroadcast';
 import { DonationToasts } from '../components/DonationToasts';
 import { BrowserNotice, PcPreflight } from '../components/PcPreflight';
 import { PermissionGuide } from '../components/PermissionGuide';
@@ -416,6 +417,9 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
                 />
               }
             />
+            {broadcast.status === 'READY' && session.state.kind === 'idle' && (
+              <DeleteBroadcast broadcastId={broadcast.id} />
+            )}
           </div>
         </div>
         <PublishSidePanel
