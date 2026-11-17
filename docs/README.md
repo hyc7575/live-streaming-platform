@@ -31,7 +31,7 @@
 | 기능 | 우선순위 | 폴더 안 문서 |
 |---|---|---|
 | [인증](./features/auth/) | P0 | README, SCENARIOS |
-| [방송 관리](./features/broadcast-management/) | P0 | README, SCENARIOS |
+| [방송 관리](./features/broadcast-management/) | P0 | README, SCENARIOS, STORIES-ready-cap, STORIES-publish-delete |
 | [송출](./features/publish/) (PC·모바일·OBS·사전 점검) | P0 | README, SCENARIOS |
 | [시청](./features/watch/) | P0 | README, SCENARIOS, STORIES-ios-hls, STORIES-live-display-delay |
 | [댓글](./features/comments/) | P1 | README |

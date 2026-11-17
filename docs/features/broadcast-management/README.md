@@ -19,7 +19,7 @@
 | #7 | #31 | 방송 수정·삭제와 인가 매트릭스 자동 테스트 |
 | #74 | #80 | 방송을 만든 뒤 송출 화면으로 바로 간다 |
 | #64 | #65 | 방송 목록 안 검색 (뒤에 [search](../search/)로 대체) |
-| #252 | (이 PR) | LIVE 전 방송을 송출 화면에서 바로 삭제한다 (`DeleteBroadcast`) |
+| #252 | #253 | LIVE 전 방송을 송출 화면에서 바로 삭제한다. "시청 화면 열기" 옆 버튼, 확인은 모달 (`DeleteBroadcast`, [STORIES-publish-delete](./STORIES-publish-delete.md)) |
 | #212 | #220 | 사용자당 방송 준비 중 상한(처음 10개, 사용자 결정으로 20개), 넘으면 409와 안내 문구 ([STORIES-ready-cap](./STORIES-ready-cap.md)) |
 
 ## 코드
@@ -31,7 +31,7 @@
 
 ## 확인
 
-- 시나리오: [SCENARIOS.md](./SCENARIOS.md) (기기별 체크리스트), 방송 준비 중 상한은 [SCENARIOS-ready-cap.md](./SCENARIOS-ready-cap.md)
+- 시나리오: [SCENARIOS.md](./SCENARIOS.md) (기기별 체크리스트), 방송 준비 중 상한은 [SCENARIOS-ready-cap.md](./SCENARIOS-ready-cap.md), 송출 화면 삭제는 [SCENARIOS-publish-delete.md](./SCENARIOS-publish-delete.md)
 - 인수 시나리오: `PRD.md` §8.3 1, 2-1, 4, 7
 - 수동 확인 절차: [`docs/VERIFICATION.md`](../../VERIFICATION.md)의 1절, 2절
 
