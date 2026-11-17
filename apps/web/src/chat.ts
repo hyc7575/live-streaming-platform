@@ -16,6 +16,10 @@ export const CHAT_MAX_LENGTH = 200;
 // API의 CHAT_PAGE_LIMIT이다. 이만큼 꽉 찬 페이지 뒤에는 더 있을 수 있다.
 export const CHAT_PAGE_LIMIT = 200;
 
+// 화면이 들고 있거나 그리는 메시지 수의 상한이다(#213). 도배가 와도
+// 목록이 끝없이 길어지지 않는다.
+export const CHAT_HELD_LIMIT = 200;
+
 // 화면의 메시지다. API의 (createdAt, id) 순서이고 같은 id는
 // 두 번 없다. `cursor`는 다음 폴링의 `after`다. 정렬상 그 이하인
 // 메시지는 모두 폴링으로 받았다. 시청자가 직접 쓴 글은 목록에 들어가도
@@ -58,4 +62,11 @@ export function chatFeed(feed: ChatFeed, action: ChatFeedAction): ChatFeed {
     case 'added':
       return { ...feed, messages: merge(feed.messages, [action.message]) };
   }
+}
+
+// 가장 최근 `limit`개만 남긴다. cursor는 옮기지 않는다. 버린 메시지는 모두
+// cursor 이하라서 다음 폴링이 다시 가져오지 않는다.
+export function keepLatest(feed: ChatFeed, limit: number): ChatFeed {
+  if (feed.messages.length <= limit) return feed;
+  return { ...feed, messages: feed.messages.slice(-limit) };
 }

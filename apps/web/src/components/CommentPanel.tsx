@@ -114,7 +114,10 @@ function CommentForm({
       setError(
         err instanceof ApiError && err.status === 404
           ? '방송을 찾을 수 없어 댓글을 남기지 못했습니다.'
-          : '댓글을 등록하지 못했습니다. 다시 시도해 주세요.',
+          : err instanceof ApiError && err.status === 429
+            ? // 한 계정이 짧은 시간에 너무 많이 쓰면 API가 막는다(#213).
+              '댓글을 너무 빠르게 남기고 있습니다. 잠시 후 다시 남겨 주세요.'
+            : '댓글을 등록하지 못했습니다. 다시 시도해 주세요.',
       );
     } finally {
       setBusy(false);

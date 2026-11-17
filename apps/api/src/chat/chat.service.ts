@@ -13,6 +13,10 @@ export const CHAT_MAX_LENGTH = 200;
 // 클라이언트는 마지막 id로 바로 다시 묻는다.
 export const CHAT_PAGE_LIMIT = 200;
 
+// 처음 들어온 시청자가 받는 최근 메시지 수(#213). 그 앞의 기록은
+// 실시간 화면에서 다시 받지 않는다.
+export const CHAT_LATEST_LIMIT = 50;
+
 export const CHAT_ENDED_MESSAGE =
   '끝난 방송에는 채팅을 보낼 수 없습니다. 댓글을 남겨 주세요.';
 
@@ -66,6 +70,18 @@ export class ChatService {
       take: CHAT_PAGE_LIMIT,
       select: chatSelect,
     });
+  }
+
+  // 가장 최근 메시지 `CHAT_LATEST_LIMIT`개를 (createdAt, id) 순서로.
+  async latest(broadcastId: string): Promise<ChatMessageView[]> {
+    await this.broadcasts.get(broadcastId);
+    const newest = await this.prisma.chatMessage.findMany({
+      where: { broadcastId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: CHAT_LATEST_LIMIT,
+      select: chatSelect,
+    });
+    return newest.reverse();
   }
 
   async create(

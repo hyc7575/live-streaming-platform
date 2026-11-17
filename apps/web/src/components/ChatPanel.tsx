@@ -1,12 +1,12 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
-import { CHAT_MAX_LENGTH, type ChatMessage } from '../chat';
+import { CHAT_HELD_LIMIT, CHAT_MAX_LENGTH, type ChatMessage } from '../chat';
 import { formatDonationAmount } from '../donations';
 import type { LoginPageState } from '../pages/LoginPage';
 import { chatUpTo, type Playhead } from '../replay-chat';
-import { useChatFeed } from '../use-chat-feed';
+import { useChatFeed, useChatHistory } from '../use-chat-feed';
 import { useLoginRedirect } from '../use-login-redirect';
 import { useStickToBottom } from '../use-stick-to-bottom';
 import styles from './SidePanel.module.css';
@@ -14,6 +14,11 @@ import styles from './SidePanel.module.css';
 // 다른 시청자의 메시지는 1초 안에 보인다(PRD §8.2: push가 아니라 폴링).
 // 폴링마다 지난번 이후에 온 것만 요청한다.
 const CHAT_POLL_MS = 1000;
+
+// 한 계정이 짧은 시간에 너무 많이 보내면 API가 429로 막는다(#213).
+// 초안은 그대로 남아 잠시 뒤 다시 보낼 수 있다.
+export const CHAT_TOO_FAST_MESSAGE =
+  '채팅을 너무 빠르게 보내고 있습니다. 잠시 후 다시 보내 주세요.';
 
 const timeFormat = new Intl.DateTimeFormat('ko-KR', {
   month: 'numeric',
@@ -86,7 +91,10 @@ export function ChatPanel({ broadcastId }: { broadcastId: string }) {
 
 // 끝난 방송의 채팅을 오래된 순으로, 읽기 전용으로 보여 준다. 다시보기가
 // 재생되는 동안에는 생방송을 보듯 그 시점까지 보낸 것만 보여 준다.
-// 재생 위치나 파트 시작 시각이 없으면 전부 보여 준다.
+// 채팅은 처음부터 한 페이지씩 받는다(#213). 재생 위치가 받은 메시지 끝에
+// 닿으면 다음 페이지를 받는다. 재생 위치나 파트 시작 시각이 없으면 받은
+// 것을 모두 보여 주고 "채팅 더 보기"로 이어 받는다. 그리는 줄은 마지막
+// `CHAT_HELD_LIMIT`개다.
 export function ChatHistory({
   broadcastId,
   partStarts,
@@ -96,15 +104,19 @@ export function ChatHistory({
   partStarts: number[] | null;
   playhead: Playhead | null;
 }) {
-  const { messages, status } = useChatFeed(broadcastId, { pollMs: null });
-  const shown =
-    partStarts && playhead
-      ? chatUpTo(messages, partStarts, playhead)
-      : messages;
+  const { messages, status, more, loadMore } = useChatHistory(broadcastId);
+  const synced = partStarts !== null && playhead !== null;
+  const reached = synced ? chatUpTo(messages, partStarts, playhead) : messages;
+  // 재생이 받은 메시지를 모두 지나쳤으면 다음 페이지가 필요하다.
+  const caughtUp = synced && reached.length === messages.length;
+  useEffect(() => {
+    if (caughtUp && more) loadMore();
+  }, [caughtUp, more, loadMore]);
+  const shown = reached.slice(-CHAT_HELD_LIMIT);
   // 재생 위치는 1초에 여러 번 움직인다. 보이는 내용이 바뀔 때만
   // 스크롤을 옮겨야 한다.
   const { listRef, onScroll } = useStickToBottom<HTMLOListElement>(
-    shown.length,
+    shown.at(-1)?.id,
   );
   if (status === 'failed') {
     return <p className={styles.empty}>채팅 기록을 불러오지 못했습니다.</p>;
@@ -116,15 +128,22 @@ export function ChatHistory({
     return <p className={styles.empty}>이 장면까지 오간 채팅이 없습니다.</p>;
   }
   return (
-    <ol
-      ref={listRef}
-      className={`${styles.list} ${styles.chatList}`}
-      onScroll={onScroll}
-    >
-      {shown.map((m) => (
-        <ChatLine key={m.id} message={m} />
-      ))}
-    </ol>
+    <>
+      <ol
+        ref={listRef}
+        className={`${styles.list} ${styles.chatList}`}
+        onScroll={onScroll}
+      >
+        {shown.map((m) => (
+          <ChatLine key={m.id} message={m} />
+        ))}
+      </ol>
+      {!synced && more && (
+        <button type="button" className={styles.textButton} onClick={loadMore}>
+          채팅 더 보기
+        </button>
+      )}
+    </>
   );
 }
 
@@ -163,7 +182,9 @@ function ChatForm({
           ? err.serverMessage
           : err instanceof ApiError && err.status === 404
             ? '방송을 찾을 수 없어 채팅을 보내지 못했습니다.'
-            : '채팅을 보내지 못했습니다. 다시 시도해 주세요.',
+            : err instanceof ApiError && err.status === 429
+              ? CHAT_TOO_FAST_MESSAGE
+              : '채팅을 보내지 못했습니다. 다시 시도해 주세요.',
       );
     } finally {
       setBusy(false);

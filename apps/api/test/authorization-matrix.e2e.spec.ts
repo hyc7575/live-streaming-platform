@@ -18,6 +18,7 @@ import { seedGames } from '../src/games/seed-games.js';
 import {
   createTestApp,
   resetDatabase,
+  resetThrottles,
   signUpAndLogIn,
   thumbnailsDirOf,
   type TestUser,
@@ -857,6 +858,9 @@ describe('authorization matrix (PRD §7.5)', () => {
   // 직접 써 넣어서, 송출 흐름을 거치지 않고도 어떤 상태든
   // insert 한 번으로 만든다.
   async function seed(status: BroadcastStatus): Promise<void> {
+    // 같은 두 사용자가 파일 내내 채팅·댓글을 보내므로 사용자별 한도를
+    // 비운다(#213). 한도 자체는 chat·comments e2e가 확인한다.
+    resetThrottles(app);
     // 방송을 지워도 더는 후원이 지워지지 않으므로(#114),
     // 후원을 따로 지운다.
     await prisma.donation.deleteMany();

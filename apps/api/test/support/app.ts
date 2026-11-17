@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
+import { ThrottlerStorage, ThrottlerStorageService } from '@nestjs/throttler';
 import request from 'supertest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { expect } from 'vitest';
@@ -139,6 +140,18 @@ export async function resetDatabase(
   if (rows.length === 0) return;
   const tables = rows.map((r) => `"${r.tablename}"`).join(', ');
   await prisma.$executeRawUnsafe(`TRUNCATE ${tables} CASCADE`);
+}
+
+// 모듈마다 둔 throttler 저장소를 모두 비운다. 사용자별 한도(#213)는
+// IP를 바꿔 피할 수 없어서, 같은 사용자를 파일 내내 쓰는 테스트가 부른다.
+export function resetThrottles(app: NestExpressApplication): void {
+  const stores = app.get<ThrottlerStorage, ThrottlerStorage>(ThrottlerStorage, {
+    strict: false,
+    each: true,
+  });
+  for (const store of stores) {
+    if (store instanceof ThrottlerStorageService) store.onApplicationShutdown();
+  }
 }
 
 let clientCounter = 0;

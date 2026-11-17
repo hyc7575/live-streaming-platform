@@ -199,9 +199,9 @@ stateDiagram-v2
 | OME 송출 연결 (Webhook 판정) | 거절 | 거절 | 허용 (READY, 또는 LIVE + 유예 중 재접속) |
 | 스트림 키 조회·재발급 (P3, `Channel` 추가 시) | 401 | 403 | 허용 |
 | 채팅 조회 (`GET /api/broadcasts/:id/chat`) | 허용 | 허용 | 허용 |
-| 채팅 작성 (`POST /api/broadcasts/:id/chat`) | 401 | 허용 (READY·LIVE만, ENDED 409) | 허용 (READY·LIVE만, ENDED 409) |
+| 채팅 작성 (`POST /api/broadcasts/:id/chat`) | 401 | 허용 (READY·LIVE만, ENDED 409, 계정마다 10초 10개 넘으면 429, #213) | 허용 (READY·LIVE만, ENDED 409, 계정마다 10초 10개 넘으면 429, #213) |
 | 채팅 수정·삭제 | 없음 (404) | 없음 (404) | 없음 (404) |
-| 댓글 작성 (P1) | 401 | 허용 (ENDED만, READY·LIVE 409) | 허용 (ENDED만, READY·LIVE 409) |
+| 댓글 작성 (P1) | 401 | 허용 (ENDED만, READY·LIVE 409, 계정마다 60초 5개 넘으면 429, #213) | 허용 (ENDED만, READY·LIVE 409, 계정마다 60초 5개 넘으면 429, #213) |
 | 댓글 수정·삭제 (P1) | 401 | 작성자만 | 작성자만 |
 | 후원 (P2, 직접결제·라임 공통) | 401 | 허용 (LIVE만, 아니면 409) | 403 (자기 방송 후원 거절) |
 | 라임 충전·잔액 조회 (P2, `POST /api/lime/charges`, `GET /api/me/lime`) | 401 | 내 것만 | — |

@@ -90,7 +90,7 @@ function stubApi(options: {
     if (key === 'GET /api/broadcasts/b1/donations') {
       return json({ total: 0, count: 0, donations: [], ranking: [] });
     }
-    if (key === 'GET /api/broadcasts/b1/chat') return json([]);
+    if (key === 'GET /api/broadcasts/b1/chat?latest=true') return json([]);
     const follow = /^(PUT|DELETE) \/api\/streamers\/([^/]+)\/follow$/.exec(key);
     if (follow) {
       if (options.failFollow) return status(500);

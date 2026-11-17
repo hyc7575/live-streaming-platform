@@ -112,7 +112,7 @@ it('opens the login page when sending chat answers 401, then returns to the broa
     'GET /api/auth/me': viewer,
     'GET /api/me/follows': [],
     'GET /api/broadcasts/b1': { ...endedBroadcast, status: 'LIVE' },
-    'GET /api/broadcasts/b1/chat': [],
+    'GET /api/broadcasts/b1/chat?latest=true': [],
     'POST /api/broadcasts/b1/chat': 401,
     'POST /api/auth/login': viewer,
   });

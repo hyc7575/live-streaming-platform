@@ -2,6 +2,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { COMMENT_RATE_LIMIT } from '../src/comments/comments.controller.js';
 import {
   COMMENT_LIST_LIMIT,
   COMMENT_MAX_LENGTH,
@@ -63,6 +64,18 @@ describe('comments', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  // 한 계정이 댓글로 목록을 덮지 못한다(#213).
+  it('answers 429 once one account exceeds the comment limit, without slowing another account', async () => {
+    for (let i = 0; i < COMMENT_RATE_LIMIT.limit; i += 1) {
+      expect((await post(viewer.agent, { body: `댓글 ${i}` })).status).toBe(
+        201,
+      );
+    }
+    expect((await post(viewer.agent, { body: '하나 더' })).status).toBe(429);
+    expect(await prisma.comment.count()).toBe(COMMENT_RATE_LIMIT.limit);
+    expect((await post(streamer.agent, { body: '저는요' })).status).toBe(201);
   });
 
   it('lists comments oldest first with the author’s nickname, never the email', async () => {
