@@ -1,0 +1,36 @@
+# #216 내장 TURN 중계 실험. 외부로 나가지 못하는 internal 네트워크만 쓴다.
+# 실행: docker compose -p lsp216 up -d ome listener && docker compose -p lsp216 run --rm client
+# 판정: docker compose -p lsp216 logs listener 에 [tcp]·[udp] 수신 줄이 없으면 중계하지 않는 것이다.
+# 정리: docker compose -p lsp216 --profile run down -v
+name: lsp216
+networks:
+  isolated:
+    internal: true
+services:
+  ome:
+    image: ovenmedialabs/ovenmediaengine:v0.21.0
+    networks: [isolated]
+    environment:
+      OME_HOST_IP: '*'
+      OME_WEBRTC_SIGNALLING_PORT: '4333'
+      OME_LLHLS_STREAM_PORT: '4333'
+      OME_WEBRTC_CANDIDATE_PORT: 11000-11003/udp
+      OME_WEBRTC_TCP_ICE_PORT: 11000/tcp
+      OME_WEBRTC_TCP_RELAY_PORT: '4478'
+      OME_API_PORT: '8082'
+      OME_WEBHOOK_URL: http://listener:3000/api/ome/admission
+      OME_WEBHOOK_SECRET: dummy
+      OME_API_ACCESS_TOKEN: dummy
+    volumes:
+      - ../../ome/Server.xml:/opt/ovenmediaengine/bin/origin_conf/Server.xml:ro
+  listener:
+    image: node:22.20.0-bookworm-slim
+    networks: [isolated]
+    volumes: [./listener.js:/app/listener.js:ro]
+    command: ['node', '/app/listener.js']
+  client:
+    image: node:22.20.0-bookworm-slim
+    networks: [isolated]
+    volumes: [./turnclient.js:/app/turnclient.js:ro]
+    profiles: [run]
+    command: ['node', '/app/turnclient.js', 'ome', '4478', 'listener']
