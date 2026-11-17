@@ -1,4 +1,4 @@
-# 로컬 개발용. 운영 배포 compose는 서버 작업(S5)에서 따로 둔다.
+# 로컬 개발용. 운영 배포 compose는 deploy/compose.yaml에 있다.
 name: lsp
 
 services:

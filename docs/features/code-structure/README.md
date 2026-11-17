@@ -29,7 +29,7 @@
 - 방송 상태 전이: `apps/api/src/publish/`, `apps/api/src/broadcasts/broadcasts.service.ts`(S3 뒤 바뀐다)
 - Toss 확정: `apps/api/src/donations/donations.service.ts`, `apps/api/src/lime/lime.service.ts`, `apps/api/src/donations/toss-approval.ts`
 - 송출 주체 판정: `apps/web/src/pages/PublishPage.tsx`
-- 결제 완료 알림: `apps/web/src/pages/DonationSuccessPage.tsx`, `LimeChargeSuccessPage.tsx`, `apps/web/src/donation/donationChannel.ts`, `paymentFrame.ts`
+- 결제 완료 알림: `apps/web/src/pages/DonationSuccessPage.tsx`, `LimeChargeSuccessPage.tsx`, `apps/web/src/donation/paymentNotice.ts`, `paymentFrame.ts`
 
 ## 확인 방법
 
