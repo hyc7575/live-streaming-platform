@@ -299,6 +299,8 @@ git config core.hooksPath .githooks
 
 ## 향후 과제
 
+- iOS 17.0 이하 iPhone 재생. OME(v0.21.0)는 비디오를 트랜스코딩 없이 넘길 때 LL-HLS 비디오 플레이리스트에 `PART-TARGET=0`을 써서, iOS 네이티브 HLS가 플레이리스트를 거부한다. 지금은 iOS 17.1+를 hls.js로 보내 피했다(#246). OME 쪽 설정(트랜스코딩 등)으로 고치면 오래된 iPhone도 재생할 수 있을지 모르지만, 확인하지 않았고 운영 재배포가 필요하다.
+- 송출 직후 연 시청자의 지연. 첫 플레이리스트가 짧을 때 hls.js가 맨 앞부터 재생해 라이브 끝보다 약 16초 뒤처지고 1배속이라 따라잡지 못한다(#248 측정). hls.js의 라이브 동기화 설정(`liveSyncDuration`, `maxLiveSyncPlaybackRate`)으로 다룰 수 있다.
 - 채널 스트림 키(치지직·트위치 방식)로 OBS 송출. 지금은 방송마다 WHIP URL을 발급한다(#89). OME 스트림 이름이 곧 방송 ID라서 녹화·재생·정리가 모두 이 전제에 기대고 있다. 고정 키를 쓰려면 Admission Webhook의 `new_url`로 스트림 이름을 바꿔야 하는데 WHIP에서 동작하는지 확인되지 않았고, READY 방송이 여럿일 때 키를 어느 방송으로 보낼지도 정해야 한다(PRD §8.2).
 
 ## 운영 배포
