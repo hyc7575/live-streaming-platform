@@ -20,7 +20,7 @@
 | [OPERATIONS.md](./OPERATIONS.md) | 운영 배포, 복구, 백업 |
 | [VERIFICATION.md](./VERIFICATION.md) | 기능별 동작 규칙, 자동 테스트, 로컬 확인 절차. 루트 README에서 옮겼다. 본문의 "N절"은 이 문서의 번호다 |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | API 테스트 DB, 여러 worktree 동시 실행 |
-| [adr/](./adr/) | 되돌리기 어려운 결정 |
+| [adr/](./adr/) | 되돌리기 어려운 결정. 그 밖의 기술 결정과 이유는 [PRD.md](./PRD.md) §7.2·§7.10과 기능별 PRD에 있다 |
 | [agents/](./agents/) | 에이전트 스킬 설정 |
 | [architecture/system-overview.html](./architecture/system-overview.html) | 운영 구성도(Caddy·API·OME·PostgreSQL·호스트 폴더·토스). 브라우저로 연다. 노드마다 근거 코드 줄이 붙어 있다 |
 | `private/` | 공모 원문 등 gitignore 대상 |
