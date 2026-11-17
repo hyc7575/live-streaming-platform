@@ -238,6 +238,51 @@ describe('broadcast thumbnails', () => {
     expect((await upload(other.agent, second)).status).toBe(204);
   });
 
+  // #210: Postgres uuid는 대소문자를 가리지 않고 찾으므로, id 원문을 키로
+  // 쓰면 대소문자 변형마다 버킷과 폴더가 따로 생긴다. macOS 기본 파일
+  // 시스템은 대소문자를 가리지 않아 폴더가 겹쳐 보이지만, 운영(Linux)에서는
+  // 따로 남는다. 그래서 폴더 이름까지 소문자인지 본다.
+  describe('an upper-case id', () => {
+    // 다른 테스트가 남긴 폴더는 빼고, 이 방송의 대소문자 변형만 본다.
+    const foldersOf = async (id: string) =>
+      (await readdir(dir).catch(() => [])).filter(
+        (name) => name.toLowerCase() === id,
+      );
+
+    it('shares the 10 s bucket with the canonical id', async () => {
+      const id = await seed('LIVE');
+      expect((await upload(ownerAgent, id)).status).toBe(204);
+      expect((await upload(ownerAgent, id.toUpperCase())).status).toBe(429);
+    });
+
+    it('writes into the canonical folder only', async () => {
+      const id = await seed('LIVE');
+      expect((await upload(ownerAgent, id.toUpperCase())).status).toBe(204);
+      expect(existsSync(join(dir, id, 'live.jpg'))).toBe(true);
+      expect(await foldersOf(id)).toEqual([id]);
+    });
+
+    it.each([
+      ['upper-case upload, canonical delete', true, false],
+      ['canonical upload, upper-case delete', false, true],
+    ])('leaves no thumbnail folder after %s', async (_, upUpper, delUpper) => {
+      const id = await seed('LIVE');
+      const as = (upper: boolean) => (upper ? id.toUpperCase() : id);
+      expect((await upload(ownerAgent, as(upUpper))).status).toBe(204);
+      expect(
+        (await ownerAgent.delete(`/api/broadcasts/${as(delUpper)}`)).status,
+      ).toBe(204);
+      expect(await foldersOf(id)).toEqual([]);
+    });
+
+    it('finds the broadcast and answers with the canonical id', async () => {
+      const id = await seed('READY');
+      const res = await anonymous().get(`/api/broadcasts/${id.toUpperCase()}`);
+      expect(res.status).toBe(200);
+      expect((res.body as BroadcastView).id).toBe(id);
+    });
+  });
+
   describe('deleting the broadcast', () => {
     it.each<BroadcastStatus>(['LIVE', 'ENDED'])(
       'removes the thumbnail folder of a broadcast deleted while %s',

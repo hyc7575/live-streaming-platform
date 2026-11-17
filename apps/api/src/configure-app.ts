@@ -4,6 +4,7 @@ import {
   sessionMiddleware,
   type SessionSettings,
 } from './auth/session.js';
+import { canonicalBroadcastId } from './broadcasts/canonical-broadcast-id.js';
 
 export function sessionSettingsFromEnv(
   env: NodeJS.ProcessEnv = process.env,
@@ -24,4 +25,5 @@ export function configureApp(
   // https를 알아보고(그래서 Secure 쿠키를 발급한다) 클라이언트 IP도 본다(rate limit용).
   app.set('trust proxy', 1);
   app.use(sessionMiddleware(app.get(SESSION_STORE), session));
+  app.use(canonicalBroadcastId);
 }

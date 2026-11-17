@@ -8,6 +8,8 @@
 ## 문서
 
 - [STRATEGY.md](./STRATEGY.md)
+- [STORIES-id-normalization.md](./STORIES-id-normalization.md): 방송 id 대소문자 정규화 수락 기준 (#210)
+- [SCENARIOS-id-normalization.md](./SCENARIOS-id-normalization.md): 그 시나리오
 
 ## 요구사항 위치
 
@@ -20,16 +22,19 @@
 | #61 | #66 | 목록 카드 기본 그림·방송 전 안내·경과 시간 |
 | #62 | #72 | 송출 화면 캡처 썸네일 |
 | #63 | #79 | 기본 대기 이미지 (구현은 [channel-settings](../channel-settings/)) |
+| #210 | (이 PR) | 방송 id 대소문자 변형으로 rate 제한 우회·고아 썸네일 폴더 |
 
 ## 코드
 
 - api: `apps/api/src/broadcasts/thumbnail-rate.guard.ts`
+- api: `apps/api/src/broadcasts/canonical-broadcast-id.ts` (`configureApp`에서 등록, 가드 전에 `/api/broadcasts/<uuid>`를 소문자로)
 - web: `apps/web/src/publish/thumbnailCapture.ts`
 - web: `apps/web/src/components/BroadcastThumbnail.tsx`, `ElapsedTime.tsx`
 
 ## 확인
 
 - 인수 시나리오: §8.3에는 썸네일 전용 시나리오가 없다
+- id 정규화 시나리오: [SCENARIOS-id-normalization.md](./SCENARIOS-id-normalization.md)
 - 수동 확인 절차: [`docs/VERIFICATION.md`](../../VERIFICATION.md)의 "목록 카드 기본 그림…", "송출 화면 캡처 썸네일", "기본 대기 이미지"
 
 ## 관련 기능
