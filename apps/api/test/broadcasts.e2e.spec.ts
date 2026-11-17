@@ -462,8 +462,9 @@ describe('broadcasts', () => {
       await seed(victim, '피해 준비', 'READY', undefined, ago(60_000));
       await seed(victim, '피해 종료', 'ENDED');
       // 다른 스트리머들의 종료 방송이 목록을 거의 채운 배포를 흉내 낸다.
+      // 스팸이 상한까지 차도 모두 100행 안에 든다(1 + 1 + 20 + 1 + 70 = 93).
       await prisma.broadcast.createMany({
-        data: Array.from({ length: 80 }, (_, i) => ({
+        data: Array.from({ length: 70 }, (_, i) => ({
           streamerId: victim.id,
           title: `옛 종료 ${i}`,
           status: 'ENDED' as const,
