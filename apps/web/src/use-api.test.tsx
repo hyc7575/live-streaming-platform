@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as ApiModule from './api';
 import { ApiError } from './api';
 import { advanceClock, eventually, useFakeClock } from './testing/fakeClock';
 import { POLL_TIMEOUT_MS, usePolledApi, type Loadable } from './use-api';
@@ -15,7 +16,7 @@ const pending: Pending[] = [];
 
 // 실제 fetch처럼 signal이 끊기면 AbortError로 끝난다.
 vi.mock('./api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./api')>();
+  const actual = await importOriginal<typeof ApiModule>();
   return {
     ...actual,
     apiFetch: (path: string, init?: RequestInit) =>

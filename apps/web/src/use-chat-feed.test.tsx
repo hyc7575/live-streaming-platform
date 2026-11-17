@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as ApiModule from './api';
 import { advanceClock, useFakeClock } from './testing/fakeClock';
 import { CHAT_PAGE_LIMIT, type ChatMessage } from './chat';
 import { useChatFeed, useChatHistory } from './use-chat-feed';
@@ -15,7 +16,7 @@ type Pending = {
 const pending: Pending[] = [];
 
 vi.mock('./api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./api')>();
+  const actual = await importOriginal<typeof ApiModule>();
   return {
     ...actual,
     apiFetch: (path: string, init?: RequestInit) =>
