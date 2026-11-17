@@ -49,5 +49,6 @@
 | [검색](./features/search/) | P2 | README, DISCOVERY, PRD |
 | [코드 구조 개선](./features/code-structure/) | – | README, STORIES, PRE-MORTEM-payment-confirm |
 | [web 성능 개선](./features/web-performance/) | – | README, STORIES |
+| [API 운영 품질 개선](./features/api-hardening/) | – | README, STORIES |
 
 운영(자동 재기동, 감시, 백업)은 사용자 기능이 아니라서 [OPERATIONS.md](./OPERATIONS.md)에 둔다.
