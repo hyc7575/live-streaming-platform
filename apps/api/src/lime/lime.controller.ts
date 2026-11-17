@@ -10,10 +10,8 @@ import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
-import {
-  CONFIRM_RATE_LIMIT,
-  UserThrottlerGuard,
-} from '../donations/confirm-gate.js';
+import { UserThrottlerGuard } from '../auth/user-throttler.guard.js';
+import { CONFIRM_RATE_LIMIT } from '../donations/confirm-gate.js';
 import { ZodBodyPipe } from '../zod-body.pipe.js';
 import {
   LIME_CHARGE_MAX_AMOUNT,

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module.js';
 import { BroadcastsModule } from './broadcasts/broadcasts.module.js';
 import { ChannelModule } from './channel/channel.module.js';
@@ -18,6 +19,9 @@ import { SearchModule } from './search/search.module.js';
 
 @Module({
   imports: [
+    // 요청 제한 설정은 여기 한 곳에만 둔다. 라우트마다 @Throttle로 자기 한도를
+    // 정하므로 이 기본값은 쓰이지 않는다.
+    ThrottlerModule.forRoot([{ limit: 100, ttl: 60_000 }]),
     DatabaseModule,
     ClockModule,
     AuthModule,
