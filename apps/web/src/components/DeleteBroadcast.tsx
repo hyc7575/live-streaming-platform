@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import type { LoginPageState } from '../pages/LoginPage';
-import styles from './OwnerActions.module.css';
+import buttons from './OwnerActions.module.css';
+import styles from './DeleteBroadcast.module.css';
 
 // 송출을 시작하기 전(READY)에 송출 화면에서 방송을 지운다. LIVE 방송의
 // 종료와 삭제는 시청 화면의 OwnerActions가 맡는다. 호출자가 이 컨트롤을
@@ -43,44 +44,40 @@ export function DeleteBroadcast({ broadcastId }: { broadcastId: string }) {
   }
 
   return (
-    <div className={styles.actions}>
+    <div className={styles.root}>
       {confirming ? (
         <div className={styles.confirm} role="group" aria-label="삭제 확인">
-          <p className={styles.confirmText}>
+          <span className={styles.text}>
             이 방송을 삭제할까요? 삭제하면 되돌릴 수 없습니다.
-          </p>
-          <div className={styles.row}>
-            <button
-              type="button"
-              className={styles.danger}
-              disabled={busy}
-              onClick={() => void run()}
-            >
-              삭제하기
-            </button>
-            <button
-              type="button"
-              className={styles.button}
-              disabled={busy}
-              onClick={() => setConfirming(false)}
-            >
-              취소
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className={styles.row}>
+          </span>
           <button
             type="button"
-            className={styles.button}
-            onClick={() => setConfirming(true)}
+            className={buttons.danger}
+            disabled={busy}
+            onClick={() => void run()}
           >
-            방송 삭제
+            삭제하기
+          </button>
+          <button
+            type="button"
+            className={buttons.button}
+            disabled={busy}
+            onClick={() => setConfirming(false)}
+          >
+            취소
           </button>
         </div>
+      ) : (
+        <button
+          type="button"
+          className={buttons.button}
+          onClick={() => setConfirming(true)}
+        >
+          방송 삭제
+        </button>
       )}
       {error && (
-        <p className={styles.error} role="alert">
+        <p className={buttons.error} role="alert">
           {error}
         </p>
       )}

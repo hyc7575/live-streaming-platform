@@ -1,0 +1,20 @@
+/* 송출 화면 머리의 "시청 화면 열기" 옆에 둔다. 확인 문구는 버튼 자리에서
+   펼쳐지고, 좁으면 줄을 바꾼다. */
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.text {
+  font-size: var(--font-size-sm);
+}
