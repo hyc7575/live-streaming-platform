@@ -1,17 +1,16 @@
 import {
-  applyDecorators,
   BadRequestException,
-  Catch,
-  PayloadTooLargeException,
+  HttpException,
   UploadedFile,
-  UseFilters,
   UseInterceptors,
-  type ArgumentsHost,
-  type ExceptionFilter,
+  type CallHandler,
+  type ExecutionContext,
+  type NestInterceptor,
   type PipeTransform,
+  type Type,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
+import type { Observable } from 'rxjs';
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
 
@@ -76,18 +75,6 @@ interface MulterFile {
   buffer: Buffer;
 }
 
-// Multer는 너무 큰 파일을 413으로 알린다. 클라이언트에게는 이것도 이미지가
-// 유효하지 않은 한 경우이므로, 형식이 틀렸을 때와 같은 400을 준다.
-@Catch(PayloadTooLargeException)
-class FileTooLargeFilter implements ExceptionFilter {
-  constructor(private readonly message: string) {}
-
-  catch(_error: PayloadTooLargeException, host: ArgumentsHost): void {
-    const body = new BadRequestException(this.message).getResponse();
-    host.switchToHttp().getResponse<Response>().status(400).json(body);
-  }
-}
-
 // 파일이 없는 경우는 `image` 필드가 없는 multipart body와
 // multipart가 아닌 body를 모두 포함한다.
 class ParseImagePipe implements PipeTransform<
@@ -107,16 +94,48 @@ class ParseImagePipe implements PipeTransform<
   }
 }
 
+// #211: 이미지 라우트는 `image` 파일 파트 하나만 받는다. multer 기본값은
+// 텍스트 필드와 파트 수가 무제한이고 필드 하나에 1 MiB까지 req.body에
+// 쌓으므로, 모든 한도를 정해 다른 파트를 메모리에 쌓기 전에 거절한다.
+// fields가 0이라 fieldSize는 쓰이지 않지만, 설정이 바뀌어도 상한이 남도록
+// 작게 둔다.
+function uploadLimits(rule: ImageRule) {
+  return {
+    fileSize: rule.maxBytes,
+    files: 1,
+    fields: 0,
+    parts: 1,
+    fieldSize: 1024,
+    fieldNameSize: 100,
+    headerPairs: 20,
+  };
+}
+
+// multer가 거절한 업로드(크기 초과는 413, 다른 한도와 형식 오류는 영어 문구의
+// 400)는 클라이언트에게 모두 이미지가 유효하지 않은 한 경우다. 그래서 형식이
+// 틀렸을 때와 같은 400 문구를 준다. multer 오류는 핸들러를 부르기 전의
+// await에서만 나오므로, 핸들러나 서비스가 던진 오류는 바꾸지 않는다.
+function imageInterceptor(rule: ImageRule): Type<NestInterceptor> {
+  const Multer = FileInterceptor('image', { limits: uploadLimits(rule) });
+  return class ImageInterceptor extends Multer {
+    override async intercept(
+      context: ExecutionContext,
+      next: CallHandler,
+    ): Promise<Observable<unknown>> {
+      try {
+        return await super.intercept(context, next);
+      } catch (error) {
+        if (error instanceof HttpException && error.getStatus() < 500) {
+          throw new BadRequestException(rule.invalidMessage);
+        }
+        throw error;
+      }
+    }
+  };
+}
+
 export function ImageUpload(kind: ImageKind): MethodDecorator {
-  const rule = IMAGE_RULES[kind];
-  return applyDecorators(
-    UseInterceptors(
-      FileInterceptor('image', {
-        limits: { fileSize: rule.maxBytes, files: 1 },
-      }),
-    ),
-    UseFilters(new FileTooLargeFilter(rule.invalidMessage)),
-  );
+  return UseInterceptors(imageInterceptor(IMAGE_RULES[kind]));
 }
 
 export function UploadedImage(kind: ImageKind): ParameterDecorator {

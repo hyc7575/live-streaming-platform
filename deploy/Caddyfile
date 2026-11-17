@@ -8,6 +8,11 @@
 {$DOMAIN} {
 	# API는 X-Forwarded-Proto와 X-Forwarded-For에 대해 프록시 한 단계만 믿는다.
 	handle /api/* {
+		# #211: 가장 큰 요청은 2 MiB 이미지 업로드(IMAGE_RULES)와 multipart
+		# 오버헤드다. 그보다 넉넉히 큰 본문은 API에 닿기 전에 413으로 막는다.
+		request_body {
+			max_size 4MiB
+		}
 		reverse_proxy api:3000
 	}
 
