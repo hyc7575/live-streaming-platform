@@ -408,8 +408,18 @@ it('송출을 시작하기 전에는 확인을 거쳐 방송을 삭제하고 내
 it('삭제 확인에서 취소하면 방송을 지우지 않는다', async () => {
   const { calls } = renderPage({});
   fireEvent.click(await screen.findByRole('button', { name: '방송 삭제' }));
+  expect(screen.getByRole('alertdialog', { name: '삭제 확인' })).toBeDefined();
   fireEvent.click(screen.getByRole('button', { name: '취소' }));
+  expect(screen.queryByRole('alertdialog')).toBeNull();
   expect(screen.getByRole('button', { name: '방송 삭제' })).toBeDefined();
+  expect(calls).not.toContain('DELETE /api/broadcasts/b1');
+});
+
+it('삭제 확인 모달은 Esc로 닫힌다', async () => {
+  const { calls } = renderPage({});
+  fireEvent.click(await screen.findByRole('button', { name: '방송 삭제' }));
+  fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' });
+  expect(screen.queryByRole('alertdialog')).toBeNull();
   expect(calls).not.toContain('DELETE /api/broadcasts/b1');
 });
 

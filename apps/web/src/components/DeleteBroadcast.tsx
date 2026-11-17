@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import type { LoginPageState } from '../pages/LoginPage';
@@ -13,6 +13,10 @@ export function DeleteBroadcast({ broadcastId }: { broadcastId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirming) cancel.current?.focus();
+  }, [confirming]);
 
   async function run() {
     setBusy(true);
@@ -45,41 +49,54 @@ export function DeleteBroadcast({ broadcastId }: { broadcastId: string }) {
 
   return (
     <div className={styles.root}>
-      {confirming ? (
-        <div className={styles.confirm} role="group" aria-label="삭제 확인">
-          <span className={styles.text}>
-            이 방송을 삭제할까요? 삭제하면 되돌릴 수 없습니다.
-          </span>
-          <button
-            type="button"
-            className={buttons.danger}
-            disabled={busy}
-            onClick={() => void run()}
-          >
-            삭제하기
-          </button>
-          <button
-            type="button"
-            className={buttons.button}
-            disabled={busy}
-            onClick={() => setConfirming(false)}
-          >
-            취소
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          className={buttons.button}
-          onClick={() => setConfirming(true)}
-        >
-          방송 삭제
-        </button>
-      )}
+      <button
+        type="button"
+        className={buttons.button}
+        onClick={() => setConfirming(true)}
+      >
+        방송 삭제
+      </button>
       {error && (
         <p className={buttons.error} role="alert">
           {error}
         </p>
+      )}
+      {confirming && (
+        <div className={styles.backdrop}>
+          <div
+            className={styles.dialog}
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="삭제 확인"
+            aria-describedby="delete-broadcast-text"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !busy) setConfirming(false);
+            }}
+          >
+            <p id="delete-broadcast-text" className={styles.text}>
+              이 방송을 삭제할까요? 삭제하면 되돌릴 수 없습니다.
+            </p>
+            <div className={styles.row}>
+              <button
+                type="button"
+                className={buttons.danger}
+                disabled={busy}
+                onClick={() => void run()}
+              >
+                삭제하기
+              </button>
+              <button
+                ref={cancel}
+                type="button"
+                className={buttons.button}
+                disabled={busy}
+                onClick={() => setConfirming(false)}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
