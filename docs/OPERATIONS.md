@@ -236,7 +236,7 @@ docker compose -f deploy/compose.yaml logs --tail=200 ome caddy postgres
 
 1. https://uptimerobot.com 에 가입하고, 알림 받을 메일 주소를 Alert Contact로 확인한다.
 2. **Add New Monitor**에서 둘을 만든다. 간격은 5분(무료 최소값)이다.
-   - Keyword 모니터: URL `https://lime-live.duckdns.org/api/health`, 키워드 `ok`가 있을 때 정상. Caddy와 API를 함께 본다.
+   - Keyword 모니터: URL `https://lime-live.duckdns.org/api/health`, 키워드 `ok`가 있을 때 정상. Caddy, API, DB를 함께 본다. API는 DB에 `SELECT 1`을 보내고, 실패하거나 2초 안에 답이 없으면 본문에 `ok`가 없는 503을 돌려준다(#238). compose healthcheck와 배포 `--wait`도 같은 응답을 본다.
    - HTTP(s) 모니터: URL `https://lime-live.duckdns.org/api/broadcasts`. 공개 방송 목록이라 DB까지 본다.
 3. 알림을 실제로 받아 본다. 서버에서 Caddy를 잠시 내리고, 메일이 오면 다시 올린다.
 
