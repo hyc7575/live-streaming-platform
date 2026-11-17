@@ -19,10 +19,11 @@ OME 녹화 기능으로 방송을 저장하고, 끝난 방송을 다시 본다.
 | #19 | #52 | 녹화·다시보기와 녹화 용량 상한 |
 | #75 | #82 | 방송 종료 뒤 다시보기가 새로고침 없이 뜨게 하기 |
 | #92 | #95 | 다시보기에서 채팅을 재생 위치에 맞춰 보여 준다 |
+| #209 (#148 일부) | (이 PR) | LIVE 녹화가 상한을 넘으면 ENDED 다시보기 대신 LIVE 녹화를 멈춘다. 방송당 크기·시간 상한. 문서: [STORIES-recording-cap.md](STORIES-recording-cap.md), [SCENARIOS-recording-cap.md](SCENARIOS-recording-cap.md) |
 
 ## 코드
 
-- api: `apps/api/src/recording/`
+- api: `apps/api/src/recording/` (용량 판정 `recording-plan.ts`, 녹화 작업·파일 정리 `recording-reconciler.ts`, 환경 변수 `recordings-config.ts`)
 - web: `apps/web/src/components/ReplayPlayer.tsx`
 - web: `apps/web/src/replay-chat.ts`
 

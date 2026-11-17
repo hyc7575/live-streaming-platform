@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { BroadcastLifecycle } from '../broadcasts/broadcast-lifecycle.js';
+import { CLOCK, type Clock } from '../clock.js';
 import { PrismaService } from '../database/database.module.js';
 import { OME_API, type OmeApi } from '../ome/ome-api.js';
 import {
@@ -21,6 +22,7 @@ import {
   planRecordings,
   type RecordingDir,
   type RecordingFile,
+  type RecordingPlan,
 } from './recording-plan.js';
 import {
   RECORDINGS_CONFIG,
@@ -48,6 +50,7 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
     private readonly lifecycle: BroadcastLifecycle,
     @Inject(RECORDINGS_CONFIG) private readonly config: RecordingsConfig,
     @Inject(RECONCILE_INTERVAL_MS) private readonly intervalMs: number | null,
+    @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
   onModuleInit(): void {
@@ -72,15 +75,20 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
       });
   }
 
+  // 디스크를 먼저 읽어 계획을 세운다. 녹화 작업은 그 계획이 멈추라고 한
+  // LIVE 방송을 빼고 맞춘다(#209).
   async reconcile(): Promise<void> {
-    await this.convergeTasks();
-    await this.convergeFiles();
+    const plan = await this.planFromDisk();
+    await this.convergeTasks(new Set(plan.stopLive));
+    await this.applyFiles(plan);
   }
 
   // LIVE 방송을 읽기 전에 작업 목록을 먼저 가져온다. 그 사이에
   // LIVE가 된 방송은 스스로 작업을 시작하고, 그 사이에 끝난 방송은
-  // 여기서 작업을 받았다가 다음 틱에 다시 멈출 수 있다.
-  private async convergeTasks(): Promise<void> {
+  // 여기서 작업을 받았다가 다음 틱에 다시 멈출 수 있다. `capped`는 상한에
+  // 걸린 LIVE 방송이다. 작업이 있으면 멈추고, 없으면 다시 켜지 않는다.
+  // 송출과 시청은 건드리지 않는다.
+  private async convergeTasks(capped: Set<string>): Promise<void> {
     let tasks: string[];
     try {
       tasks = await this.ome.listRecords();
@@ -100,14 +108,25 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
     for (const id of tasks.filter((task) => !liveIds.has(task))) {
       await this.lifecycle.stopRecording(id);
     }
-    for (const id of [...liveIds].filter((id) => !tasks.includes(id))) {
+    for (const id of tasks.filter(
+      (task) => liveIds.has(task) && capped.has(task),
+    )) {
+      this.logger.warn(
+        `Stopped the recording of LIVE ${id}: it reached a recording cap`,
+      );
+      await this.lifecycle.stopRecording(id);
+    }
+    for (const id of [...liveIds].filter(
+      (id) => !tasks.includes(id) && !capped.has(id),
+    )) {
       await this.lifecycle.startRecording(id);
     }
   }
 
   // 행보다 디스크를 먼저 읽는다. 디렉터리는 방송이
   // LIVE가 된 뒤에만 생기므로, 행이 없는 디렉터리는 삭제된 방송의 것이다.
-  private async convergeFiles(): Promise<void> {
+  private async planFromDisk(): Promise<RecordingPlan> {
+    const now = this.clock.now();
     const dirs = await readRecordingDirs(this.config.dir);
     const rows = await this.prisma.broadcast.findMany({
       where: {
@@ -119,13 +138,16 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
       select: {
         id: true,
         status: true,
+        startedAt: true,
         endedAt: true,
         recordingFiles: true,
         recordingStartedAt: true,
       },
     });
-    const plan = planRecordings(dirs, rows, this.config.maxBytes);
+    return planRecordings(dirs, rows, this.config, now);
+  }
 
+  private async applyFiles(plan: RecordingPlan): Promise<void> {
     // 컬럼을 먼저 비운다. 그래야 목록에 오른 다시보기가 삭제된 파일을
     // 가리키는 일이 없다.
     for (const id of plan.evict) {
@@ -147,7 +169,7 @@ export class RecordingReconciler implements OnModuleInit, OnModuleDestroy {
     }
     if (plan.overCapBytes > 0) {
       this.logger.warn(
-        `Recordings exceed the cap by ${plan.overCapBytes} bytes with only LIVE or unfinished recordings left`,
+        `Recordings exceed the cap by ${plan.overCapBytes} bytes; LIVE recordings over it are stopped and ENDED ones kept`,
       );
     }
   }

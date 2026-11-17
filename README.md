@@ -276,7 +276,9 @@ API 테스트는 실제 PostgreSQL을 쓰고 테스트마다 테이블을 비운
 | `OME_API_PORT` | `8081` | OME 관리 API의 호스트 포트. `127.0.0.1`에만 열린다 |
 | `OME_API_URL` | `http://127.0.0.1:${OME_API_PORT}` | API가 부르는 OME 관리 API 주소 |
 | `RECORDINGS_DIR` | 저장소 루트의 `recordings/` | 녹화 파일 폴더. OME가 쓰고 API가 용량을 재고 지운다. 바꾸려면 절대 경로를 넣는다 |
-| `RECORDINGS_MAX_GB` | `10` | 녹화 저장 용량 상한(GB). 넘으면 오래 전에 끝난 방송의 녹화부터 지운다 |
+| `RECORDINGS_MAX_GB` | `10` | 녹화 저장 용량 상한(GB). 넘으면 오래 전에 끝난 방송의 녹화부터 지운다. 송출 중인 녹화만으로 넘으면 끝난 방송의 녹화는 두고 송출 중인 녹화를 멈춘다 |
+| `RECORDINGS_MAX_GB_PER_BROADCAST` | `3` | 방송 하나의 녹화 크기 상한(GB). 넘으면 그 방송의 녹화만 멈추고 송출은 유지한다. 전체 상한보다 크면 전체 상한을 쓴다 |
+| `RECORDINGS_MAX_HOURS_PER_BROADCAST` | `3` | 방송 하나의 녹화 시간 상한(시간). LIVE가 된 때부터 잰다 |
 | `RECORDINGS_HTTP_PORT` | `8090` | 개발용 녹화 정적 서버의 호스트 포트(127.0.0.1에만 열린다). Vite가 `/recordings`를 여기로 넘긴다 |
 | `THUMBNAILS_DIR` | 저장소 루트의 `thumbnails/` | 캡처 썸네일과 기본 대기 이미지 폴더. 바꾸려면 절대 경로를 넣는다 |
 | `THUMBNAILS_HTTP_PORT` | `8091` | 개발용 썸네일 정적 서버의 호스트 포트(127.0.0.1에만 열린다). Vite가 `/thumbnails`를 여기로 넘긴다 |

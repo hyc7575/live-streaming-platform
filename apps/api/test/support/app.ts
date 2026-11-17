@@ -89,6 +89,8 @@ export async function createTestApp(
       options.recordings ?? {
         dir: join(tmpdir(), 'lsp-test-no-recordings'),
         maxBytes: 1024 ** 3,
+        perBroadcastMaxBytes: 1024 ** 3,
+        perBroadcastMaxMs: 3 * 60 * 60 * 1000,
       },
     )
     .overrideProvider(THUMBNAILS_DIR)
