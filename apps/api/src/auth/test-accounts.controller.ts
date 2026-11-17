@@ -16,6 +16,7 @@ import { PrismaService } from '../database/database.module.js';
 import { ZodBodyPipe } from '../zod-body.pipe.js';
 import { authUserSelect, toAuthUser, type AuthUser } from './auth-user.js';
 import { LOGIN_RATE_LIMIT } from './auth.controller.js';
+import { JsonOnlyGuard } from './json-only.guard.js';
 import { startSession } from './session.js';
 import {
   TEST_ACCOUNT_KEYS,
@@ -53,7 +54,7 @@ export class TestAccountsController {
 
   @Post('test-login')
   @HttpCode(200)
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(JsonOnlyGuard, ThrottlerGuard)
   @Throttle({ default: LOGIN_RATE_LIMIT })
   async logIn(
     @Body(new ZodBodyPipe(z.object({ account: z.enum(TEST_ACCOUNT_KEYS) })))

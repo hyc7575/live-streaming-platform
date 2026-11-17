@@ -168,6 +168,55 @@ describe('auth', () => {
     expect(otherClient.status).toBe(401);
   });
 
+  // login CSRF(#214): 다른 사이트의 HTML form은 JSON을 보낼 수 없다. 그래서
+  // JSON이 아닌 로그인은 세션을 건드리기 전에 415로 거절한다.
+  it.each([
+    ['form', 'application/x-www-form-urlencoded'],
+    ['text/plain', 'text/plain'],
+  ])(
+    'refuses a %s login with 415 and keeps the current session',
+    async (_name, type) => {
+      const victim = await signUpAndLogIn(app);
+      const attacker = await signUp(app);
+      const body =
+        type === 'text/plain'
+          ? JSON.stringify({
+              email: attacker.email,
+              password: attacker.password,
+            })
+          : new URLSearchParams({
+              email: attacker.email,
+              password: attacker.password,
+            }).toString();
+      const res = await victim.agent
+        .post('/api/auth/login')
+        .set('Content-Type', type)
+        .send(body);
+      expect(res.status).toBe(415);
+      expect(res.headers['set-cookie']).toBeUndefined();
+      const me = await victim.agent.get('/api/auth/me');
+      expect(me.body).toMatchObject({ id: victim.user.id });
+    },
+  );
+
+  it('refuses a login without a Content-Type with 415', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .set('X-Forwarded-For', newClientIp());
+    expect(res.status).toBe(415);
+  });
+
+  it('accepts a JSON login that names its charset', async () => {
+    const user = await signUp(app);
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .set('X-Forwarded-For', newClientIp())
+      .set('Content-Type', 'application/json; charset=utf-8')
+      .send(JSON.stringify({ email: user.email, password: user.password }));
+    expect(res.status).toBe(200);
+    expect(sessionCookie(res)).toContain('modak.sid=');
+  });
+
   it('gives each signUpAndLogIn caller its own session', async () => {
     const owner = await signUpAndLogIn(app);
     const other = await signUpAndLogIn(app);

@@ -20,6 +20,7 @@ import {
   type SignupInput,
 } from './auth.service.js';
 import { emailSchema, newPasswordSchema, nicknameSchema } from './fields.js';
+import { JsonOnlyGuard } from './json-only.guard.js';
 import { CurrentUser, LoggedInGuard } from './logged-in.guard.js';
 import {
   destroySession,
@@ -56,7 +57,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(JsonOnlyGuard, ThrottlerGuard)
   @Throttle({ default: LOGIN_RATE_LIMIT })
   async login(
     @Body(new ZodBodyPipe(loginSchema)) body: Credentials,

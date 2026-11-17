@@ -133,6 +133,18 @@ describe('test accounts, enabled', () => {
     }
   });
 
+  // login CSRF(#214): 다른 사이트의 form이 피해자를 테스트 계정으로 바꾸지 못한다.
+  it('refuses a form test-login with 415 and sets no cookie', async () => {
+    await seedTestAccounts(prisma, seedEnv());
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/test-login')
+      .set('X-Forwarded-For', newClientIp())
+      .type('form')
+      .send('account=B');
+    expect(res.status).toBe(415);
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
   it('lists only the accounts that were seeded', async () => {
     const before = await request(app.getHttpServer()).get(
       '/api/auth/test-accounts',
@@ -209,6 +221,15 @@ describe('test accounts, disabled', () => {
   it('answers 404 to test-login even for a seeded account', async () => {
     expect((await testLogin(app, 'A')).status).toBe(404);
     expect((await testLogin(app, 'B')).status).toBe(404);
+  });
+
+  it('refuses a form test-login with 415 before looking at the config', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/test-login')
+      .set('X-Forwarded-For', newClientIp())
+      .type('form')
+      .send('account=A');
+    expect(res.status).toBe(415);
   });
 
   it('lists no accounts, so the login page hides the buttons', async () => {
