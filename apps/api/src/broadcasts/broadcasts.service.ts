@@ -172,16 +172,17 @@ const PUBLIC_STATUSES = [
 // 않는다.
 export const READY_LISTED_MS = 24 * 60 * 60 * 1000;
 
-// 한 스트리머가 공개 목록에 "방송 준비 중"으로 올려 둘 수 있는 방송 수(#212).
-// 상한이 없으면 한 계정이 방송을 100개쯤 만들어 목록(PUBLIC_LIST_LIMIT)에서
-// 다른 사람의 READY와 ENDED를 24시간 동안 밀어낸다. 목록과 같은 조건(만든 지
-// READY_LISTED_MS 안인 READY)으로 세므로, 한 계정의 목록 몫도 이 수로 묶인다.
-// 테스트 계정 하나를 심사위원 여럿이 나눠 쓰므로 너무 낮게 두지 않는다.
-export const READY_PER_STREAMER_CAP = 20;
+// 한 스트리머가 한 번에 둘 수 있는 방송 준비 중(READY) 수(#255, 처음에는 #212의
+// 20개). 사용자 결정으로 하나만 둔다. 쓰지 않는 방송이 쌓이지 않고, 한 계정이
+// 방송을 100개쯤 만들어 공개 목록(PUBLIC_LIST_LIMIT)에서 다른 사람의 READY와
+// ENDED를 밀어내지도 못한다. 소유자의 "내 방송"은 24시간이 지난 READY도
+// 계속 보이므로 나이와 관계없이 센다.
+export const READY_PER_STREAMER_CAP = 1;
 // 방송 생성 transaction의 전체 동시 상한. 공유 pg pool(PG_POOL_MAX 10개) 중
 // 결제 확정 3개(CONFIRM_CONCURRENCY)와 합쳐도 4개가 다른 요청에 남는다.
 export const CREATE_CONCURRENCY = 3;
-export const READY_CAP_MESSAGE = `방송 준비 중인 방송은 ${READY_PER_STREAMER_CAP}개까지 둘 수 있습니다. 내 방송에서 쓰지 않는 방송을 삭제한 뒤 다시 만들어 주세요.`;
+export const READY_CAP_MESSAGE =
+  '이미 준비 중인 방송이 있습니다. 내 방송에서 그 방송으로 송출하거나 삭제한 뒤 새로 만들어 주세요.';
 
 const uuid = z.uuid();
 
@@ -209,7 +210,6 @@ export class BroadcastsService {
       resolveGameUpdate(fields.category, game),
     );
     const now = this.clock.now();
-    const listedSince = new Date(now.getTime() - READY_LISTED_MS);
     const created = await this.createGate.run(streamerId, () =>
       this.prisma.$transaction(async (tx) => {
         // 세기와 insert 사이에 같은 사용자의 다른 생성이 끼면 둘 다 상한 아래를
@@ -219,14 +219,10 @@ export class BroadcastsService {
         await tx.$executeRaw(
           Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${streamerId}))`,
         );
-        const listedReady = await tx.broadcast.count({
-          where: {
-            streamerId,
-            status: 'READY',
-            createdAt: { gt: listedSince },
-          },
+        const ready = await tx.broadcast.count({
+          where: { streamerId, status: 'READY' },
         });
-        if (listedReady >= READY_PER_STREAMER_CAP) return null;
+        if (ready >= READY_PER_STREAMER_CAP) return null;
         // 목록의 24시간 노출을 같은 시계로 재도록 생성 시각도 여기서 정한다.
         return tx.broadcast.create({
           data: { ...fields, ...columns, streamerId, createdAt: now },

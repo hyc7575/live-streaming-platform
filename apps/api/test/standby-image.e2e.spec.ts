@@ -278,7 +278,9 @@ describe('channel standby image', () => {
 
   describe('on broadcasts', () => {
     it('gives every response for the streamer’s broadcasts the same URL', async () => {
-      const ready = await seed(owner, 'READY');
+      // 방송 준비 중은 한 계정에 하나뿐이라(#255) 미리 심지 않고 아래에서
+      // 직접 만든다.
+      const ended = await seed(owner, 'ENDED');
       const live = await seed(owner, 'LIVE');
       const othersLive = await seed(other, 'LIVE');
       const url = await uploaded(png());
@@ -297,7 +299,7 @@ describe('channel standby image', () => {
         'avatarUrl',
       ]);
 
-      expect((await detail(ready)).standbyImageUrl).toBe(url);
+      expect((await detail(ended)).standbyImageUrl).toBe(url);
       expect((await detail(live)).standbyImageUrl).toBe(url);
       expect((await detail(othersLive)).standbyImageUrl).toBeNull();
 
@@ -307,7 +309,7 @@ describe('channel standby image', () => {
         Object.fromEntries(list.map((b) => [b.id, b.standbyImageUrl])),
       ).toEqual({
         [live]: url,
-        [ready]: url,
+        [ended]: url,
         [(created.body as BroadcastView).id]: url,
         [othersLive]: null,
       });

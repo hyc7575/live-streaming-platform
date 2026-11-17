@@ -28,7 +28,7 @@ export function NewBroadcastPage() {
         void navigate('/login', { state: next });
         return null;
       }
-      // 409: 방송 준비 중이 상한에 닿았다(#212). API 문구가 할 일까지 말한다.
+      // 409: 이미 방송 준비 중인 방송이 있다(#255). API 문구가 할 일까지 말한다.
       if (err instanceof ApiError && err.status === 409 && err.serverMessage) {
         return err.serverMessage;
       }

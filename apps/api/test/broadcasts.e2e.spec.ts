@@ -324,7 +324,8 @@ describe('broadcasts', () => {
     );
   });
 
-  // #212: 한 계정이 방송 준비 중을 계속 만들어 공개 목록을 채우지 못한다.
+  // #255(처음 #212의 20개): 한 계정은 방송 준비 중을 하나만 둘 수 있어, 쓰지 않는
+  // 방송이 쌓이지 않고 공개 목록도 채우지 못한다.
   describe('READY cap per streamer', () => {
     function ago(ms: number): Date {
       return new Date(clock.now().getTime() - ms);
@@ -345,18 +346,19 @@ describe('broadcasts', () => {
       });
     }
 
-    it('creates up to the cap, then refuses with 409 and stores nothing', async () => {
+    it('creates the first, then refuses with 409 and stores nothing', async () => {
       const { user, agent } = await signUpAndLogIn(app);
-      await seedReady(user, READY_PER_STREAMER_CAP - 1);
 
-      const last = await agent
+      const first = await agent
         .post('/api/broadcasts')
-        .send({ title: '마지막' });
-      expect(last.status).toBe(201);
+        .send({ title: '첫 방송' });
+      expect(first.status).toBe(201);
 
-      const over = await agent.post('/api/broadcasts').send({ title: '넘침' });
-      expect(over.status).toBe(409);
-      expect((over.body as { message: string }).message).toBe(
+      const second = await agent
+        .post('/api/broadcasts')
+        .send({ title: '두 번째' });
+      expect(second.status).toBe(409);
+      expect((second.body as { message: string }).message).toBe(
         READY_CAP_MESSAGE,
       );
       expect(
@@ -411,10 +413,19 @@ describe('broadcasts', () => {
       expect(mostOpen).toBe(1);
     });
 
-    it('counts only listed READY: LIVE, ENDED and day-old READY leave room', async () => {
+    it('counts a READY older than a day, which the owner still sees', async () => {
       const { user, agent } = await signUpAndLogIn(app);
-      await seedReady(user, READY_PER_STREAMER_CAP - 1);
-      await seedReady(user, 3, ago(READY_LISTED_MS));
+      await seedReady(user, 1, ago(READY_LISTED_MS * 3));
+
+      const res = await agent
+        .post('/api/broadcasts')
+        .send({ title: '오래된 준비가 있다' });
+      expect(res.status).toBe(409);
+      expect((res.body as { message: string }).message).toBe(READY_CAP_MESSAGE);
+    });
+
+    it('lets LIVE and ENDED broadcasts leave room', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
       await seed(user, 'LIVE', 'LIVE');
       await seed(user, '종료', 'ENDED');
 
@@ -424,9 +435,8 @@ describe('broadcasts', () => {
       expect(res.status).toBe(201);
     });
 
-    it('lets the streamer create again after deleting one or after a day', async () => {
-      const { user, agent } = await signUpAndLogIn(app);
-      await seedReady(user, READY_PER_STREAMER_CAP - 1, clock.now());
+    it('lets the streamer create again after deleting the READY one', async () => {
+      const { agent } = await signUpAndLogIn(app);
       const ownId = (
         (await agent.post('/api/broadcasts').send({ title: '내 것' }))
           .body as BroadcastView
@@ -439,11 +449,16 @@ describe('broadcasts', () => {
       expect(
         (await agent.post('/api/broadcasts').send({ title: '지운 뒤' })).status,
       ).toBe(201);
+    });
+
+    it('stays blocked a day later, because the READY one is not deleted or ended', async () => {
+      const { agent } = await signUpAndLogIn(app);
+      await agent.post('/api/broadcasts').send({ title: '내 것' });
 
       clock.advance(READY_LISTED_MS);
       expect(
         (await agent.post('/api/broadcasts').send({ title: '하루 뒤' })).status,
-      ).toBe(201);
+      ).toBe(409);
     });
 
     it('does not count other streamers’ READY', async () => {
@@ -462,7 +477,7 @@ describe('broadcasts', () => {
       await seed(victim, '피해 준비', 'READY', undefined, ago(60_000));
       await seed(victim, '피해 종료', 'ENDED');
       // 다른 스트리머들의 종료 방송이 목록을 거의 채운 배포를 흉내 낸다.
-      // 스팸이 상한까지 차도 모두 100행 안에 든다(1 + 1 + 20 + 1 + 70 = 93).
+      // 스팸이 몇 번을 시도해도 한 계정의 READY는 1개라 모두 100행 안에 든다.
       await prisma.broadcast.createMany({
         data: Array.from({ length: 70 }, (_, i) => ({
           streamerId: victim.id,

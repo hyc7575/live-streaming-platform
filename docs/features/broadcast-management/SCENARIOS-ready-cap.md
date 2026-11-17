@@ -1,5 +1,7 @@
 # 테스트 시나리오: 사용자당 "방송 준비 중" 상한 (#212)
 
+> **대체됨**: 사용자당 상한이 1개로 바뀌어 아래 시나리오의 "20개" 단계는 더 이상 맞지 않는다. 지금 기준은 [SCENARIOS-ready-one.md](./SCENARIOS-ready-one.md)다.
+
 - **근거**: [STORIES-ready-cap.md](./STORIES-ready-cap.md) Story 1~3, `docs/PRD.md` §7.4 "목록 노출"
 - **시나리오 수**: 6 (정상 1, 경계 2, 오류 1, 보안 2)
 - **쓰는 곳**: 실기기 회귀(#17). 배포 URL에서 한다.
