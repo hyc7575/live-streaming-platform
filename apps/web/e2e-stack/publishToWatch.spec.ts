@@ -185,11 +185,17 @@ test('the streamer ends from the detail page while another tab publishes', async
   await screenshot(page, 'publish-ended-elsewhere');
 });
 
-test('OME refuses a publish without a valid token', async ({ page }) => {
+test('OME refuses a publish without a valid token', async ({
+  page,
+  browser,
+}) => {
   await signUpAndLogIn(page.request);
   const id = await createBroadcast(page.request, '거절 확인');
-  const other = await createBroadcast(page.request, '다른 방송');
-  const issued = await page.request.post(
+  // 방송 준비 중은 한 계정에 하나뿐이라(#255) 다른 방송은 다른 계정이 만든다.
+  const otherContext = await browser.newContext();
+  await signUpAndLogIn(otherContext.request);
+  const other = await createBroadcast(otherContext.request, '다른 방송');
+  const issued = await otherContext.request.post(
     `/api/broadcasts/${other}/publish-token`,
   );
   expect(issued.status()).toBe(201);
@@ -209,4 +215,5 @@ test('OME refuses a publish without a valid token', async ({ page }) => {
   }
   expect(await statusOf(page.request, id)).toBe('READY');
   expect(await statusOf(page.request, other)).toBe('READY');
+  await otherContext.close();
 });
