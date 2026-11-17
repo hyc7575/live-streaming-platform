@@ -99,6 +99,39 @@ describe('useChatFeed', () => {
     expect(pending).toHaveLength(3);
   });
 
+  it('빈 응답이 이어져도 다시 그리지 않는다', async () => {
+    let renders = 0;
+    renderHook(() => {
+      renders++;
+      return useChatFeed('b1', { pollMs: 1000 });
+    });
+    await answer(0, []);
+    const settled = renders;
+    await advanceClock(1000);
+    await answer(1, []);
+    await advanceClock(1000);
+    await answer(2, []);
+    expect(pending).toHaveLength(3);
+    expect(renders).toBe(settled);
+  });
+
+  it('이미 아는 메시지만 오면 다시 그리지 않고, 새 메시지가 오면 그린다', async () => {
+    let renders = 0;
+    const { result } = renderHook(() => {
+      renders++;
+      return useChatFeed('b1', { pollMs: 1000 });
+    });
+    await answer(0, [message('m1')]);
+    const settled = renders;
+    await advanceClock(1000);
+    await answer(1, [message('m1')]);
+    expect(renders).toBe(settled);
+    await advanceClock(1000);
+    await answer(2, [message('m2')]);
+    expect(renders).toBe(settled + 1);
+    expect(result.current.messages.map((m) => m.id)).toEqual(['m1', 'm2']);
+  });
+
   it('화면을 떠나면 진행 중 요청을 끊는다', () => {
     const { unmount } = renderHook(() => useChatFeed('b1', { pollMs: 1000 }));
     unmount();

@@ -47,6 +47,24 @@ export function isReached(placement: Playhead, playhead: Playhead): boolean {
     : placement.part < playhead.part;
 }
 
+// 메시지마다 다시보기 위의 자리를 계산해 둔다. 재생 위치가 바뀔 때마다
+// 다시 계산하지 않도록 메시지·파트 시작점이 바뀔 때만 부른다.
+export function chatPlacements(
+  messages: readonly ChatMessage[],
+  starts: readonly number[],
+): Playhead[] {
+  return messages.map((m) => chatPlacement(Date.parse(m.createdAt), starts));
+}
+
+// 미리 계산한 자리(`chatPlacements`)로, `playhead`에 닿은 메시지만 거른다.
+export function chatReached(
+  messages: readonly ChatMessage[],
+  placements: readonly Playhead[],
+  playhead: Playhead,
+): ChatMessage[] {
+  return messages.filter((_, i) => isReached(placements[i], playhead));
+}
+
 // 다시보기가 `playhead`에 닿을 때까지 보낸 메시지다.
 export function chatUpTo(
   messages: readonly ChatMessage[],

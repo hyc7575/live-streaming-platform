@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
@@ -168,6 +168,12 @@ function BroadcastView({
   const standbyImageUrl = b.status === 'READY' ? b.standbyImageUrl : null;
   const playhead = heard?.broadcastId === b.id ? heard.playhead : null;
   const part = picked?.broadcastId === b.id ? picked.part : 0;
+  // 녹화 파트가 같으면 같은 배열을 넘겨, 재생 위치만 바뀌는 렌더에서
+  // 채팅 기록이 자리를 다시 계산하지 않게 한다.
+  const starts = useMemo(
+    () => partStarts(b.recordingParts),
+    [b.recordingParts],
+  );
   const hasReplay = b.status === 'ENDED' && b.recordingFiles.length > 0;
   const pickPart = (p: number) => {
     setPicked({ broadcastId: b.id, part: p });
@@ -327,7 +333,7 @@ function BroadcastView({
         key={b.id}
         broadcastId={b.id}
         status={b.status}
-        partStarts={partStarts(b.recordingParts)}
+        partStarts={starts}
         playhead={playhead}
       />
     </section>

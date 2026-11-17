@@ -1,11 +1,11 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router';
 import { ApiError, apiFetch } from '../api';
 import { useAuth } from '../auth/auth-context';
 import { CHAT_HELD_LIMIT, CHAT_MAX_LENGTH, type ChatMessage } from '../chat';
 import { formatDonationAmount } from '../donations';
 import type { LoginPageState } from '../pages/LoginPage';
-import { chatUpTo, type Playhead } from '../replay-chat';
+import { chatPlacements, chatReached, type Playhead } from '../replay-chat';
 import { useChatFeed, useChatHistory } from '../use-chat-feed';
 import { useLoginRedirect } from '../use-login-redirect';
 import { useStickToBottom } from '../use-stick-to-bottom';
@@ -106,7 +106,16 @@ export function ChatHistory({
 }) {
   const { messages, status, more, loadMore } = useChatHistory(broadcastId);
   const synced = partStarts !== null && playhead !== null;
-  const reached = synced ? chatUpTo(messages, partStarts, playhead) : messages;
+  // 메시지 자리는 메시지·파트 시작점이 바뀔 때만 계산한다. 재생 위치는
+  // 1초에 한 번쯤 바뀌므로 그때는 거르기만 한다.
+  const placements = useMemo(
+    () => (partStarts ? chatPlacements(messages, partStarts) : null),
+    [messages, partStarts],
+  );
+  const reached =
+    synced && placements
+      ? chatReached(messages, placements, playhead)
+      : messages;
   // 재생이 받은 메시지를 모두 지나쳤으면 다음 페이지가 필요하다.
   const caughtUp = synced && reached.length === messages.length;
   useEffect(() => {
@@ -247,7 +256,8 @@ function ChatForm({
 // 메시지 하나를 한 줄로: 닉네임, 본문, 시각 순. 채팅은 작성자가
 // 고치거나 지울 수 없다. 후원 줄은 옅은 라임 면에 "닉네임님이 금액 후원"을
 // 앞세우고 메시지를 그 아래 줄에 둔다.
-function ChatLine({ message }: { message: ChatMessage }) {
+// memo라서 같은 메시지 객체면 다시 그리지 않는다.
+const ChatLine = memo(function ChatLine({ message }: { message: ChatMessage }) {
   const time = <ChatTime createdAt={message.createdAt} />;
   if (message.donation) {
     return (
@@ -274,17 +284,17 @@ function ChatLine({ message }: { message: ChatMessage }) {
       </p>
     </li>
   );
-}
+});
 
 function ChatTime({ createdAt }: { createdAt: string }) {
-  const at = new Date(createdAt);
+  // 시각 문자열은 createdAt이 같으면 다시 만들지 않는다.
+  const { title, clock } = useMemo(() => {
+    const at = new Date(createdAt);
+    return { title: timeFormat.format(at), clock: clockFormat.format(at) };
+  }, [createdAt]);
   return (
-    <time
-      dateTime={createdAt}
-      title={timeFormat.format(at)}
-      className={styles.time}
-    >
-      {clockFormat.format(at)}
+    <time dateTime={createdAt} title={title} className={styles.time}>
+      {clock}
     </time>
   );
 }
