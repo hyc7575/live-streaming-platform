@@ -10,6 +10,8 @@
 - [STRATEGY.md](./STRATEGY.md)
 - [STORIES-id-normalization.md](./STORIES-id-normalization.md): 방송 id 대소문자 정규화 수락 기준 (#210)
 - [SCENARIOS-id-normalization.md](./SCENARIOS-id-normalization.md): 그 시나리오
+- [STORIES-upload-limits.md](./STORIES-upload-limits.md): 이미지 업로드 본문 한도(#211)
+- [SCENARIOS-upload-limits.md](./SCENARIOS-upload-limits.md): 그 시나리오
 
 ## 요구사항 위치
 
@@ -23,11 +25,14 @@
 | #62 | #72 | 송출 화면 캡처 썸네일 |
 | #63 | #79 | 기본 대기 이미지 (구현은 [channel-settings](../channel-settings/)) |
 | #210 | #217 | 방송 id 대소문자 변형으로 rate 제한 우회·고아 썸네일 폴더 |
+| #211 | (PR 번호 TBD) | 이미지 업로드 라우트의 multipart 한도와 Caddy 본문 상한 |
 
 ## 코드
 
 - api: `apps/api/src/broadcasts/thumbnail-rate.guard.ts`
 - api: `apps/api/src/broadcasts/canonical-broadcast-id.ts` (`configureApp`에서 등록, 가드 전에 `/api/broadcasts/<uuid>`를 소문자로)
+- api: `apps/api/src/images/image-rules.ts` (`ImageUpload`의 multipart 한도), 회귀 `apps/api/test/image-upload-limits.e2e.spec.ts`
+- deploy: `deploy/Caddyfile` (`/api/*` `request_body max_size`)
 - web: `apps/web/src/publish/thumbnailCapture.ts`
 - web: `apps/web/src/components/BroadcastThumbnail.tsx`, `ElapsedTime.tsx`
 
