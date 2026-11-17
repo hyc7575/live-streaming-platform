@@ -183,7 +183,7 @@ macOS 시스템 소리를 직접 확인하는 절차: 시스템 설정 → 개�
 | `apps/api` | NestJS API (TypeScript strict). 모든 경로는 `/api` 아래에 있다 |
 | `apps/web` | React + Vite 웹 앱 (TypeScript strict). UI 지침은 `apps/web/CLAUDE.md` |
 | `compose.yaml` | 로컬 개발용 PostgreSQL, OvenMediaEngine, 녹화·썸네일 정적 서버 |
-| `deploy/` | 운영 서버 compose(Caddy, API, OME, PostgreSQL, 백업). 절차는 [docs/OPERATIONS.md](docs/OPERATIONS.md) |
+| `deploy/` | 운영 서버 compose(Caddy, API, OME, PostgreSQL, 백업). 절차는 [docs/OPERATIONS.md](docs/OPERATIONS.md), 구성도는 [docs/architecture/system-overview.html](docs/architecture/system-overview.html) |
 | `docs/` | 기능별 확인 절차([VERIFICATION.md](docs/VERIFICATION.md)), 개발 세부([DEVELOPMENT.md](docs/DEVELOPMENT.md)), PRD, pre-mortem, 결정 기록(`docs/adr/`), 기능별 문서(`docs/features/<기능>/`). 문서 지도는 [docs/README.md](docs/README.md), 용어는 루트의 `GLOSSARY.md` |
 
 ## 실행 방법

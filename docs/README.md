@@ -2,7 +2,7 @@
 
 ## 폴더 규칙
 
-- `docs/` 바로 아래에는 제품 전체에 걸친 문서만 둔다(`README.md`·`PRD.md`·`PRE-MORTEM.md`·`NEXT-STEPS.md`·`OPERATIONS.md`·`VERIFICATION.md`·`DEVELOPMENT.md`와 `adr/`·`agents/`·`features/`·`private/`·`screenshots/`). 한 기능의 탐색·스토리·PRD는 처음 만들 때부터 `docs/features/<기능>/`에 둔다.
+- `docs/` 바로 아래에는 제품 전체에 걸친 문서만 둔다(`README.md`·`PRD.md`·`PRE-MORTEM.md`·`NEXT-STEPS.md`·`OPERATIONS.md`·`VERIFICATION.md`·`DEVELOPMENT.md`와 `adr/`·`agents/`·`architecture/`·`features/`·`private/`·`screenshots/`). 한 기능의 탐색·스토리·PRD는 처음 만들 때부터 `docs/features/<기능>/`에 둔다.
 - 기능마다 `docs/features/<기능>/` 폴더를 둔다. 기능 이름은 kebab-case 영어로 쓴다.
 - 모든 기능 폴더에는 입구 문서 `README.md`를 둔다. 여기에는 요약, 요구사항 위치, 이슈와 PR, 코드 위치, 확인 방법을 적는다. 요구사항 본문은 복사하지 않고 `PRD.md`의 절(`§`)이나 같은 폴더의 PRD를 가리킨다.
 - 기능 폴더에는 결정 하나의 흐름(탐색 → 전략 → PRD → 시나리오·테스트)을 모은다. 파일 이름은 종류로 정한다: `DISCOVERY.md`, `STRATEGY.md`, `RED-TEAM.md`, `PRD.md`, `PRE-MORTEM.md`, `STORIES.md`, `SCENARIOS.md`, `TEST.md`. 같은 종류가 둘이면 `STRATEGY-<주제>.md`처럼 주제를 붙인다.
@@ -22,6 +22,7 @@
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | API 테스트 DB, 여러 worktree 동시 실행 |
 | [adr/](./adr/) | 되돌리기 어려운 결정 |
 | [agents/](./agents/) | 에이전트 스킬 설정 |
+| [architecture/system-overview.html](./architecture/system-overview.html) | 운영 구성도(Caddy·API·OME·PostgreSQL·호스트 폴더·토스). 브라우저로 연다. 노드마다 근거 코드 줄이 붙어 있다 |
 | `private/` | 공모 원문 등 gitignore 대상 |
 
 ## 기능

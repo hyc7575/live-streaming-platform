@@ -9,3 +9,5 @@ playwright-report
 .playwright-mcp
 # games:refresh가 만드는 데이터 파일. 한 줄에 게임 하나로 써서 diff를 읽기 쉽게 한다
 apps/api/data/games.json
+# archify가 만든 구성도. 생성기 출력을 그대로 두어 근거 검사 해시가 유지되게 한다
+docs/architecture
