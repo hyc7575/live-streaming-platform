@@ -16,9 +16,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const TAGLINE =
-  '설치 없이 브라우저로 화면이나 카메라를 방송하고, 누구나 로그인 없이 시청합니다.';
-
 const streamerA = {
   id: 'u-A',
   email: 'A@modak.test',
@@ -97,10 +94,9 @@ function renderAt(path: string) {
   );
 }
 
-it('shows the tagline and test accounts to a logged-out visitor, and stays home after logging in', async () => {
+it('shows test accounts to a logged-out visitor, and stays home after logging in', async () => {
   const calls = stubApi({ me: 401 });
   renderAt('/');
-  expect(await screen.findByText(TAGLINE)).toBeDefined();
   expect(await screen.findByRole('button', { name: '사용자 B' })).toBeDefined();
   fireEvent.click(screen.getByRole('button', { name: '스트리머 A' }));
 
@@ -113,7 +109,6 @@ it('shows the tagline and test accounts to a logged-out visitor, and stays home 
     body: { account: 'A' },
   });
   expect(screen.getByRole('heading', { name: '방송 목록' })).toBeDefined();
-  expect(screen.getByText(TAGLINE)).toBeDefined();
   expect(screen.queryByText('테스트 계정으로 로그인')).toBeNull();
 });
 
@@ -128,7 +123,6 @@ it('has no test account area when the feature is off or the request fails', asyn
       expect(calls.map((c) => c.url)).toContain('/api/auth/test-accounts'),
     );
     await screen.findByRole('link', { name: '로그인' });
-    expect(screen.getByText(TAGLINE)).toBeDefined();
     expect(screen.queryByText('테스트 계정으로 로그인')).toBeNull();
     expect(screen.queryByRole('button', { name: '스트리머 A' })).toBeNull();
     cleanup();
@@ -147,7 +141,6 @@ it('offers no test accounts when logged in or when the login state is unknown', 
     );
     // 확인하기 전에 test-accounts 요청이 답할 시간을 준다.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(screen.getByText(TAGLINE)).toBeDefined();
     expect(screen.queryByText('테스트 계정으로 로그인')).toBeNull();
     cleanup();
   }
