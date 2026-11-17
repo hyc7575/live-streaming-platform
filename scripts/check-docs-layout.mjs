@@ -16,6 +16,7 @@ const ROOT_FILES = new Set([
 const ROOT_DIRS = new Set([
   'adr',
   'agents',
+  'architecture',
   'features',
   'private',
   'screenshots',
