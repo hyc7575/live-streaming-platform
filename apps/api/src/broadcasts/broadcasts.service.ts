@@ -171,6 +171,14 @@ const PUBLIC_STATUSES = [
 // 않는다.
 export const READY_LISTED_MS = 24 * 60 * 60 * 1000;
 
+// 한 스트리머가 공개 목록에 "방송 준비 중"으로 올려 둘 수 있는 방송 수(#212).
+// 상한이 없으면 한 계정이 방송을 100개쯤 만들어 목록(PUBLIC_LIST_LIMIT)에서
+// 다른 사람의 READY와 ENDED를 24시간 동안 밀어낸다. 목록과 같은 조건(만든 지
+// READY_LISTED_MS 안인 READY)으로 세므로, 한 계정의 목록 몫도 이 수로 묶인다.
+// 테스트 계정 하나를 심사위원 여럿이 나눠 쓰므로 너무 낮게 두지 않는다.
+export const READY_PER_STREAMER_CAP = 10;
+export const READY_CAP_MESSAGE = `방송 준비 중인 방송은 ${READY_PER_STREAMER_CAP}개까지 둘 수 있습니다. 내 방송에서 쓰지 않는 방송을 삭제한 뒤 다시 만들어 주세요.`;
+
 const uuid = z.uuid();
 
 @Injectable()
@@ -191,12 +199,27 @@ export class BroadcastsService {
     const columns = await this.gameColumns(
       resolveGameUpdate(fields.category, game),
     );
-    return toView(
-      await this.prisma.broadcast.create({
-        data: { ...fields, ...columns, streamerId },
+    const now = this.clock.now();
+    const listedSince = new Date(now.getTime() - READY_LISTED_MS);
+    const created = await this.prisma.$transaction(async (tx) => {
+      // 세기와 insert 사이에 같은 사용자의 다른 생성이 끼면 둘 다 상한 아래를
+      // 보고 통과한다. 사용자별 잠금으로 그 사용자의 생성만 줄 세운다.
+      // pg_advisory_xact_lock은 void를 돌려줘 $queryRaw로는 읽지 못한다.
+      await tx.$executeRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${streamerId}))`,
+      );
+      const listedReady = await tx.broadcast.count({
+        where: { streamerId, status: 'READY', createdAt: { gt: listedSince } },
+      });
+      if (listedReady >= READY_PER_STREAMER_CAP) return null;
+      // 목록의 24시간 노출을 같은 시계로 재도록 생성 시각도 여기서 정한다.
+      return tx.broadcast.create({
+        data: { ...fields, ...columns, streamerId, createdAt: now },
         select: broadcastSelect,
-      }),
-    );
+      });
+    });
+    if (!created) throw new ConflictException(READY_CAP_MESSAGE);
+    return toView(created);
   }
 
   // 목록 게임의 이름은 클라이언트가 보낸 값이 아니라 그때의 Game.nameKo다.

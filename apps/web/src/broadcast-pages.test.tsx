@@ -625,6 +625,25 @@ it('goes to the new broadcast’s publish page, and back skips the form', async 
   expect(at).toBe('/studio');
 });
 
+// #212: 방송 준비 중이 상한에 닿으면 API가 409와 사용자용 문구를 보낸다.
+it('shows the API’s 409 message when the 방송 준비 중 cap is reached, keeping the form', async () => {
+  const message =
+    '방송 준비 중인 방송은 10개까지 둘 수 있습니다. 내 방송에서 쓰지 않는 방송을 삭제한 뒤 다시 만들어 주세요.';
+  stubApi({
+    'GET /api/auth/me': streamer,
+    'POST /api/broadcasts': () => Response.json({ message }, { status: 409 }),
+  });
+  renderAt('/studio/new');
+  fireEvent.change(await screen.findByLabelText('제목'), {
+    target: { value: '열한 번째' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '만들기' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(message);
+  expect(screen.getByLabelText<HTMLInputElement>('제목').value).toBe(
+    '열한 번째',
+  );
+});
+
 it('tells a visitor that a READY broadcast has not started', async () => {
   stubApi({
     'GET /api/auth/me': 401,

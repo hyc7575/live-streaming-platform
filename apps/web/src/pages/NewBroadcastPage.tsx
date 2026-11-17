@@ -28,6 +28,10 @@ export function NewBroadcastPage() {
         void navigate('/login', { state: next });
         return null;
       }
+      // 409: 방송 준비 중이 상한에 닿았다(#212). API 문구가 할 일까지 말한다.
+      if (err instanceof ApiError && err.status === 409 && err.serverMessage) {
+        return err.serverMessage;
+      }
       return err instanceof ApiError && err.status === 400
         ? '제목을 확인해 주세요.'
         : '방송을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.';

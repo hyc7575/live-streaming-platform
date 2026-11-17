@@ -7,7 +7,9 @@ import {
   END_READY_MESSAGE,
   type BroadcastView,
   PUBLIC_LIST_LIMIT,
+  READY_CAP_MESSAGE,
   READY_LISTED_MS,
+  READY_PER_STREAMER_CAP,
   type PublicStatus,
 } from '../src/broadcasts/broadcasts.service.js';
 import type { BroadcastStatus as Status } from '../src/generated/prisma/client.js';
@@ -312,6 +314,146 @@ describe('broadcasts', () => {
         expect(res.status).toBe(400);
       },
     );
+  });
+
+  // #212: 한 계정이 방송 준비 중을 계속 만들어 공개 목록을 채우지 못한다.
+  describe('READY cap per streamer', () => {
+    function ago(ms: number): Date {
+      return new Date(clock.now().getTime() - ms);
+    }
+
+    async function seedReady(
+      streamer: TestUser,
+      count: number,
+      createdAt = ago(60_000),
+    ): Promise<void> {
+      await prisma.broadcast.createMany({
+        data: Array.from({ length: count }, (_, i) => ({
+          streamerId: streamer.id,
+          title: `준비 ${i}`,
+          status: 'READY' as const,
+          createdAt,
+        })),
+      });
+    }
+
+    it('creates up to the cap, then refuses with 409 and stores nothing', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      await seedReady(user, READY_PER_STREAMER_CAP - 1);
+
+      const last = await agent
+        .post('/api/broadcasts')
+        .send({ title: '마지막' });
+      expect(last.status).toBe(201);
+
+      const over = await agent.post('/api/broadcasts').send({ title: '넘침' });
+      expect(over.status).toBe(409);
+      expect((over.body as { message: string }).message).toBe(
+        READY_CAP_MESSAGE,
+      );
+      expect(
+        await prisma.broadcast.count({ where: { streamerId: user.id } }),
+      ).toBe(READY_PER_STREAMER_CAP);
+    });
+
+    it('keeps the cap under concurrent requests', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      const results = await Promise.all(
+        Array.from({ length: READY_PER_STREAMER_CAP + 5 }, (_, i) =>
+          agent.post('/api/broadcasts').send({ title: `동시 ${i}` }),
+        ),
+      );
+      expect(results.filter((r) => r.status === 201)).toHaveLength(
+        READY_PER_STREAMER_CAP,
+      );
+      expect(results.filter((r) => r.status === 409)).toHaveLength(5);
+      expect(
+        await prisma.broadcast.count({ where: { streamerId: user.id } }),
+      ).toBe(READY_PER_STREAMER_CAP);
+    });
+
+    it('counts only listed READY: LIVE, ENDED and day-old READY leave room', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      await seedReady(user, READY_PER_STREAMER_CAP - 1);
+      await seedReady(user, 3, ago(READY_LISTED_MS));
+      await seed(user, 'LIVE', 'LIVE');
+      await seed(user, '종료', 'ENDED');
+
+      const res = await agent
+        .post('/api/broadcasts')
+        .send({ title: '새 방송' });
+      expect(res.status).toBe(201);
+    });
+
+    it('lets the streamer create again after deleting one or after a day', async () => {
+      const { user, agent } = await signUpAndLogIn(app);
+      await seedReady(user, READY_PER_STREAMER_CAP - 1, clock.now());
+      const ownId = (
+        (await agent.post('/api/broadcasts').send({ title: '내 것' }))
+          .body as BroadcastView
+      ).id;
+      expect(
+        (await agent.post('/api/broadcasts').send({ title: '막힘' })).status,
+      ).toBe(409);
+
+      expect((await agent.delete(`/api/broadcasts/${ownId}`)).status).toBe(204);
+      expect(
+        (await agent.post('/api/broadcasts').send({ title: '지운 뒤' })).status,
+      ).toBe(201);
+
+      clock.advance(READY_LISTED_MS);
+      expect(
+        (await agent.post('/api/broadcasts').send({ title: '하루 뒤' })).status,
+      ).toBe(201);
+    });
+
+    it('does not count other streamers’ READY', async () => {
+      const { user: other } = await signUpAndLogIn(app);
+      await seedReady(other, READY_PER_STREAMER_CAP);
+      const { agent } = await signUpAndLogIn(app);
+      expect(
+        (await agent.post('/api/broadcasts').send({ title: '내 첫 방송' }))
+          .status,
+      ).toBe(201);
+    });
+
+    it('keeps other streamers’ READY and ENDED in the public list after repeated creates', async () => {
+      const { user: victim } = await signUpAndLogIn(app);
+      await seed(victim, '피해 LIVE', 'LIVE');
+      await seed(victim, '피해 준비', 'READY', undefined, ago(60_000));
+      await seed(victim, '피해 종료', 'ENDED');
+      // 다른 스트리머들의 종료 방송이 목록을 거의 채운 배포를 흉내 낸다.
+      await prisma.broadcast.createMany({
+        data: Array.from({ length: 80 }, (_, i) => ({
+          streamerId: victim.id,
+          title: `옛 종료 ${i}`,
+          status: 'ENDED' as const,
+          startedAt: new Date('2026-01-01T00:00:00Z'),
+          endedAt: new Date('2026-01-01T01:00:00Z'),
+        })),
+      });
+
+      const { agent } = await signUpAndLogIn(app);
+      for (let i = 0; i < PUBLIC_LIST_LIMIT; i++) {
+        await agent.post('/api/broadcasts').send({ title: `스팸 ${i}` });
+      }
+
+      const all = titles(
+        (await request(app.getHttpServer()).get('/api/broadcasts')).body,
+      );
+      expect(all.filter((t) => t.startsWith('스팸'))).toHaveLength(
+        READY_PER_STREAMER_CAP,
+      );
+      expect(all).toEqual(
+        expect.arrayContaining(['피해 LIVE', '피해 준비', '피해 종료']),
+      );
+
+      const ready = titles(
+        (await request(app.getHttpServer()).get('/api/broadcasts?status=READY'))
+          .body,
+      );
+      expect(ready).toContain('피해 준비');
+    });
   });
 
   describe('GET /api/replays', () => {
