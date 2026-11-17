@@ -25,6 +25,9 @@ import type {
 } from '../capture/pcCapture';
 import { PcCaptureError, startPcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
+import type * as CameraCaptureModule from '../capture/cameraCapture';
+import type * as PcCaptureModule from '../capture/pcCapture';
+import type * as ScreenAudioSupportModule from '../capture/screenAudioSupport';
 import type { Donation, DonationRank, DonationSummary } from '../donations';
 import { startWhipPublish, type PublishEvent } from '../publish/whipPublisher';
 import { advanceClock, eventually, useFakeClock } from '../testing/fakeClock';
@@ -37,18 +40,17 @@ import { preloadLazyPages } from '../testing/preloadLazyPages';
 beforeAll(preloadLazyPages);
 
 vi.mock('../capture/cameraCapture', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../capture/cameraCapture')>()),
+  ...(await importOriginal<typeof CameraCaptureModule>()),
   startCameraCapture: vi.fn(),
 }));
 vi.mock('../capture/pcCapture', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../capture/pcCapture')>()),
+  ...(await importOriginal<typeof PcCaptureModule>()),
   startPcCapture: vi.fn(),
 }));
 // jsdom에는 getDisplayMedia가 없어서, 기본으로 페이지는 휴대폰에서처럼
 // 카메라만 제안한다.
 vi.mock('../capture/screenAudioSupport', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../capture/screenAudioSupport')>();
+  const actual = await importOriginal<typeof ScreenAudioSupportModule>();
   return {
     ...actual,
     currentScreenAudioSupport: vi.fn(actual.currentScreenAudioSupport),
