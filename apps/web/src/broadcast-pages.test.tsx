@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
@@ -11,7 +12,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
 import type { Broadcast, RecordingPart } from './broadcasts';
-import { CHAT_PAGE_LIMIT, type ChatMessage } from './chat';
+import { CHAT_HELD_LIMIT, CHAT_PAGE_LIMIT, type ChatMessage } from './chat';
 import type { Comment } from './comments';
 import { searchPath } from './search';
 import { stubNarrowScreen } from './testing/modalDialog';
@@ -1156,6 +1157,8 @@ function chat(id: string, overrides: Partial<ChatMessage> = {}): ChatMessage {
 
 const COMMENTS = 'GET /api/broadcasts/b1/comments';
 const CHAT = 'GET /api/broadcasts/b1/chat';
+// 실시간 채팅은 처음에 최근 한 페이지만 읽는다(#213).
+const LIVE_CHAT = `${CHAT}?latest=true`;
 
 // 채팅 폴링은 setTimeout으로 기다린다. 그래서 이 테스트들은 그것도 가짜로 바꾸고
 // findBy 대신 시간을 직접 넘긴다. findBy는 스스로 기다리다 멈춰 버린다.
@@ -1171,7 +1174,7 @@ it.each(['READY', 'LIVE'] as const)(
     const calls = stubApi({
       'GET /api/auth/me': 401,
       'GET /api/broadcasts/b1': broadcast({ status }),
-      [CHAT]: [chat('m1', { body: '안녕하세요' })],
+      [LIVE_CHAT]: [chat('m1', { body: '안녕하세요' })],
     });
     renderAt('/broadcasts/b1');
     const panel = await screen.findByRole('complementary', { name: '채팅' });
@@ -1197,7 +1200,7 @@ it('polls chat every second for only what came after the last message', async ()
     const calls = stubApi({
       'GET /api/auth/me': 401,
       'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-      [CHAT]: [chat('m1'), chat('m2')],
+      [LIVE_CHAT]: [chat('m1'), chat('m2')],
       [`${CHAT}?after=m2`]: [
         chat('m3', { createdAt: '2026-11-10T01:00:05.000Z' }),
       ],
@@ -1206,7 +1209,7 @@ it('polls chat every second for only what came after the last message', async ()
     renderAt('/broadcasts/b1');
     await flush();
     expect(screen.getByText('채팅 m2')).toBeDefined();
-    expect(calls.filter((c) => c.startsWith(CHAT))).toEqual([CHAT]);
+    expect(calls.filter((c) => c.startsWith(CHAT))).toEqual([LIVE_CHAT]);
 
     await act(() => vi.advanceTimersByTimeAsync(999));
     expect(calls).not.toContain(`${CHAT}?after=m2`);
@@ -1215,7 +1218,7 @@ it('polls chat every second for only what came after the last message', async ()
 
     await act(() => vi.advanceTimersByTimeAsync(1000));
     expect(calls.filter((c) => c.startsWith(CHAT))).toEqual([
-      CHAT,
+      LIVE_CHAT,
       `${CHAT}?after=m2`,
       `${CHAT}?after=m3`,
     ]);
@@ -1229,7 +1232,7 @@ it('polls chat every second for only what came after the last message', async ()
   }
 });
 
-it('reads the next page at once when a chat page comes back full', async () => {
+it('reads the next page at once when a chat page after the cursor comes back full', async () => {
   fakeAllTimers();
   try {
     const page = Array.from({ length: CHAT_PAGE_LIMIT }, (_, i) =>
@@ -1239,16 +1242,23 @@ it('reads the next page at once when a chat page comes back full', async () => {
     const calls = stubApi({
       'GET /api/auth/me': 401,
       'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-      [CHAT]: page,
+      [LIVE_CHAT]: [chat('a00')],
+      [`${CHAT}?after=a00`]: page,
       [`${CHAT}?after=${last}`]: [chat('n1', { body: '마지막' })],
     });
     renderAt('/broadcasts/b1');
     await flush();
+    await act(() => vi.advanceTimersByTimeAsync(1000));
     expect(screen.getByText('마지막')).toBeDefined();
     expect(calls.filter((c) => c.startsWith(CHAT))).toEqual([
-      CHAT,
+      LIVE_CHAT,
+      `${CHAT}?after=a00`,
       `${CHAT}?after=${last}`,
     ]);
+    // 실시간 화면은 최근 CHAT_HELD_LIMIT개만 들고 있다(#213).
+    expect(screen.queryByText('채팅 a00')).toBeNull();
+    expect(screen.queryByText('채팅 m000')).toBeNull();
+    expect(screen.getAllByText(/^채팅 m/)).toHaveLength(CHAT_HELD_LIMIT - 1);
   } finally {
     vi.useRealTimers();
   }
@@ -1261,7 +1271,7 @@ it('sends a chat message and shows it before the next poll', async () => {
       'GET /api/auth/me': other,
       'GET /api/me/follows': [],
       'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-      [CHAT]: [],
+      [LIVE_CHAT]: [],
       'POST /api/broadcasts/b1/chat': chat('m1', { body: '안녕하세요' }),
     });
     renderAt('/broadcasts/b1');
@@ -1294,7 +1304,7 @@ it('shows the API’s message when chat refuses a message with 409', async () =>
     'GET /api/auth/me': other,
     'GET /api/me/follows': [],
     'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-    [CHAT]: [],
+    [LIVE_CHAT]: [],
     'POST /api/broadcasts/b1/chat': () =>
       Response.json(
         { message: '끝난 방송에는 채팅을 보낼 수 없습니다.' },
@@ -1311,12 +1321,31 @@ it('shows the API’s message when chat refuses a message with 409', async () =>
   );
 });
 
+// 한 계정이 짧은 시간에 너무 많이 보내면 API가 429로 막는다(#213).
+it('says the viewer is sending too fast on 429 and keeps the draft', async () => {
+  stubApi({
+    'GET /api/auth/me': other,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
+    [LIVE_CHAT]: [],
+    'POST /api/broadcasts/b1/chat': 429,
+  });
+  renderAt('/broadcasts/b1');
+  const draft = await screen.findByLabelText('채팅 쓰기');
+  fireEvent.change(draft, { target: { value: '또 보내요' } });
+  fireEvent.click(screen.getByRole('button', { name: '보내기' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '채팅을 너무 빠르게 보내고 있습니다. 잠시 후 다시 보내 주세요.',
+  );
+  expect(draft).toHaveProperty('value', '또 보내요');
+});
+
 it('offers no edit or delete on chat, not even on the viewer’s own message', async () => {
   stubApi({
     'GET /api/auth/me': other,
     'GET /api/me/follows': [],
     'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-    [CHAT]: [
+    [LIVE_CHAT]: [
       chat('m1', {
         body: '스트리머 채팅',
         author: { id: streamer.id, nickname: streamer.nickname },
@@ -1337,7 +1366,7 @@ it('switches from chat to the 댓글 and 채팅 기록 tabs when the broadcast e
     const routes: Record<string, unknown> = {
       'GET /api/auth/me': 401,
       'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-      [CHAT]: [chat('m1', { body: '방송 중 채팅' })],
+      [LIVE_CHAT]: [chat('m1', { body: '방송 중 채팅' })],
       [`${CHAT}?after=m1`]: [],
       [COMMENTS]: [comment({ body: '잘 봤습니다' })],
     };
@@ -1397,7 +1426,7 @@ it('shows a donation line in live chat apart from ordinary chat', async () => {
   stubApi({
     'GET /api/auth/me': 401,
     'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-    [CHAT]: [
+    [LIVE_CHAT]: [
       chat('m1', { body: '안녕하세요' }),
       chat('d1', {
         body: '화이팅',
@@ -1541,6 +1570,53 @@ it('shows the whole chat log when the recording has no start times', async () =>
     '채팅 gap',
     '채팅 part2',
   ]);
+});
+
+// 채팅 기록은 처음부터 한 페이지씩 받는다(#213). 재생이 받은 메시지 끝에
+// 닿을 때만 다음 페이지를 받는다.
+it('reads the next chat log page only when the replay reaches the end of what it has', async () => {
+  const page = Array.from({ length: CHAT_PAGE_LIMIT }, (_, i) =>
+    chat(`p${String(i).padStart(3, '0')}`, {
+      createdAt: '2026-11-10T01:00:10.000Z',
+    }),
+  );
+  const next = `${CHAT}?after=${page.at(-1)!.id}`;
+  const calls = stubApi({
+    'GET /api/auth/me': 401,
+    'GET /api/broadcasts/b1': broadcast({
+      status: 'ENDED',
+      recordingFiles: [REPLAY_PARTS[0].file],
+      recordingParts: [REPLAY_PARTS[0]],
+    }),
+    [COMMENTS]: [],
+    [CHAT]: page,
+    [next]: [chat('later', { createdAt: '2026-11-10T01:05:00.000Z' })],
+  });
+  renderAt('/broadcasts/b1');
+  fireEvent.click(await screen.findByRole('tab', { name: '채팅 기록' }));
+  const logPanel = screen.getByRole('tabpanel', { name: '채팅 기록' });
+  await within(logPanel).findByText('채팅 p199');
+  // 재생 전에는 받은 것을 보이고, 더 받을지는 시청자가 정한다.
+  expect(
+    within(logPanel).getByRole('button', { name: '채팅 더 보기' }),
+  ).toBeDefined();
+  expect(calls).not.toContain(next);
+
+  const video = screen.getByLabelText<HTMLVideoElement>('다시보기 화면');
+  fireEvent.play(video);
+  video.currentTime = 0;
+  fireEvent.timeUpdate(video);
+  expect(calls).not.toContain(next);
+  expect(within(logPanel).queryByRole('button')).toBeNull();
+
+  video.currentTime = 100;
+  fireEvent.timeUpdate(video);
+  await waitFor(() => expect(calls).toContain(next));
+  expect(calls.filter((c) => c === next)).toHaveLength(1);
+  expect(within(logPanel).queryByText('채팅 later')).toBeNull();
+  video.currentTime = 400;
+  fireEvent.timeUpdate(video);
+  expect(await within(logPanel).findByText('채팅 later')).toBeDefined();
 });
 
 it('moves between the ended broadcast’s tabs with the arrow, Home and End keys', async () => {
@@ -1690,6 +1766,25 @@ it('posts a comment and shows it without waiting for the next poll', async () =>
   expect(draft).toHaveProperty('value', '');
 });
 
+// 한 계정이 짧은 시간에 너무 많이 쓰면 API가 429로 막는다(#213).
+it('says the viewer is commenting too fast on 429 and keeps the draft', async () => {
+  stubApi({
+    'GET /api/auth/me': other,
+    'GET /api/me/follows': [],
+    'GET /api/broadcasts/b1': broadcast({ status: 'ENDED' }),
+    [COMMENTS]: [],
+    'POST /api/broadcasts/b1/comments': 429,
+  });
+  renderAt('/broadcasts/b1');
+  const draft = await screen.findByLabelText('댓글 쓰기');
+  fireEvent.change(draft, { target: { value: '또 남겨요' } });
+  fireEvent.click(screen.getByRole('button', { name: '등록' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '댓글을 너무 빠르게 남기고 있습니다. 잠시 후 다시 남겨 주세요.',
+  );
+  expect(draft).toHaveProperty('value', '또 남겨요');
+});
+
 it('edits the viewer’s own comment', async () => {
   const routes: Record<string, unknown> = {
     'GET /api/auth/me': other,
@@ -1745,7 +1840,7 @@ async function openChatToSend() {
     'GET /api/auth/me': other,
     'GET /api/me/follows': [],
     'GET /api/broadcasts/b1': broadcast({ status: 'LIVE' }),
-    [CHAT]: [],
+    [LIVE_CHAT]: [],
     'POST /api/broadcasts/b1/chat': chat('m1', { body: '안녕하세요' }),
   });
   renderAt('/broadcasts/b1');

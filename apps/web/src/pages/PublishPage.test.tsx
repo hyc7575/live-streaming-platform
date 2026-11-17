@@ -1457,7 +1457,7 @@ it('lets the streamer read and send chat beside the donations', async () => {
   const page = renderPage({
     'GET /api/broadcasts/b1': LIVE_ELSEWHERE,
     [DONATIONS]: donations([]),
-    'GET /api/broadcasts/b1/chat': { status: 200, body: [hello] },
+    'GET /api/broadcasts/b1/chat?latest=true': { status: 200, body: [hello] },
     'GET /api/broadcasts/b1/chat?after=c1': { status: 200, body: [] },
     'POST /api/broadcasts/b1/chat': {
       status: 201,

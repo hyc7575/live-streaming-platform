@@ -10,6 +10,7 @@
 - [STRATEGY-chat-replay.md](./STRATEGY-chat-replay.md)
 - [STRATEGY-standby-scene.md](./STRATEGY-standby-scene.md)
 - [PRD.md](./PRD.md) (두 전략의 결정을 확정)
+- 채팅 도배 방지(#213): [DISCOVERY-chat-flood.md](./DISCOVERY-chat-flood.md), [RED-TEAM-chat-flood.md](./RED-TEAM-chat-flood.md), [PRD-chat-flood.md](./PRD-chat-flood.md), [SCENARIOS-chat-flood.md](./SCENARIOS-chat-flood.md)
 
 ## 요구사항 위치
 
@@ -25,10 +26,12 @@
 | #90 | #93 | READY 방송을 공개 목록에 노출 |
 | #91 | #94 | 채팅과 댓글을 나눈다 |
 | #92 | #95 | 다시보기 채팅을 재생 위치에 맞춘다 |
+| #213 | #224 | 채팅·댓글 사용자별 한도, 첫 로드 최근 50개, 보관 상한, 다시보기 이어 받기 |
 
 ## 코드
 
 - api: `apps/api/src/chat/`
+- api: `apps/api/src/auth/user-throttler.guard.ts` (사용자별 한도, #213)
 - web: `apps/web/src/components/ChatPanel.tsx`
 - web: `apps/web/src/chat.ts`, `use-chat-feed.ts`, `replay-chat.ts`
 

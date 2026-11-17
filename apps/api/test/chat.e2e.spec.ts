@@ -2,8 +2,10 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import type TestAgent from 'supertest/lib/agent.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { CHAT_RATE_LIMIT } from '../src/chat/chat.controller.js';
 import {
   CHAT_ENDED_MESSAGE,
+  CHAT_LATEST_LIMIT,
   CHAT_MAX_LENGTH,
   CHAT_PAGE_LIMIT,
   type ChatMessageView,
@@ -122,6 +124,19 @@ describe('chat', () => {
         CHAT_ENDED_MESSAGE,
       );
       expect(await prisma.chatMessage.count()).toBe(0);
+    });
+
+    // 한 계정이 방송 채팅을 메시지로 덮지 못한다(#213). 한도는 세션
+    // 사용자마다 따로 센다.
+    it('answers 429 once one account exceeds the chat limit, without slowing another account', async () => {
+      for (let i = 0; i < CHAT_RATE_LIMIT.limit; i += 1) {
+        expect((await post(viewer.agent, { body: `채팅 ${i}` })).status).toBe(
+          201,
+        );
+      }
+      expect((await post(viewer.agent, { body: '하나 더' })).status).toBe(429);
+      expect(await prisma.chatMessage.count()).toBe(CHAT_RATE_LIMIT.limit);
+      expect((await post(streamer.agent, { body: '저는요' })).status).toBe(201);
     });
 
     it('answers 401 to an anonymous sender', async () => {
@@ -255,6 +270,35 @@ describe('chat', () => {
     it('reads from the start when the cursor is not a message of this broadcast', async () => {
       const ids = await seedMessages(3);
       expect((await list(UNKNOWN_ID)).map((m) => m.id)).toEqual(ids);
+    });
+
+    // 새 시청자는 처음부터 전부가 아니라 최근 한 페이지만 받는다(#213).
+    it('answers latest=true with only the most recent messages, oldest first', async () => {
+      const ids = await seedMessages(CHAT_LATEST_LIMIT + 30);
+      const res = await anonymous()
+        .get(`/api/broadcasts/${broadcastId}/chat`)
+        .query({ latest: 'true' });
+      expect(res.status).toBe(200);
+      expect((res.body as ChatJson[]).map((m) => m.id)).toEqual(
+        ids.slice(-CHAT_LATEST_LIMIT),
+      );
+    });
+
+    it('answers latest=true on an empty chat with an empty list', async () => {
+      const res = await anonymous()
+        .get(`/api/broadcasts/${broadcastId}/chat`)
+        .query({ latest: 'true' });
+      expect(res.body).toEqual([]);
+    });
+
+    it.each([
+      ['latest with after', { latest: 'true', after: UNKNOWN_ID }],
+      ['latest other than true', { latest: 'yes' }],
+    ])('rejects %s with 400', async (_name, query) => {
+      const res = await anonymous()
+        .get(`/api/broadcasts/${broadcastId}/chat`)
+        .query(query);
+      expect(res.status).toBe(400);
     });
 
     it('rejects a malformed cursor with 400', async () => {

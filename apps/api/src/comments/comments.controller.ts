@@ -9,9 +9,11 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser, LoggedInGuard } from '../auth/logged-in.guard.js';
+import { UserThrottlerGuard } from '../auth/user-throttler.guard.js';
 import { ZodBodyPipe } from '../zod-body.pipe.js';
 import { CommentAuthorGuard } from './comment-author.guard.js';
 import {
@@ -27,6 +29,10 @@ const bodySchema = z.object({
 
 type CommentInput = z.infer<typeof bodySchema>;
 
+// 한 계정이 댓글로 목록을 덮지 못하게 사용자마다 묶는다(#213). 댓글은
+// 방송 뒤 감상이라 채팅보다 느리게 쓴다.
+export const COMMENT_RATE_LIMIT = { limit: 5, ttl: 60_000 };
+
 @Controller()
 export class CommentsController {
   constructor(private readonly comments: CommentsService) {}
@@ -37,7 +43,8 @@ export class CommentsController {
   }
 
   @Post('broadcasts/:id/comments')
-  @UseGuards(LoggedInGuard)
+  @UseGuards(LoggedInGuard, UserThrottlerGuard)
+  @Throttle({ default: COMMENT_RATE_LIMIT })
   create(
     @Param('id') broadcastId: string,
     @CurrentUser() user: AuthUser,
