@@ -177,7 +177,7 @@ export const READY_LISTED_MS = 24 * 60 * 60 * 1000;
 // 다른 사람의 READY와 ENDED를 24시간 동안 밀어낸다. 목록과 같은 조건(만든 지
 // READY_LISTED_MS 안인 READY)으로 세므로, 한 계정의 목록 몫도 이 수로 묶인다.
 // 테스트 계정 하나를 심사위원 여럿이 나눠 쓰므로 너무 낮게 두지 않는다.
-export const READY_PER_STREAMER_CAP = 10;
+export const READY_PER_STREAMER_CAP = 20;
 // 방송 생성 transaction의 전체 동시 상한. 공유 pg pool(PG_POOL_MAX 10개) 중
 // 결제 확정 3개(CONFIRM_CONCURRENCY)와 합쳐도 4개가 다른 요청에 남는다.
 export const CREATE_CONCURRENCY = 3;
