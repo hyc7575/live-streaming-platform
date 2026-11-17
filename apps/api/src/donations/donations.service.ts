@@ -14,6 +14,7 @@ import { addDonationLine } from '../chat/donation-line.js';
 import { PrismaService } from '../database/database.module.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { donationTargetSelect, type DonationTarget } from './sent-donation.js';
+import { ConfirmGate } from './confirm-gate.js';
 import { approveTossPayment } from './toss-approval.js';
 import {
   TOSS_CONFIG,
@@ -151,6 +152,7 @@ export class DonationsService {
     private readonly broadcasts: BroadcastsService,
     @Inject(TOSS_CONFIG) private readonly config: TossConfig | null,
     @Inject(TOSS_PAYMENTS) private readonly toss: TossPayments | null,
+    private readonly gate: ConfirmGate,
   ) {}
 
   // 두 결제 방식 모두 여기로 온다. 라임 후원은 처음부터 PAID로 저장된다.
@@ -309,79 +311,82 @@ export class DonationsService {
       throw new BadRequestException(AMOUNT_MISMATCH_MESSAGE);
     }
     try {
-      return await this.prisma.$transaction(
-        async (tx) => {
-          // 후원 줄을 쓰면 FK 확인이 방송 행을 잠근다. 방송 삭제는 방송 행을
-          // 잠근 뒤 후원 행을 기다리므로, 후원 행을 먼저 잡으면 서로 기다린다.
-          // 그래서 방송 행을 먼저 잡는다. KEY SHARE는 삭제만 기다리게 하고
-          // 방송 종료(상태 갱신)는 막지 않는다. 이미 지워졌으면 행이 없고,
-          // 아래 잠금이 broadcastId null을 보고 거절한다.
-          if (order.broadcastId !== null) {
-            await tx.$queryRaw(Prisma.sql`
+      // gate가 Toss 응답을 기다리며 연결을 쥐는 확정의 수를 묶는다(#215).
+      return await this.gate.run(donorId, () =>
+        this.prisma.$transaction(
+          async (tx) => {
+            // 후원 줄을 쓰면 FK 확인이 방송 행을 잠근다. 방송 삭제는 방송 행을
+            // 잠근 뒤 후원 행을 기다리므로, 후원 행을 먼저 잡으면 서로 기다린다.
+            // 그래서 방송 행을 먼저 잡는다. KEY SHARE는 삭제만 기다리게 하고
+            // 방송 종료(상태 갱신)는 막지 않는다. 이미 지워졌으면 행이 없고,
+            // 아래 잠금이 broadcastId null을 보고 거절한다.
+            if (order.broadcastId !== null) {
+              await tx.$queryRaw(Prisma.sql`
               SELECT id FROM "Broadcast"
               WHERE id = ${order.broadcastId}::uuid
               FOR KEY SHARE`);
-          }
-          const [locked] = await tx.$queryRaw<
-            {
-              id: string;
-              status: string;
-              paymentKey: string | null;
-              broadcastId: string | null;
-              donorId: string;
-              message: string;
-            }[]
-          >(Prisma.sql`
+            }
+            const [locked] = await tx.$queryRaw<
+              {
+                id: string;
+                status: string;
+                paymentKey: string | null;
+                broadcastId: string | null;
+                donorId: string;
+                message: string;
+              }[]
+            >(Prisma.sql`
             SELECT id, status::text, "paymentKey", "broadcastId", "donorId",
               message
             FROM "Donation"
             WHERE "orderId" = ${input.orderId}
             FOR UPDATE`);
-          if (!locked) throw new NotFoundException(ORDER_NOT_FOUND_MESSAGE);
-          if (locked.status === 'PAID') {
-            if (locked.paymentKey !== input.paymentKey) {
-              throw new ConflictException(PAYMENT_KEY_USED_MESSAGE);
+            if (!locked) throw new NotFoundException(ORDER_NOT_FOUND_MESSAGE);
+            if (locked.status === 'PAID') {
+              if (locked.paymentKey !== input.paymentKey) {
+                throw new ConflictException(PAYMENT_KEY_USED_MESSAGE);
+              }
+            } else if (locked.broadcastId === null) {
+              // 주문이 삭제된 방송보다 오래 남았으므로(#114) Toss에 묻지 않고
+              // 거부한다. 확정과 경합하는 삭제는 이 행 잠금을
+              // 기다린다. 확정이 커밋되면 그 뒤에 삭제가
+              // PAID 후원의 방송 연결을 끊고, 후원은 기록으로 남는다.
+              //
+              // 알려진 빈틈: 502로 끝난 확정은 롤백되어 주문을 PENDING으로 남긴다.
+              // Toss는 돈을 받았을 수도 있다. 재시도 전에 방송이
+              // 삭제되면 재시도는 여기로 와서
+              // Toss에 다시 묻지 않으므로, 그 결제는 기록되지 않는다.
+              // #114 이전의 cascade도 같은 식으로 그 결제를 잃었다(404).
+              throw new ConflictException({
+                message: BROADCAST_DELETED_MESSAGE,
+                code: BROADCAST_DELETED_CODE,
+              });
+            } else {
+              const approvedAt = await approveTossPayment(
+                toss,
+                input,
+                this.logger,
+              );
+              await tx.donation.update({
+                where: { id: locked.id },
+                data: {
+                  status: 'PAID',
+                  paymentKey: input.paymentKey,
+                  approvedAt,
+                },
+              });
+              await addDonationLine(tx, {
+                ...locked,
+                broadcastId: locked.broadcastId,
+              });
             }
-          } else if (locked.broadcastId === null) {
-            // 주문이 삭제된 방송보다 오래 남았으므로(#114) Toss에 묻지 않고
-            // 거부한다. 확정과 경합하는 삭제는 이 행 잠금을
-            // 기다린다. 확정이 커밋되면 그 뒤에 삭제가
-            // PAID 후원의 방송 연결을 끊고, 후원은 기록으로 남는다.
-            //
-            // 알려진 빈틈: 502로 끝난 확정은 롤백되어 주문을 PENDING으로 남긴다.
-            // Toss는 돈을 받았을 수도 있다. 재시도 전에 방송이
-            // 삭제되면 재시도는 여기로 와서
-            // Toss에 다시 묻지 않으므로, 그 결제는 기록되지 않는다.
-            // #114 이전의 cascade도 같은 식으로 그 결제를 잃었다(404).
-            throw new ConflictException({
-              message: BROADCAST_DELETED_MESSAGE,
-              code: BROADCAST_DELETED_CODE,
-            });
-          } else {
-            const approvedAt = await approveTossPayment(
-              toss,
-              input,
-              this.logger,
-            );
-            await tx.donation.update({
+            return tx.donation.findUniqueOrThrow({
               where: { id: locked.id },
-              data: {
-                status: 'PAID',
-                paymentKey: input.paymentKey,
-                approvedAt,
-              },
+              select: confirmedSelect,
             });
-            await addDonationLine(tx, {
-              ...locked,
-              broadcastId: locked.broadcastId,
-            });
-          }
-          return tx.donation.findUniqueOrThrow({
-            where: { id: locked.id },
-            select: confirmedSelect,
-          });
-        },
-        { timeout: CONFIRM_TRANSACTION_TIMEOUT_MS },
+          },
+          { timeout: CONFIRM_TRANSACTION_TIMEOUT_MS },
+        ),
       );
     } catch (error) {
       if (hasPrismaCode(error, 'P2002')) {

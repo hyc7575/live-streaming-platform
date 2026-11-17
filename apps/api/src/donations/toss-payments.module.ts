@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CONFIRM_CONCURRENCY, ConfirmGate } from './confirm-gate.js';
 import {
   HttpTossPayments,
   TOSS_CONFIG,
@@ -7,7 +8,7 @@ import {
   type TossConfig,
 } from './toss-payments.js';
 
-// 모든 결제가 Toss 클라이언트 하나를 쓴다. 카드 후원과 라임 충전.
+// 모든 결제가 Toss 클라이언트 하나와 확정 gate 하나를 쓴다. 카드 후원과 라임 충전.
 @Module({
   providers: [
     {
@@ -20,7 +21,11 @@ import {
       useFactory: (config: TossConfig | null) =>
         config && new HttpTossPayments(config),
     },
+    {
+      provide: ConfirmGate,
+      useFactory: () => new ConfirmGate(CONFIRM_CONCURRENCY),
+    },
   ],
-  exports: [TOSS_CONFIG, TOSS_PAYMENTS],
+  exports: [TOSS_CONFIG, TOSS_PAYMENTS, ConfirmGate],
 })
 export class TossPaymentsModule {}
