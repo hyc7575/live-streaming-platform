@@ -2,7 +2,7 @@
 
 **Format**: User Stories
 **출처**: 2026-11-16 아키텍처 재검증(main 40f9ebc, 지난 리뷰 6e6da05 이후 72커밋). web·api를 나눠 읽고 핵심 주장(폴링 드롭, `endedAt` 시계, 확정 중복, 시딩 수)은 코드로 다시 확인했다.
-**Total stories**: 7
+**Total stories**: 9
 **Estimated total effort**: 약 30시간 (S≈2h, M≈4h, L≈8h). 11/19 마감 전에 다 들어가지 않을 수 있다. 아래 Story Map의 자르는 선을 따른다.
 
 실사용자 데이터 없음. 근거는 공모 원문 4절 평가 기준("코드 품질 및 안정성: 코드 구조, 예외 처리, 방송 상태 관리"), 현재 코드, 기존 테스트다. 모든 스토리는 동작을 바꾸지 않는 리팩터링이다. S1만 사용자에게 보이는 버그를 고친다.
@@ -141,6 +141,24 @@ Priority: P1 | Effort: S | Dependencies: S1·S2(머지됨)
 
 ---
 
+#### S9: 카드 확정과 방송 삭제가 겹쳐도 교착하지 않는다 (11/16 추가, #197 선행)
+**유지보수자로서, 카드 후원 확정의 잠금 순서(방송 행 먼저, 후원 행 다음)를 테스트로 고정하고 싶다. 그래야 #197(S5)에서 확정을 공용 module로 옮기다 순서가 뒤집혀도 바로 드러난다.**
+
+`confirm()`은 `Donation` 행을 `FOR UPDATE`로 잠그기 전에 `Broadcast` 행을 `FOR KEY SHARE`로 먼저 잠근다(`donations/donations.service.ts`). 방송 삭제는 방송 행을 잠근 뒤 후원 행을 기다린다(`onDelete: SetNull`). 순서가 뒤집히면 서로 기다려 Postgres가 한쪽을 끊는다(40P01 → 500). 사전 부검 T1의 대응이다.
+
+겹친 삭제의 끝 상태는 `donation-chat-line.e2e`의 "settles a broadcast deletion that overlaps a slow approval"이 이미 본다. 그 테스트는 교착이 터질 때만 실패하므로, 방송 행 선잠금을 후원 행 잠금 바로 뒤(Toss 전)로 옮긴 경우는 잡지 못한다. #197에서 가장 생기기 쉬운 회귀가 이것이다.
+
+Acceptance Criteria:
+- [ ] 테스트가 후원 행을 쥔 채 확정을 보내면, 확정이 방송 행을 이미 쥐고 있음을 `FOR UPDATE SKIP LOCKED`로 확인한다(교착 감지 타이밍에 기대지 않는다)
+- [ ] 선잠금을 빼거나 후원 행 잠금 뒤로 옮기면 이 테스트가 실패하는 것을 한 번 확인하고 되돌린다
+- [ ] 테스트가 실패해도 쥔 잠금을 풀어 다음 테스트를 막지 않는다
+- [ ] 끝 상태 테스트와 순서 테스트가 서로를 가리킨다
+- [ ] 운영 코드는 바꾸지 않는다
+
+Priority: P1 | Effort: S | Dependencies: none | 이슈 #207
+
+---
+
 ### Story Map
 
 ```
@@ -150,7 +168,7 @@ Priority: P1 | Effort: S | Dependencies: S1·S2(머지됨)
 하면 좋음 (11/18)  S6 송출 주체 판정
                    S7 결제 완료 알림
 하면 좋음 (11/17)  S8 폴링 요청 제한 시간
-제출 뒤            S5 Toss 확정 한 곳(사전 부검 No-Go: 잠금 순서 테스트 먼저)
+제출 뒤            S5 Toss 확정 한 곳(사전 부검 No-Go: 잠금 순서 테스트 S9 먼저)
 하지 않음          테스트 준비 코드 공용화(web 가짜 API 14벌, api 방송 시딩 27곳). 심사위원 눈에 덜 보이고 제품 코드가 안 바뀐다
                    OME webhook wire 형식 이동(ADR-0001로 이득이 작다)
 ```
@@ -190,3 +208,4 @@ PR마다 Standards(저장소 규칙)·Spec(수락 기준) 두 축으로 다시 �
 | S6 | #198 |
 | S7 | #199 |
 | S8 | #205 |
+| S9 | #207 |

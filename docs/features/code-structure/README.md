@@ -6,7 +6,7 @@
 
 ## 요구사항
 
-- [STORIES](./STORIES.md): 스토리 S1~S7, 수락 기준, 자르는 선
+- [STORIES](./STORIES.md): 스토리 S1~S9, 수락 기준, 자르는 선
 - [PRE-MORTEM-payment-confirm](./PRE-MORTEM-payment-confirm.md): S5(Toss 확정 통합)의 사전 부검. 제출 전 No-Go 권고
 
 크기 판정(`docs/agents/pm-skills.md`): S1~S4·S6·S7은 API·DB를 바꾸지 않는 "방향이 정해진" 작업이라 스토리로 수락 기준을 만들었다. S5는 결제 경로라 사전 부검을 더했다. 방향은 리뷰에서 정해져 탐색·PRD는 거치지 않았다.
@@ -21,6 +21,7 @@
 | S6 | 송출 화면의 송출 주체 판정 | #198 | #203 |
 | S7 | 결제 완료 알림 한 module | #199 | #204 |
 | S8 | 폴링 요청 제한 시간 | #205 | #206 |
+| S9 | 카드 확정·방송 삭제 동시성 e2e(S5 선행) | #207 | |
 
 ## 코드 위치
 

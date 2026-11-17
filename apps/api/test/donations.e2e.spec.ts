@@ -11,7 +11,10 @@ import {
   type DonationOrder,
 } from '../src/donations/donations.service.js';
 import { TossPaymentsError } from '../src/donations/toss-payments.js';
-import type { BroadcastStatus } from '../src/generated/prisma/client.js';
+import {
+  Prisma,
+  type BroadcastStatus,
+} from '../src/generated/prisma/client.js';
 import {
   createTestApp,
   logIn,
@@ -72,6 +75,16 @@ describe('donations', () => {
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     const { orderId } = res.body as DonationOrder;
     return { paymentKey: `pay_${orderId}`, orderId, amount };
+  };
+
+  // 이 DB에서 행 잠금을 기다리는 연결 수.
+  const lockWaiters = async () => {
+    const [row] = await prisma.$queryRaw<{ waiting: number }[]>(
+      Prisma.sql`
+        SELECT count(*)::int AS waiting FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+    );
+    return row?.waiting ?? 0;
   };
 
   const setStatus = (status: BroadcastStatus) =>
@@ -484,6 +497,51 @@ describe('donations', () => {
         broadcastId: null,
       });
       expect(toss.calls).toHaveLength(1);
+    });
+
+    // 사전 부검 T1(#207): 확정은 방송 행을 후원 행보다 먼저 잠근다. 방송
+    // 삭제는 방송 행을 잠근 뒤 후원 행을 기다리므로(SetNull), 순서가 뒤집히면
+    // 둘이 서로 기다려 40P01로 끊긴다. 겹친 삭제의 끝 상태는
+    // donation-chat-line.e2e의 'settles a broadcast deletion …'이 본다.
+    // 여기서는 순서 자체를 본다. 테스트가 후원 행을 쥔 채 확정을 보내면,
+    // 확정은 방송 행을 이미 잡고 후원 행에서 기다려야 한다.
+    it('locks the broadcast row before the order row while confirming', async () => {
+      const payment = await ordered(4000);
+      let unlock!: () => void;
+      const unlocked = new Promise<void>((resolve) => (unlock = resolve));
+      let orderLocked!: () => void;
+      const locked = new Promise<void>((resolve) => (orderLocked = resolve));
+      const holding = prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw(Prisma.sql`
+            SELECT id FROM "Donation"
+            WHERE "orderId" = ${payment.orderId}
+            FOR UPDATE`);
+          orderLocked();
+          await unlocked;
+        },
+        { timeout: 10_000 },
+      );
+      try {
+        await Promise.race([locked, holding]);
+        // supertest는 then을 불러야 요청을 보낸다.
+        const confirming = confirm(donor.agent, payment).then((res) => res);
+        await expect.poll(lockWaiters, { timeout: 2000 }).toBeGreaterThan(0);
+
+        // 확정이 방송 행을 KEY SHARE로 쥐고 있으면 FOR UPDATE는 건너뛴다.
+        const free = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+          SELECT id FROM "Broadcast"
+          WHERE id = ${broadcastId}::uuid
+          FOR UPDATE SKIP LOCKED`);
+        expect(free, 'confirm must hold the broadcast row first').toEqual([]);
+
+        unlock();
+        const confirmed = await confirming;
+        expect(confirmed.status, JSON.stringify(confirmed.body)).toBe(200);
+      } finally {
+        unlock();
+        await holding;
+      }
     });
   });
 
