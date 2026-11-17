@@ -96,7 +96,7 @@ export function PlayerControls({
   children: ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const media = useMediaState(videoRef);
+  const media = useMediaState(videoRef, !live);
   const [active, setActive] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [userSetMute, setUserSetMute] = useState(false);
