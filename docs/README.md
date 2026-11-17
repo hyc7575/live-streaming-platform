@@ -48,5 +48,6 @@
 | [카테고리·게임 타이틀](./features/category/) | P2 | README, DISCOVERY, PRD |
 | [검색](./features/search/) | P2 | README, DISCOVERY, PRD |
 | [코드 구조 개선](./features/code-structure/) | – | README, STORIES, PRE-MORTEM-payment-confirm |
+| [web 성능 개선](./features/web-performance/) | – | README, STORIES |
 
 운영(자동 재기동, 감시, 백업)은 사용자 기능이 아니라서 [OPERATIONS.md](./OPERATIONS.md)에 둔다.
