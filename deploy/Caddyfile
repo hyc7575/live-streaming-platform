@@ -13,6 +13,8 @@
 		request_body {
 			max_size 4MiB
 		}
+		# #240: Node에 compression 미들웨어를 두지 않고, 앞단 Caddy가 JSON 응답을 압축한다.
+		encode zstd gzip
 		reverse_proxy api:3000
 	}
 
