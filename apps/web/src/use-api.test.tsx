@@ -105,6 +105,35 @@ describe('usePolledApi', () => {
     expect(dataOf(result.current.data)).toBe('slow');
   });
 
+  it('새 응답이 이전과 같으면 이전 data 참조를 두고, readAt은 갱신한다', async () => {
+    const { result } = renderHook(() =>
+      usePolledApi<{ n: number }>('/x', 1000),
+    );
+    const now = vi.spyOn(Date, 'now');
+    now.mockReturnValue(1000);
+    await answer(0, { n: 1 });
+    const first = dataOf(result.current.data);
+    expect(result.current.readAt).toBe(1000);
+    now.mockReturnValue(6000);
+    await advanceClock(1000);
+    await answer(1, { n: 1 });
+    expect(dataOf(result.current.data)).toBe(first);
+    expect(result.current.readAt).toBe(6000);
+    now.mockRestore();
+  });
+
+  it('응답이 바뀌면 새 data를 바로 반영한다', async () => {
+    const { result } = renderHook(() =>
+      usePolledApi<{ n: number }>('/x', 1000),
+    );
+    await answer(0, { n: 1 });
+    const first = dataOf(result.current.data);
+    await advanceClock(1000);
+    await answer(1, { n: 2 });
+    expect(dataOf(result.current.data)).not.toBe(first);
+    expect(dataOf(result.current.data)).toEqual({ n: 2 });
+  });
+
   it('다시 읽기가 실패하면 마지막 응답을 유지한다', async () => {
     const { result } = renderHook(() => usePolledApi<string>('/x', 1000));
     await answer(0, 'first');
