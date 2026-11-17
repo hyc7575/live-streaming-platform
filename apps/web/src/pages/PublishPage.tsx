@@ -138,7 +138,12 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
   });
   // 이게 없으면 방금 끊긴 이 페이지의 송출이 다음 폴링까지
   // 다른 쪽 송출로 읽힌다.
+  // 마운트 때는 usePolledApi의 첫 읽기가 이미 나가므로 건너뛰고, 값이
+  // 실제로 바뀐 때만 읽는다.
+  const seenKind = useRef(session.state.kind);
   useEffect(() => {
+    if (seenKind.current === session.state.kind) return;
+    seenKind.current = session.state.kind;
     void reload();
   }, [session.state.kind, reload]);
   const [slot, setSlot] = useState<CaptureSlot>({ kind: 'off', notice: null });
