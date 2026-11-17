@@ -66,12 +66,17 @@ function canPlayNativeHls(answer: CanPlayTypeResult) {
   vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue(answer);
 }
 
+// hls.js는 MediaSource나 ManagedMediaSource가 없을 때만 못 쓴다(iOS 17.0 이하).
+function nativeOnly() {
+  hls.supported.value = false;
+  canPlayNativeHls('maybe');
+}
+
 const NO_ALERTS = { current: null, advance() {} };
 
 const loading = () => screen.queryByText('방송을 불러오는 중입니다');
 
-it('plays through low-latency hls.js where MediaSource exists, even if HLS is native too', () => {
-  vi.stubGlobal('MediaSource', class {});
+it('plays through low-latency hls.js wherever hls.js runs, even if HLS is native too', () => {
   canPlayNativeHls('maybe');
   render(
     <LivePlayer
@@ -91,7 +96,6 @@ it('plays through low-latency hls.js where MediaSource exists, even if HLS is na
 });
 
 it('retries after a fatal error, such as the playlist 404 before OME is ready', () => {
-  vi.stubGlobal('MediaSource', class {});
   render(
     <LivePlayer
       donationAlerts={NO_ALERTS}
@@ -117,7 +121,6 @@ it('retries after a fatal error, such as the playlist 404 before OME is ready', 
 });
 
 it('hides the loading notice once the video plays', () => {
-  vi.stubGlobal('MediaSource', class {});
   render(
     <LivePlayer
       donationAlerts={NO_ALERTS}
@@ -130,7 +133,6 @@ it('hides the loading notice once the video plays', () => {
 });
 
 it('tears hls.js down and drops a pending retry on unmount', () => {
-  vi.stubGlobal('MediaSource', class {});
   const { unmount } = render(
     <LivePlayer
       donationAlerts={NO_ALERTS}
@@ -157,8 +159,8 @@ it('tears hls.js down and drops a pending retry on unmount', () => {
   expect(live?.destroy).toHaveBeenCalled();
 });
 
-it('uses native HLS where there is no MediaSource (iPhone Safari)', () => {
-  canPlayNativeHls('maybe');
+it('uses native HLS where hls.js cannot run (iOS 17.0 and older)', () => {
+  nativeOnly();
   render(
     <LivePlayer
       donationAlerts={NO_ALERTS}
@@ -194,7 +196,6 @@ it('says so when the browser can play neither', () => {
 });
 
 it('reports a fatal hls.js error, not a recoverable one, and still retries', () => {
-  vi.stubGlobal('MediaSource', class {});
   const onPlaybackError = vi.fn();
   render(
     <LivePlayer
@@ -216,7 +217,7 @@ it('reports a fatal hls.js error, not a recoverable one, and still retries', () 
 });
 
 it('reports native HLS error and stalled events', () => {
-  canPlayNativeHls('maybe');
+  nativeOnly();
   const onPlaybackError = vi.fn();
   render(
     <LivePlayer
@@ -234,7 +235,6 @@ it('reports native HLS error and stalled events', () => {
 });
 
 it('starts muted when asked to, and with sound otherwise', () => {
-  vi.stubGlobal('MediaSource', class {});
   render(<LivePlayer donationAlerts={NO_ALERTS} broadcastId="b1" startMuted />);
   expect(screen.getByLabelText<HTMLVideoElement>('방송 화면').muted).toBe(true);
   cleanup();
@@ -252,7 +252,6 @@ it('starts muted when asked to, and with sound otherwise', () => {
 });
 
 it('plays muted when the browser refuses to start with sound', async () => {
-  vi.stubGlobal('MediaSource', class {});
   const play = vi
     .spyOn(HTMLMediaElement.prototype, 'play')
     .mockRejectedValueOnce(new DOMException('no gesture', 'NotAllowedError'))
@@ -272,7 +271,7 @@ it('plays muted when the browser refuses to start with sound', async () => {
 });
 
 it('asks native HLS to play right away, falling back to muted', async () => {
-  canPlayNativeHls('maybe');
+  nativeOnly();
   const play = vi
     .spyOn(HTMLMediaElement.prototype, 'play')
     .mockRejectedValueOnce(new DOMException('no gesture', 'NotAllowedError'))
@@ -290,7 +289,6 @@ it('asks native HLS to play right away, falling back to muted', async () => {
 });
 
 it('shows the loading notice again while a retry is pending after playing', () => {
-  vi.stubGlobal('MediaSource', class {});
   render(
     <LivePlayer
       donationAlerts={NO_ALERTS}
@@ -304,7 +302,6 @@ it('shows the loading notice again while a retry is pending after playing', () =
 });
 
 it('does not retry play when an already muted video is refused', async () => {
-  vi.stubGlobal('MediaSource', class {});
   const play = vi
     .spyOn(HTMLMediaElement.prototype, 'play')
     .mockRejectedValue(new DOMException('no gesture', 'NotAllowedError'));
@@ -315,7 +312,6 @@ it('does not retry play when an already muted video is refused', async () => {
 });
 
 it('keeps sound when the browser lets it start with sound', async () => {
-  vi.stubGlobal('MediaSource', class {});
   render(
     <LivePlayer
       donationAlerts={NO_ALERTS}
@@ -330,7 +326,7 @@ it('keeps sound when the browser lets it start with sound', async () => {
 });
 
 it('drops the native source and a pending retry on unmount', () => {
-  canPlayNativeHls('maybe');
+  nativeOnly();
   const { unmount } = render(
     <LivePlayer
       donationAlerts={NO_ALERTS}
@@ -348,7 +344,6 @@ it('drops the native source and a pending retry on unmount', () => {
 });
 
 it('draws its own controls instead of the browser ones', () => {
-  vi.stubGlobal('MediaSource', class {});
   render(
     <LivePlayer
       donationAlerts={NO_ALERTS}
@@ -364,13 +359,11 @@ it('draws its own controls instead of the browser ones', () => {
 });
 
 it('offers 소리 켜기 to the owner, who starts muted', () => {
-  vi.stubGlobal('MediaSource', class {});
   render(<LivePlayer donationAlerts={NO_ALERTS} broadcastId="b1" startMuted />);
   expect(screen.getByRole('button', { name: '소리 켜기' })).toBeDefined();
 });
 
 it('offers 소리 켜기 after the browser forced a muted start', async () => {
-  vi.stubGlobal('MediaSource', class {});
   vi.spyOn(HTMLMediaElement.prototype, 'play')
     .mockRejectedValueOnce(new DOMException('no gesture', 'NotAllowedError'))
     .mockResolvedValue();
@@ -390,7 +383,6 @@ it('offers 소리 켜기 after the browser forced a muted start', async () => {
 });
 
 it('shows LIVE near the live edge and catches up once behind', () => {
-  vi.stubGlobal('MediaSource', class {});
   const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
   render(
     <LivePlayer
@@ -424,7 +416,6 @@ it('shows LIVE near the live edge and catches up once behind', () => {
 });
 
 it('reads the live edge from the hls.js instance that replaced a failed one', () => {
-  vi.stubGlobal('MediaSource', class {});
   render(
     <LivePlayer
       donationAlerts={NO_ALERTS}
