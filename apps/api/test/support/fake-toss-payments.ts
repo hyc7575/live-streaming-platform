@@ -22,11 +22,20 @@ export class FakeTossPayments implements TossPayments {
   tamper: (payment: TossPayment) => TossPayment = (payment) => payment;
   // 응답마다 잠시 붙잡아 두어, 동시 승인이 겹치게 한다.
   delayMs = 0;
+  // 지금 응답을 기다리는 호출 수와 그 최댓값. 확정 동시 상한을 확인한다.
+  inFlight = 0;
+  maxInFlight = 0;
 
   async confirm(input: TossConfirmInput): Promise<TossPayment> {
     this.calls.push(input);
-    if (this.delayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+    this.inFlight += 1;
+    this.maxInFlight = Math.max(this.maxInFlight, this.inFlight);
+    try {
+      if (this.delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+      }
+    } finally {
+      this.inFlight -= 1;
     }
     if (this.failure) throw this.failure;
     return this.tamper({
@@ -43,6 +52,8 @@ export class FakeTossPayments implements TossPayments {
     this.failure = null;
     this.tamper = (payment) => payment;
     this.delayMs = 0;
+    this.inFlight = 0;
+    this.maxInFlight = 0;
   }
 }
 

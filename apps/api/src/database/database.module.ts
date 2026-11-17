@@ -11,6 +11,12 @@ import { PrismaClient } from '../generated/prisma/client.js';
 
 export const PG_POOL = Symbol('PG_POOL');
 
+// pg 기본값과 같은 10개를 코드에 적어 둔다. 결제 확정은 이 중 최대
+// CONFIRM_CONCURRENCY개만 쓴다(`donations/confirm-gate.ts`).
+export const PG_POOL_MAX = 10;
+// 연결을 이만큼 못 얻으면 요청을 오류로 끝낸다. 기본값(0)은 끝없이 기다린다(#215).
+export const PG_CONNECTION_TIMEOUT_MS = 5_000;
+
 @Injectable()
 export class PrismaService extends PrismaClient {
   constructor(@Inject(PG_POOL) pool: pg.Pool) {
@@ -28,7 +34,11 @@ export class PrismaService extends PrismaClient {
       useFactory: () => {
         const connectionString = process.env.DATABASE_URL;
         if (!connectionString) throw new Error('DATABASE_URL is not set');
-        return new pg.Pool({ connectionString });
+        return new pg.Pool({
+          connectionString,
+          max: PG_POOL_MAX,
+          connectionTimeoutMillis: PG_CONNECTION_TIMEOUT_MS,
+        });
       },
     },
     PrismaService,

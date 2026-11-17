@@ -11,6 +11,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/database.module.js';
+import { ConfirmGate } from '../donations/confirm-gate.js';
 import { approveTossPayment } from '../donations/toss-approval.js';
 import {
   TOSS_CONFIG,
@@ -81,6 +82,7 @@ export class LimeService {
     private readonly prisma: PrismaService,
     @Inject(TOSS_CONFIG) private readonly config: TossConfig | null,
     @Inject(TOSS_PAYMENTS) private readonly toss: TossPayments | null,
+    private readonly gate: ConfirmGate,
   ) {}
 
   async balance(userId: string): Promise<LimeBalance> {
@@ -166,61 +168,64 @@ export class LimeService {
     }
     let refused = false;
     try {
-      return await this.prisma.$transaction(
-        async (tx) => {
-          const [locked] = await tx.$queryRaw<
-            { id: string; status: string; paymentKey: string | null }[]
-          >(Prisma.sql`
+      // gate가 Toss 응답을 기다리며 연결을 쥐는 확정의 수를 묶는다(#215).
+      return await this.gate.run(userId, () =>
+        this.prisma.$transaction(
+          async (tx) => {
+            const [locked] = await tx.$queryRaw<
+              { id: string; status: string; paymentKey: string | null }[]
+            >(Prisma.sql`
             SELECT id, status::text, "paymentKey" FROM "LimeCharge"
             WHERE "orderId" = ${input.orderId}
             FOR UPDATE`);
-          if (!locked) throw new NotFoundException(CHARGE_NOT_FOUND_MESSAGE);
-          if (locked.status === 'APPROVED') {
-            if (locked.paymentKey !== input.paymentKey) {
-              throw new ConflictException(PAYMENT_KEY_USED_MESSAGE);
+            if (!locked) throw new NotFoundException(CHARGE_NOT_FOUND_MESSAGE);
+            if (locked.status === 'APPROVED') {
+              if (locked.paymentKey !== input.paymentKey) {
+                throw new ConflictException(PAYMENT_KEY_USED_MESSAGE);
+              }
+              return this.confirmed(tx, locked.id);
             }
-            return this.confirmed(tx, locked.id);
-          }
-          const approvedAt = await approveTossPayment(
-            toss,
-            input,
-            this.logger,
-          ).catch((error: unknown) => {
-            refused = error instanceof BadRequestException;
-            throw error;
-          });
-          await tx.limeCharge.update({
-            where: { id: locked.id },
-            data: {
-              status: 'APPROVED',
-              paymentKey: input.paymentKey,
-              approvedAt,
-            },
-          });
-          const [credited] = await tx.$queryRaw<{ limeBalance: number }[]>(
-            Prisma.sql`
+            const approvedAt = await approveTossPayment(
+              toss,
+              input,
+              this.logger,
+            ).catch((error: unknown) => {
+              refused = error instanceof BadRequestException;
+              throw error;
+            });
+            await tx.limeCharge.update({
+              where: { id: locked.id },
+              data: {
+                status: 'APPROVED',
+                paymentKey: input.paymentKey,
+                approvedAt,
+              },
+            });
+            const [credited] = await tx.$queryRaw<{ limeBalance: number }[]>(
+              Prisma.sql`
               UPDATE "User" SET "limeBalance" = "limeBalance" + ${order.amount}
               WHERE id = ${userId}::uuid
               RETURNING "limeBalance"`,
-          );
-          if (!credited) throw new UnauthorizedException();
-          await tx.limeLedger.create({
-            data: {
-              userId,
-              delta: order.amount,
-              kind: 'CHARGE',
-              refId: locked.id,
+            );
+            if (!credited) throw new UnauthorizedException();
+            await tx.limeLedger.create({
+              data: {
+                userId,
+                delta: order.amount,
+                kind: 'CHARGE',
+                refId: locked.id,
+                balanceAfter: credited.limeBalance,
+              },
+            });
+            return {
+              orderId: input.orderId,
+              amount: order.amount,
+              approvedAt,
               balanceAfter: credited.limeBalance,
-            },
-          });
-          return {
-            orderId: input.orderId,
-            amount: order.amount,
-            approvedAt,
-            balanceAfter: credited.limeBalance,
-          };
-        },
-        { timeout: CONFIRM_TRANSACTION_TIMEOUT_MS },
+            };
+          },
+          { timeout: CONFIRM_TRANSACTION_TIMEOUT_MS },
+        ),
       );
     } catch (error) {
       // Toss가 거절했으므로 주문은 알 수 없음이 아니라 FAILED다. 5xx나
