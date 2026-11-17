@@ -7,7 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { flushSync } from 'react-dom';
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { useAuth, type AuthUser } from '../auth/auth-context';
 import { UserAvatar } from '../components/UserAvatar';
 import {
@@ -20,6 +20,7 @@ import { inFrame, isPaymentPath } from '../donation/paymentFrame';
 import { FollowsProvider } from '../follows/FollowsProvider';
 import styles from './AppLayout.module.css';
 import { FollowPanel } from './FollowPanel';
+import { PageOutlet } from './PageOutlet';
 import { SectionNav } from './SectionNav';
 import { sectionOf } from './sections';
 
@@ -308,7 +309,7 @@ export function AppLayout() {
   if (isPaymentPath(pathname) && inFrame()) {
     return (
       <main className={styles.paymentFrame} data-payment-frame="">
-        <Outlet />
+        <PageOutlet />
       </main>
     );
   }
@@ -341,7 +342,7 @@ export function AppLayout() {
         <div className={styles.body}>
           {section ? <SectionNav section={section} /> : <FollowPanel />}
           <main className={styles.main}>
-            <Outlet />
+            <PageOutlet />
           </main>
         </div>
       </div>

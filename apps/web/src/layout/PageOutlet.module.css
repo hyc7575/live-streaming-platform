@@ -1,0 +1,22 @@
+.failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.message {
+  margin: 0;
+}
+
+.reload {
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-brand);
+  border-radius: var(--radius-md);
+  color: var(--color-on-brand);
+  font-weight: 700;
+}
+
+.reload:hover {
+  background: var(--color-brand-hover);
+}

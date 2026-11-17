@@ -6,7 +6,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { AppRoutes } from '../AppRoutes';
 import { AuthProvider } from '../auth/AuthProvider';
 import type { Broadcast } from '../broadcasts';
@@ -32,6 +32,9 @@ import { searchPath } from '../search';
 import { renderInDataRouter } from '../testing/renderInDataRouter';
 import { KOREAN_VOICE, stubSpeech } from '../testing/speechSynthesis';
 import { OBS_STOP_REMINDER } from './ObsPanel';
+import { preloadLazyPages } from '../testing/preloadLazyPages';
+
+beforeAll(preloadLazyPages);
 
 vi.mock('../capture/cameraCapture', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../capture/cameraCapture')>()),
