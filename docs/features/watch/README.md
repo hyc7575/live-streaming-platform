@@ -22,6 +22,7 @@
 | #98 | #99 | 모바일 방송 페이지를 영상과 채팅으로 채운다 |
 | #149 | #155 | 첫 방송 조회가 일시 실패해도 다시 조회한다 |
 | #246 | | iPhone Safari(iOS 17.1+) 라이브를 hls.js로 재생한다. 원인과 수락 기준: [STORIES-ios-hls.md](./STORIES-ios-hls.md) |
+| #249 | | LIVE가 된 직후 12초는 공개 화면에 "방송 준비 중"으로 보인다: [STORIES-live-display-delay.md](./STORIES-live-display-delay.md) |
 
 ## 코드
 
