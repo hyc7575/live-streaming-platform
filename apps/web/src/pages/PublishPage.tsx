@@ -28,6 +28,7 @@ import type {
 } from '../capture/cameraCapture';
 import type { PcCapture } from '../capture/pcCapture';
 import { currentScreenAudioSupport } from '../capture/screenAudioSupport';
+import { DeleteBroadcast } from '../components/DeleteBroadcast';
 import { DonationToasts } from '../components/DonationToasts';
 import { BrowserNotice, PcPreflight } from '../components/PcPreflight';
 import { PermissionGuide } from '../components/PermissionGuide';
@@ -107,13 +108,22 @@ export function PublishPage() {
   return <PublishStudio broadcast={b} />;
 }
 
-function Heading({ broadcast }: { broadcast: Broadcast }) {
+function Heading({
+  broadcast,
+  actions,
+}: {
+  broadcast: Broadcast;
+  actions?: ReactNode;
+}) {
   return (
     <div className={styles.heading}>
       <h1 className={styles.title}>{broadcast.title}</h1>
-      <Link to={`/broadcasts/${broadcast.id}`} target="_blank">
-        시청 화면 열기
-      </Link>
+      <div className={styles.headingLinks}>
+        <Link to={`/broadcasts/${broadcast.id}`} target="_blank">
+          시청 화면 열기
+        </Link>
+        {actions}
+      </div>
     </div>
   );
 }
@@ -295,7 +305,15 @@ function PublishStudio({ broadcast: opened }: { broadcast: Broadcast }) {
         {/* 제목은 왼쪽 칸 안에 두어, 오른쪽 패널이 시청 화면처럼 본문 맨 위에서
             시작해 화면 높이 안에 들어오게 한다. */}
         <div className={styles.studioArea}>
-          <Heading broadcast={broadcast} />
+          <Heading
+            broadcast={broadcast}
+            actions={
+              broadcast.status === 'READY' &&
+              session.state.kind === 'idle' && (
+                <DeleteBroadcast broadcastId={broadcast.id} />
+              )
+            }
+          />
           <div className={styles.studio}>
             {capture ? (
               <video

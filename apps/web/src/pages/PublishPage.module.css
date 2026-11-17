@@ -17,6 +17,14 @@
   color: var(--color-brand-strong);
 }
 
+.headingLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
 .title {
   margin: 0;
   font-size: var(--font-size-xl);
