@@ -49,7 +49,8 @@ export class ChatService {
     broadcastId: string,
     after: string | undefined,
   ): Promise<ChatMessageView[]> {
-    await this.broadcasts.get(broadcastId);
+    // 존재만 확인한다. view 전체를 읽지 않는다(#264).
+    await this.broadcasts.streamerIdOf(broadcastId);
     const cursor = after
       ? await this.prisma.chatMessage.findFirst({
           where: { id: after, broadcastId },
@@ -74,7 +75,7 @@ export class ChatService {
 
   // 가장 최근 메시지 `CHAT_LATEST_LIMIT`개를 (createdAt, id) 순서로.
   async latest(broadcastId: string): Promise<ChatMessageView[]> {
-    await this.broadcasts.get(broadcastId);
+    await this.broadcasts.streamerIdOf(broadcastId);
     const newest = await this.prisma.chatMessage.findMany({
       where: { broadcastId },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
