@@ -7,6 +7,7 @@ import { BroadcastGrid } from '../components/BroadcastGrid';
 import { UserAvatar } from '../components/UserAvatar';
 import { FollowButton } from '../follows/FollowButton';
 import { useFollows } from '../follows/follows-context';
+import { useDisplayedBroadcasts } from '../live-display';
 import type { StreamerProfile } from '../streamers';
 import { useApi, usePolledApi } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
@@ -15,6 +16,8 @@ import styles from './StreamerPage.module.css';
 
 // 팔로우 패널과 같은 주기다.
 const PROFILE_POLL_MS = 30_000;
+
+const NO_BROADCASTS: Broadcast[] = [];
 
 // /channels/:id: 누구나 보는 스트리머 페이지. 닉네임을 눌러 들어온다
 // (PRD-mypage 7.3). LIVE 방송을 먼저 보이고, 이어서 공개 목록에 나오는
@@ -29,6 +32,11 @@ export function StreamerPage() {
   const reloadProfile = profile.reload;
   const loaded = profile.data.status === 'loaded' ? profile.data.data : null;
   useDocumentTitle(loaded?.nickname ?? null);
+  // 막 LIVE가 된 방송은 10초 동안 "지금 방송 중"이 아니라 "방송" 구역에
+  // "방송 준비 중"으로 보인다(#249).
+  const shown = useDisplayedBroadcasts(
+    broadcasts.status === 'loaded' ? broadcasts.data : NO_BROADCASTS,
+  );
 
   // 방문자가 여기서 팔로우하거나 취소하면 팔로워 수가 바뀐다.
   // 마운트 때는 usePolledApi의 첫 읽기가 이미 나가므로 건너뛰고, 값이
@@ -59,14 +67,8 @@ export function StreamerPage() {
 
   const isSelf =
     state.status === 'authenticated' && state.user.id === loaded.id;
-  const live =
-    broadcasts.status === 'loaded'
-      ? broadcasts.data.filter((b) => b.status === 'LIVE')
-      : [];
-  const rest =
-    broadcasts.status === 'loaded'
-      ? broadcasts.data.filter((b) => b.status !== 'LIVE')
-      : [];
+  const live = shown.filter((b) => b.status === 'LIVE');
+  const rest = shown.filter((b) => b.status !== 'LIVE');
 
   return (
     <section>

@@ -436,7 +436,7 @@ curl -s -o /dev/null -w '%{http_code}\n' $API/broadcasts/$ID                    
 1. 송출 화면(`/studio/broadcasts/:id`)이 `POST /api/broadcasts/:id/publish-token`을 부른다. 소유자만 받는다(비로그인 401, 타인 403). 같은 스트리머의 다른 방송이 `LIVE`면 409 `기존 방송을 종료하세요.`, 이 방송이 `ENDED`면 409다. 응답은 5분짜리 토큰이 붙은 같은 출처 경로 `/app/<방송 id>?direction=whip&transport=all&token=...`이다.
 2. 브라우저가 OvenLiveKit으로 이 경로에 WHIP 송출을 연다(H.264 고정). 개발 중에는 Vite가 `/app`을 OME(`OME_HTTP_PORT`)로 넘긴다.
 3. OME가 Admission Webhook으로 `POST /api/ome/admission`에 전체 URL을 보낸다. API는 `X-OME-Signature`(HMAC-SHA1, `OME_WEBHOOK_SECRET`)를 원본 바이트로 검증하고(틀리면 401), 토큰과 방송 상태를 보고 `READY`일 때만 `{"allowed":true}`를 돌려주며 조건부 update 한 번으로 `READY → LIVE`(`startedAt` 기록)로 바꾼다. 거절하면 OME가 WHIP에 401을 준다.
-4. 시청 화면(`/broadcasts/:id`)은 `LIVE`면 `/app/<방송 id>/llhls.m3u8`을 재생한다. 송출 직후 약 10초 동안은 OME가 플레이리스트를 404로 주므로 "방송을 불러오는 중입니다"를 띄우고 2초마다 다시 시도한다.
+4. 시청 화면(`/broadcasts/:id`)은 `LIVE`면 `/app/<방송 id>/llhls.m3u8`을 재생한다. 송출 직후 10~20초 동안은 OME가 플레이리스트를 404로 주므로(첫 세그먼트가 닫히기 전, #102), 웹은 `startedAt`부터 10초 동안 공개 화면에 `LIVE`를 `READY`("방송 준비 중")로 보이고(#249, 서버 상태는 `LIVE`), 10초가 되면 타이머로 플레이어로 바꾼다. 그 뒤에도 플레이리스트가 없으면 "방송을 불러오는 중입니다"를 띄우고 2초마다 다시 시도한다. 송출 화면은 바로 "송출 중입니다."다.
 
 한 스트리머의 `LIVE` 방송은 DB가 하나만 허용한다(`Broadcast_one_live_per_streamer` 부분 유니크 인덱스). 두 방송의 허가 요청이 동시에 와도 하나만 `LIVE`가 된다.
 
@@ -467,7 +467,7 @@ pnpm --filter @lsp/web e2e:stack       # 웹 dev 서버가 없으면 띄운다. 
 1. 위 명령으로 PostgreSQL, OME, API를 띄우고 `pnpm --filter @lsp/web dev`로 웹을 띄운다.
 2. "스트리머 A"로 로그인해 방송을 만들고 상세로 간다. 설명 아래 "송출 화면"을 누른다.
 3. "카메라 켜기"를 누르고 카메라·마이크를 허용한다. 미리보기가 보인다. "방송 시작"을 누른다. 몇 초 안에 "송출 중입니다. 시청자가 방송을 볼 수 있습니다."가 뜬다.
-4. 시크릿 창(로그인 안 함)에서 "시청 화면 열기" 주소를 연다. "방송을 불러오는 중입니다"가 약 10초 보인 뒤 카메라 영상이 재생된다. 상태 배지는 LIVE다.
+4. 시크릿 창(로그인 안 함)에서 "시청 화면 열기" 주소를 연다. 송출 시작 뒤 10초까지는 "방송 준비 중입니다."와 배지 "방송 준비 중"이 보이고, 10초가 되면 새로고침 없이 플레이어와 배지 LIVE로 바뀐다. "방송을 불러오는 중입니다"가 몇 초 더 보인 뒤 카메라 영상이 재생된다.
 5. API 로그에 `PublishController`의 `... token=*** → {"allowed":true}` 한 줄이 남는다(토큰은 가린다).
 6. A가 다른 방송을 하나 더 만들고 그 송출 화면에서 "방송 시작"을 누르면 "기존 방송을 종료하세요."가 뜬다.
 7. 송출 화면에서 "방송 종료" → "종료하기"를 누른다. 이어지는 확인은 4절에 있다.

@@ -684,9 +684,11 @@ it('swaps the 방송 준비 중 notice for the player once a status poll says LI
     await screen.findByText(notice);
     expect(screen.queryByLabelText('방송 화면')).toBeNull();
 
+    // 표시 지연(#249, 10초)이 이미 지난 LIVE다. 지연 중 화면은
+    // live-display-delay.test.tsx가 본다.
     routes['GET /api/broadcasts/b1'] = broadcast({
       status: 'LIVE',
-      startedAt: new Date().toISOString(),
+      startedAt: new Date(Date.now() - 60_000).toISOString(),
     });
     await act(() => vi.advanceTimersByTimeAsync(5000));
     expect(screen.getByLabelText('방송 화면')).toBeDefined();

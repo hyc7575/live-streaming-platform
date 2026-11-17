@@ -17,6 +17,7 @@ import { UserAvatar } from '../components/UserAvatar';
 import { useDonationAlerts } from '../donation/donationAlerts';
 import { useNewDonations } from '../donation/useNewDonations';
 import { FollowButton } from '../follows/FollowButton';
+import { useDisplayedBroadcast } from '../live-display';
 import { partStarts, type Playhead } from '../replay-chat';
 import { channelPath } from '../streamers';
 import { usePolledApi, type Loadable } from '../use-api';
@@ -155,6 +156,10 @@ function BroadcastView({
     part: number;
   } | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // 송출이 막 붙은 방송은 10초 동안 READY처럼 그린다(#249). 플레이어·배지·
+  // 경과 시간·후원하기·새 후원 배너가 이 상태를 따르고, 소유자 버튼은 실제
+  // 상태(`b`)를 쓴다. 지연이 끝나면 다음 5초 조회를 기다리지 않고 바뀐다.
+  const shown = useDisplayedBroadcast(b);
   const wide = useWideScreen();
   const finePointer = useFinePointer();
   // 후원 패널과 플레이어 위 배너(S5)·읽어 주기(S14)가 같은 5초 폴링 응답을
@@ -162,10 +167,10 @@ function BroadcastView({
   // 기준선으로 거르고, 순서와 묶음은 송출 토스트와 같은 큐가 정한다(#164).
   const banners = useDonationAlerts();
   const donations = useNewDonations(b.id, (fresh) => {
-    if (b.status === 'LIVE') banners.enqueue(fresh);
+    if (shown.status === 'LIVE') banners.enqueue(fresh);
   });
 
-  const standbyImageUrl = b.status === 'READY' ? b.standbyImageUrl : null;
+  const standbyImageUrl = shown.status === 'READY' ? b.standbyImageUrl : null;
   const playhead = heard?.broadcastId === b.id ? heard.playhead : null;
   const part = picked?.broadcastId === b.id ? picked.part : 0;
   // 녹화 파트가 같으면 같은 배열을 넘겨, 재생 위치만 바뀌는 렌더에서
@@ -188,7 +193,7 @@ function BroadcastView({
   const notes = (
     <>
       {hasReplay && <p className={styles.playerNote}>{REPLAY_NOTICE}</p>}
-      {b.status === 'LIVE' && isOwner && (
+      {shown.status === 'LIVE' && isOwner && (
         <p className={styles.playerNote}>
           내 방송이라 소리를 끄고 재생합니다. 송출하는 기기에서 소리를 켜면
           하울링이 생길 수 있습니다. 소리는 플레이어에서 켤 수 있습니다.
@@ -198,8 +203,8 @@ function BroadcastView({
   );
   const status = (
     <>
-      <StatusBadge status={b.status} />
-      {b.status === 'LIVE' && b.startedAt && (
+      <StatusBadge status={shown.status} />
+      {shown.status === 'LIVE' && b.startedAt && (
         <ElapsedTime
           startedAt={b.startedAt}
           precision="second"
@@ -233,7 +238,7 @@ function BroadcastView({
   const owner = isOwner && <OwnerActions broadcast={b} onEnded={recheck} />;
   const donation = (
     <DonationPanel
-      broadcast={b}
+      broadcast={shown}
       summary={donations.summary}
       reload={donations.reload}
       donateIn={
@@ -255,9 +260,9 @@ function BroadcastView({
           />
         ) : (
           <div
-            className={`${styles.player} ${b.status === 'READY' ? styles.waiting : ''}`}
+            className={`${styles.player} ${shown.status === 'READY' ? styles.waiting : ''}`}
           >
-            {b.status === 'LIVE' ? (
+            {shown.status === 'LIVE' ? (
               <LivePlayer
                 broadcastId={b.id}
                 startMuted={isOwner}
@@ -276,7 +281,7 @@ function BroadcastView({
                 <p
                   className={`${styles.notice} ${standbyImageUrl ? styles.onStandby : ''}`}
                 >
-                  {PLAYER_NOTICE[b.status]}
+                  {PLAYER_NOTICE[shown.status]}
                 </p>
                 {waitingForReplay && (
                   <p className={styles.preparing} role="status">

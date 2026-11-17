@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router';
 import { useAuth, type TestAccountKey } from '../auth/auth-context';
-import { pickListView } from '../broadcast-list';
+import { arrangeForList, pickListView } from '../broadcast-list';
 import type { Broadcast } from '../broadcasts';
 import {
   CATEGORIES,
@@ -11,6 +11,7 @@ import {
 } from '../categories';
 import { BroadcastGrid } from '../components/BroadcastGrid';
 import chips from '../components/CategoryChips.module.css';
+import { useDisplayedBroadcasts } from '../live-display';
 import { normalizeSearchQuery, searchPath } from '../search';
 import { usePolledApi } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
@@ -54,6 +55,8 @@ const FILTERS = [
 ] as const;
 
 const LIST_REFRESH_MS = 30_000;
+
+const NO_BROADCASTS: Broadcast[] = [];
 
 // 서비스 소개와, 로그아웃한 방문자(대개 심사위원)를 위한 원클릭
 // 테스트 계정. 로그인해도 이 화면에 머문다. `loading`과
@@ -125,6 +128,11 @@ function HomeList() {
     filter.path,
     LIST_REFRESH_MS,
   ).data;
+  // 막 LIVE가 된 방송은 10초 동안 "방송 준비 중"으로 보인다(#249). 배지·정렬·
+  // LIVE 탭·카테고리 필터가 모두 이 표시 상태를 따른다.
+  const shown = useDisplayedBroadcasts(
+    broadcasts.status === 'loaded' ? broadcasts.data : NO_BROADCASTS,
+  );
   const category = parseCategory(params.get('category'));
   const statusRowRef = useRef<HTMLElement>(null);
   const categoryRowRef = useRef<HTMLElement>(null);
@@ -140,7 +148,10 @@ function HomeList() {
   }
 
   function renderList(list: Broadcast[]) {
-    const view = pickListView(list, category);
+    const view = pickListView(
+      arrangeForList(list, filter.status === 'REPLAY' ? null : filter.status),
+      category,
+    );
     if (view.kind === 'empty')
       return <p className={styles.empty}>{filter.empty}</p>;
     if (view.kind === 'noCategoryMatch') {
@@ -193,7 +204,7 @@ function HomeList() {
       {broadcasts.status === 'failed' && (
         <p role="alert">방송 목록을 불러오지 못했습니다.</p>
       )}
-      {broadcasts.status === 'loaded' && renderList(broadcasts.data)}
+      {broadcasts.status === 'loaded' && renderList(shown)}
     </section>
   );
 }

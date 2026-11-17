@@ -1,8 +1,10 @@
 import { Link, useSearchParams } from 'react-router';
 import { ApiError } from '../api';
+import { arrangeForList } from '../broadcast-list';
 import type { Broadcast } from '../broadcasts';
 import { BroadcastGrid } from '../components/BroadcastGrid';
 import { UserAvatar } from '../components/UserAvatar';
+import { useDisplayedBroadcasts } from '../live-display';
 import {
   normalizeSearchQuery,
   SEARCH_BROADCAST_LIMIT,
@@ -15,6 +17,8 @@ import { useApi } from '../use-api';
 import { useDocumentTitle } from '../use-document-title';
 import listStyles from './ListPage.module.css';
 import styles from './SearchPage.module.css';
+
+const NO_BROADCASTS: Broadcast[] = [];
 
 // /search?q=: 서버가 찾은 스트리머·방송·지난 방송을 한 번에 보인다
 // (PRD-search 7.3). 결과는 한 번만 읽는다.
@@ -111,13 +115,15 @@ function BroadcastSection({
   title: string;
   list: Broadcast[];
 }) {
+  // 막 LIVE가 된 방송은 10초 동안 "방송 준비 중"으로, LIVE 다음에 보인다(#249).
+  const shown = arrangeForList(useDisplayedBroadcasts(list), null);
   if (list.length === 0) return null;
   return (
     <section className={styles.section} aria-labelledby={id}>
       <h2 id={id} className={styles.sectionTitle}>
         {title}
       </h2>
-      <BroadcastGrid broadcasts={list} />
+      <BroadcastGrid broadcasts={shown} />
       {list.length >= SEARCH_BROADCAST_LIMIT && (
         <p className={styles.limit}>
           최근 {SEARCH_BROADCAST_LIMIT}개까지 보입니다.
@@ -131,18 +137,25 @@ function BroadcastSection({
 // 방송을 보인다.
 function NoResults({ query }: { query: string }) {
   const live = useApi<Broadcast[]>('/broadcasts?status=LIVE');
+  // 아직 LIVE로 보이지 않는 방송(#249)은 이 구역에서 뺀다.
+  const shown = arrangeForList(
+    useDisplayedBroadcasts(
+      live.status === 'loaded' ? live.data : NO_BROADCASTS,
+    ),
+    'LIVE',
+  );
   return (
     <>
       <p className={listStyles.empty}>
         &apos;{query}&apos;와 맞는 결과가 없습니다.
       </p>
       {live.status === 'loaded' &&
-        (live.data.length > 0 ? (
+        (shown.length > 0 ? (
           <section className={styles.section} aria-labelledby="search-live">
             <h2 id="search-live" className={styles.sectionTitle}>
               지금 방송 중
             </h2>
-            <BroadcastGrid broadcasts={live.data} />
+            <BroadcastGrid broadcasts={shown} />
           </section>
         ) : (
           <Link to="/" className={styles.home}>
