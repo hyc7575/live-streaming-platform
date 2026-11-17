@@ -2,6 +2,8 @@ import { expect, it } from 'vitest';
 import type { ChatMessage } from './chat';
 import {
   chatPlacement,
+  chatPlacements,
+  chatReached,
   chatUpTo,
   partStarts,
   VIEWER_DELAY_MS,
@@ -113,4 +115,24 @@ it('lines nothing up without parts or with a part missing its start', () => {
       { file: 'b1/1_1.mp4', startedAt: PART_2 },
     ]),
   ).toEqual(TWO_PARTS);
+});
+
+it('미리 계산한 자리로 거른 결과가 chatUpTo와 같다', () => {
+  const messages = [
+    message('ready', sentAt(PART_1, -60)),
+    message('part1', sentAt(PART_1, 100)),
+    message('gap', sentAt(PART_1, 660)),
+    message('part2', sentAt(PART_2, 10)),
+  ];
+  const placements = chatPlacements(messages, TWO_PARTS);
+  for (const playhead of [
+    { part: 0, seconds: 0 },
+    { part: 0, seconds: 30 },
+    { part: 1, seconds: 5 },
+    { part: 1, seconds: 400 },
+  ]) {
+    expect(chatReached(messages, placements, playhead)).toEqual(
+      chatUpTo(messages, TWO_PARTS, playhead),
+    );
+  }
 });

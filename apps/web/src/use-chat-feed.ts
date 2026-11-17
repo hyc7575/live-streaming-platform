@@ -44,12 +44,24 @@ function useTaggedFeed(broadcastId: string, limit: number | null) {
     (action: ChatFeedAction | null, status?: ChatFeedStatus) => {
       const base = heldFor(latest.current, broadcastId);
       const feed = action ? chatFeed(base.feed, action) : base.feed;
-      latest.current = {
+      const next: Tagged = {
         broadcastId,
         feed: limit === null ? feed : keepLatest(feed, limit),
         status: status ?? base.status,
       };
-      setState(latest.current);
+      const prev = latest.current;
+      latest.current = next;
+      // 빈 응답처럼 보이는 내용이 그대로면 상태를 올리지 않는다. 그러면
+      // 1초 폴링마다 채팅 목록이 다시 그려지지 않는다.
+      if (
+        prev.broadcastId === next.broadcastId &&
+        prev.status === next.status &&
+        prev.feed.messages === next.feed.messages &&
+        prev.feed.cursor === next.feed.cursor
+      ) {
+        return;
+      }
+      setState(next);
     },
     [broadcastId, limit],
   );
@@ -160,7 +172,12 @@ export function useChatHistory(broadcastId: string): {
       );
       if (controller.signal.aborted) return;
       update({ type: 'polled', page }, 'loaded');
-      setFull({ broadcastId, full: page.length === CHAT_PAGE_LIMIT });
+      const isFull = page.length === CHAT_PAGE_LIMIT;
+      setFull((prev) =>
+        prev.broadcastId === broadcastId && prev.full === isFull
+          ? prev
+          : { broadcastId, full: isFull },
+      );
     } catch {
       if (controller.signal.aborted) return;
       if (current().status === 'loading') update(null, 'failed');

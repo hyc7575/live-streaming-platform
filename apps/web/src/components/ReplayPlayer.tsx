@@ -27,11 +27,15 @@ export function ReplayPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const started = useRef(false);
   const playedPart = useRef(part);
+  // 마지막으로 올린 위치다. timeupdate는 1초에 여러 번 오지만 보이는 결과는
+  // 초 단위·파트가 바뀔 때만 달라지므로 그때만 올린다.
+  const reported = useRef<{ part: number; second: number } | null>(null);
 
   useEffect(() => {
     if (playedPart.current === part) return;
     playedPart.current = part;
     started.current = true;
+    reported.current = { part, second: 0 };
     onPlayhead?.({ part, seconds: 0 });
     // 재생을 막는 브라우저에서는 컨트롤을 시청자에게 맡긴다.
     videoRef.current?.play()?.catch(() => {});
@@ -41,11 +45,15 @@ export function ReplayPlayer({
   if (file === undefined) return null;
   const last = part === files.length - 1;
 
-  function report() {
+  // `force`는 탐색 직후처럼 같은 초 안이어도 바로 올려야 할 때다.
+  function report(force = false) {
     const video = videoRef.current;
-    if (started.current && video) {
-      onPlayhead?.({ part, seconds: video.currentTime });
-    }
+    if (!started.current || !video) return;
+    const second = Math.floor(video.currentTime);
+    const last = reported.current;
+    if (!force && last?.part === part && last.second === second) return;
+    reported.current = { part, second };
+    onPlayhead?.({ part, seconds: video.currentTime });
   }
 
   return (
@@ -60,10 +68,10 @@ export function ReplayPlayer({
           onPlay={() => {
             started.current = true;
           }}
-          onTimeUpdate={report}
+          onTimeUpdate={() => report()}
           onSeeked={() => {
             started.current = true;
-            report();
+            report(true);
           }}
           onEnded={() => {
             if (!last) onPart(part + 1);

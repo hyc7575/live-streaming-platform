@@ -156,3 +156,26 @@ it('reports the next part at 0 s when one ends', () => {
   fireEvent.ended(video());
   expect(onPlayhead).toHaveBeenLastCalledWith({ part: 1, seconds: 0 });
 });
+
+it('timeupdate는 초 단위나 파트가 바뀔 때만 올리고, 탐색은 바로 올린다', () => {
+  const onPlayhead = vi.fn();
+  render(<Replay files={['b1/1_0.mp4']} onPlayhead={onPlayhead} />);
+  fireEvent.play(video());
+
+  for (const t of [5.0, 5.25, 5.5, 5.75]) {
+    video().currentTime = t;
+    fireEvent.timeUpdate(video());
+  }
+  expect(onPlayhead).toHaveBeenCalledTimes(1);
+  expect(onPlayhead).toHaveBeenLastCalledWith({ part: 0, seconds: 5 });
+
+  video().currentTime = 6.0;
+  fireEvent.timeUpdate(video());
+  expect(onPlayhead).toHaveBeenCalledTimes(2);
+
+  // 같은 초 안에서 탐색해도 바로 올린다.
+  video().currentTime = 6.5;
+  fireEvent.seeked(video());
+  expect(onPlayhead).toHaveBeenCalledTimes(3);
+  expect(onPlayhead).toHaveBeenLastCalledWith({ part: 0, seconds: 6.5 });
+});
