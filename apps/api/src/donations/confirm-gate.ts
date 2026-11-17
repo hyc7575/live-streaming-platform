@@ -1,7 +1,3 @@
-import { Injectable } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
-import type { Request } from 'express';
-
 // Toss 응답을 기다리는 확정 transaction의 동시 상한. 확정은 그동안 공유 pg pool
 // 연결 하나를 쥔다(`database.module.ts`의 PG_POOL_MAX 10개 중). 상한 3이면
 // 7개 이상이 늘 세션 로드와 다른 쿼리에 남는다(#215).
@@ -60,15 +56,5 @@ export class ConfirmGate {
     const next = this.waiting.shift();
     if (next) next();
     else this.active -= 1;
-  }
-}
-
-// 요청 제한을 IP가 아니라 로그인 사용자로 센다. 같은 공유기 뒤의 다른 사용자는
-// 서로의 한도를 쓰지 않는다. LoggedInGuard 뒤에 둔다.
-@Injectable()
-export class UserThrottlerGuard extends ThrottlerGuard {
-  protected override getTracker(req: Record<string, unknown>): Promise<string> {
-    const userId = (req as unknown as Request).session?.userId;
-    return Promise.resolve(userId ? `user:${userId}` : String(req.ip));
   }
 }
