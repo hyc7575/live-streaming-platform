@@ -72,7 +72,9 @@ it('pushes the results page for a trimmed query, and back returns to the watch p
 
   await act(() => router.navigate(-1));
   expect(router.state.location.pathname).toBe('/broadcasts/b1');
-  expect(searchbox().value).toBe('');
+  // 시청 화면은 따로 내려받는다(#226). 이 라우터는 이동을 transition으로
+  // 그려, 청크가 오기 전에는 앞 화면(검색어가 남은 헤더 포함)을 그대로 둔다.
+  await waitFor(() => expect(searchbox().value).toBe(''));
 });
 
 it('stays put and calls no search API for a blank query', () => {

@@ -8,7 +8,7 @@ import {
 } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { MemoryRouter } from 'react-router';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { AppRoutes } from './AppRoutes';
 import { AuthProvider } from './auth/AuthProvider';
 import type { Broadcast } from './broadcasts';
@@ -20,6 +20,9 @@ import {
   voice,
   type SpeechCall,
 } from './testing/speechSynthesis';
+import { preloadLazyPages } from './testing/preloadLazyPages';
+
+beforeAll(preloadLazyPages);
 
 // S5(#161): 시청 화면 플레이어 위 새 후원 배너. S14(#186): 그 배너를 소리로 읽기.
 

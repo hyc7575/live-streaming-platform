@@ -88,6 +88,7 @@ UI를 만들거나 고치기 전에 이 파일을 읽는다. 여기 없는 결�
 - `react-router`의 `<Routes>`/`<Route>`를 `src/AppRoutes.tsx` 한 곳에 모은다. 새 화면은 `src/pages/<Name>Page.tsx`에 만들고 `AppRoutes`의 `AppLayout` 아래에 등록한다.
 - `main.tsx`는 `createBrowserRouter([{ path: '*', element: <AuthProvider><AppRoutes /></AuthProvider> }])`를 `RouterProvider`(`react-router/dom`)로 그린다. 경로 매칭은 그 안의 `<Routes>`가 그대로 한다. data router를 쓰는 이유는 `useBlocker`(송출 중 이탈 확인)가 data router 안에서만 동작해서다(#76). loader·action은 쓰지 않는다.
 - `RouterProvider`는 `useTransitions={false}`로 쓴다. 원래 이유는 키 입력마다 `?q=`를 쓰던 홈 검색창이었고(기본값 transition이면 글자와 한글 조합이 빠졌다) #139로 사라졌다. 기본값으로 바꾸면 모든 이동의 렌더 시점이 바뀌므로 송출 이탈 확인 회귀를 확인한 뒤 따로 바꾼다. URL을 키 입력마다 쓰는 입력창을 다시 만들면 이 설정이 필요하다.
+- 경로별 코드 분할(#226): 무거운 라이브러리를 쓰는 화면만 `AppRoutes`에서 `React.lazy`로 따로 내려받는다. 시청(`BroadcastPage`, hls.js), 송출(`PublishPage`, OvenLiveKit), 후원하기(`DonatePage`)·라임 충전(`LimeChargePage`, Toss SDK)이다. `route.lazy`가 아니라 컴포넌트 lazy다. 내려받는 동안과 실패는 `AppLayout` 본문 자리의 `layout/PageOutlet`이 맡는다. `Suspense` fallback은 화면들의 로딩 관례대로 `null`이라 헤더·왼쪽 열만 남고, 청크를 받지 못하면 그 자리에 "화면을 불러오지 못했습니다. 새로고침해 주세요."와 "새로고침"(`role="alert"`)을 보인다. 다른 경로로 옮기면 안내를 거둔다. 새 화면이 무거운 라이브러리를 쓰면 같은 방식으로 나눈다. 가짜 시계(`testing/fakeClock`)로 lazy 화면을 그리는 테스트 파일은 `beforeAll(preloadLazyPages)`로 모듈을 미리 올린다(`eventually`가 차례 수로 끊어서다).
 - 테스트는 보통 `MemoryRouter`로 감싼다. 송출 화면(`PublishPage`)에 닿는 테스트(방송 만들기 뒤 이동 포함)와 push·replace(`router.state.historyAction`)를 확인하는 테스트(헤더 검색, 홈 `/?q=` 이동)는 `src/testing/renderInDataRouter`(`createMemoryRouter` + `RouterProvider`, `useTransitions` 기본값)를 쓴다. `MemoryRouter` 안에서 `useBlocker`를 부르면 오류가 난다.
 
 ## API 호출
