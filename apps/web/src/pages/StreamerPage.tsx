@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router';
 import { ApiError } from '../api';
 import { useAuth } from '../auth/auth-context';
@@ -31,7 +31,12 @@ export function StreamerPage() {
   useDocumentTitle(loaded?.nickname ?? null);
 
   // 방문자가 여기서 팔로우하거나 취소하면 팔로워 수가 바뀐다.
+  // 마운트 때는 usePolledApi의 첫 읽기가 이미 나가므로 건너뛰고, 값이
+  // 실제로 바뀐 때만 읽는다.
+  const seenFollowing = useRef(following);
   useEffect(() => {
+    if (seenFollowing.current === following) return;
+    seenFollowing.current = following;
     void reloadProfile();
   }, [following, reloadProfile]);
 

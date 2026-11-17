@@ -205,6 +205,21 @@ async function goLive(page: ReturnType<typeof renderPage>) {
   await screen.findByText('송출 중입니다. 시청자가 방송을 볼 수 있습니다.');
 }
 
+it('송출 화면을 열 때 방송 GET이 effect로 한 번 더 나가지 않고, 송출 상태가 바뀌면 바로 다시 읽는다', async () => {
+  const page = renderPage({
+    'POST /api/broadcasts/b1/publish-token': TOKEN_OK,
+  });
+  await screen.findByRole('button', { name: '카메라 켜기' });
+  const gets = () => page.calls.filter((c) => c === 'GET /api/broadcasts/b1');
+  // 방송을 여는 읽기(useApi) 하나와 폴링의 첫 읽기 하나다. 상태 effect의
+  // 마운트 실행이 세 번째를 더하지 않는다.
+  expect(gets()).toHaveLength(2);
+
+  await turnOnCameraAndStart();
+  await screen.findByText('송출을 연결하는 중입니다.');
+  await waitFor(() => expect(gets().length).toBeGreaterThan(2));
+});
+
 it('publishes the camera with a fresh token', async () => {
   const page = renderPage({
     'POST /api/broadcasts/b1/publish-token': TOKEN_OK,

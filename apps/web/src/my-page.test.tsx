@@ -412,3 +412,43 @@ it('links nicknames to channels from cards and the header menu', async () => {
     screen.getByRole('link', { name: '내 채널 보기' }).getAttribute('href'),
   ).toBe('/channels/u1');
 });
+
+// 채널 페이지가 팔로우 상태를 서버처럼 들고 있는 가짜 API로 연다.
+function stubFollowingApi() {
+  const calls: string[] = [];
+  let followed = false;
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    const key = `${init?.method ?? 'GET'} ${url}`;
+    calls.push(key);
+    const json = (body: unknown) => Promise.resolve(Response.json(body));
+    if (key === 'GET /api/auth/me') return json(me);
+    if (key === 'GET /api/me/follows')
+      return json(
+        followed
+          ? [{ ...PROFILE, followedAt: '2026-11-13T05:00:00.000Z' }]
+          : [],
+      );
+    if (key === 'PUT /api/streamers/s1/follow') {
+      followed = true;
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
+    if (key === 'GET /api/streamers/s1') return json(PROFILE);
+    if (key === 'GET /api/streamers/s1/broadcasts') return json([]);
+    return Promise.resolve(new Response(null, { status: 404 }));
+  });
+  return calls;
+}
+
+it('채널 페이지를 열 때 프로필 GET은 한 번만 나가고, 팔로우하면 바로 다시 읽는다', async () => {
+  const calls = stubFollowingApi();
+  renderAt('/channels/s1');
+  const follow = await screen.findByRole('button', { name: '팔로우' });
+  await screen.findByText('아직 공개된 방송이 없습니다.');
+  const profileGets = () =>
+    calls.filter((c) => c === 'GET /api/streamers/s1').length;
+  expect(profileGets()).toBe(1);
+
+  fireEvent.click(follow);
+  await screen.findByRole('button', { name: '팔로잉' });
+  await vi.waitFor(() => expect(profileGets()).toBe(2));
+});
