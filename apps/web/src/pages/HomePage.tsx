@@ -58,9 +58,9 @@ const LIST_REFRESH_MS = 30_000;
 
 const NO_BROADCASTS: Broadcast[] = [];
 
-// 서비스 소개와, 로그아웃한 방문자(대개 심사위원)를 위한 원클릭
-// 테스트 계정. 로그인해도 이 화면에 머문다. `loading`과
-// `error`에서는 버튼을 보이지 않는다. 방문자가 이미 로그인했을 수 있다.
+// 로그아웃한 방문자(대개 심사위원)를 위한 원클릭 테스트 계정.
+// 로그인해도 이 화면에 머문다. `loading`과 `error`에서는 버튼을
+// 보이지 않는다. 방문자가 이미 로그인했을 수 있다.
 function Intro() {
   const { state, logInAsTestAccount } = useAuth();
   const [loggingIn, setLoggingIn] = useState(false);
@@ -78,12 +78,9 @@ function Intro() {
     }
   }
 
+  if (state.status !== 'anonymous' && !failed) return null;
   return (
     <div className={home.intro}>
-      <p className={home.tagline}>
-        설치 없이 브라우저로 화면이나 카메라를 방송하고, 누구나 로그인 없이
-        시청합니다.
-      </p>
       {state.status === 'anonymous' && (
         <TestAccountLogin
           inline
