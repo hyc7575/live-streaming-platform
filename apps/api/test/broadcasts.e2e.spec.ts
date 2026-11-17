@@ -1,6 +1,14 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { PrismaService } from '../src/database/database.module.js';
 import {
   DROP_STREAM_FAILED_MESSAGE,
@@ -370,6 +378,37 @@ describe('broadcasts', () => {
       expect(
         await prisma.broadcast.count({ where: { streamerId: user.id } }),
       ).toBe(READY_PER_STREAMER_CAP);
+    });
+
+    // 기다리는 요청이 공유 pg pool 연결을 쥐고 있으면 한 사용자의 연타가
+    // 다른 사용자의 요청을 막는다(#215와 같은 문제). 같은 사용자의 생성은
+    // 연결을 잡기 전에 줄을 서므로 transaction은 한 번에 하나만 열린다.
+    it('opens one transaction at a time for one streamer’s concurrent creates', async () => {
+      const { agent } = await signUpAndLogIn(app);
+      const original = prisma.$transaction.bind(prisma);
+      let open = 0;
+      let mostOpen = 0;
+      const spy = vi
+        .spyOn(prisma, '$transaction')
+        .mockImplementation(async (...args: Parameters<typeof original>) => {
+          open += 1;
+          mostOpen = Math.max(mostOpen, open);
+          try {
+            return await original(...args);
+          } finally {
+            open -= 1;
+          }
+        });
+      try {
+        await Promise.all(
+          Array.from({ length: 8 }, (_, i) =>
+            agent.post('/api/broadcasts').send({ title: `연타 ${i}` }),
+          ),
+        );
+      } finally {
+        spy.mockRestore();
+      }
+      expect(mostOpen).toBe(1);
     });
 
     it('counts only listed READY: LIVE, ENDED and day-old READY leave room', async () => {

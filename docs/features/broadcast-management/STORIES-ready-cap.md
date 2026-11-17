@@ -64,6 +64,7 @@ Priority: P1 | Effort: S | Dependencies: Story 1
 ### Technical Notes
 
 - 확인과 insert 사이 경쟁: 한 트랜잭션에서 사용자별 advisory lock(`pg_advisory_xact_lock`)을 잡고 센 뒤 insert한다. 잠금 없이 세면 병렬 요청이 모두 9개를 보고 통과한다.
+- 연결 점유: 같은 사용자의 생성은 `ConfirmGate`(#215)로 연결을 잡기 전에 줄 세우고, 전체는 3개(`CREATE_CONCURRENCY`)까지만 transaction에 들인다. 잠금을 기다리는 요청이 공유 pool(10개) 연결을 쥐면 한 사용자의 연타가 다른 사용자를 막는다.
 - 세는 쿼리는 기존 인덱스 `@@index([streamerId, createdAt])`를 탄다. 마이그레이션은 없다.
 - 시각은 목록과 같은 주입 시계(`CLOCK`)로 계산한다.
 
