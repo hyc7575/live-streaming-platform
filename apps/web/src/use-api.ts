@@ -96,6 +96,15 @@ export async function pollFetch<T>(
   }
 }
 
+// 서버 응답은 JSON이라 문자열 비교로 구조가 같은지 본다.
+function sameJson(a: unknown, b: unknown): boolean {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
 // useApi와 같지만, `intervalMs`마다와 `reload()` 때 다시 읽는다.
 // `path`가 null이면 읽지 않는다.
 //
@@ -142,11 +151,25 @@ export function usePolledApi<T>(
       try {
         const data = await pollFetch<T>(path, life.signal);
         if (cancelled || mine !== latest) return;
-        setResult({
-          path,
-          key,
-          loadable: { status: 'loaded', data },
-          readAt: Date.now(),
+        const readAt = Date.now();
+        // 응답이 이전과 같으면 이전 data 참조를 둬, 그 data를 받는 자식과
+        // memo·effect 의존성이 5초마다 다시 돌지 않게 한다. readAt은
+        // 응답이 도착한 시각이라(stopWhen이 쓴다) 같은 응답에도 갱신한다.
+        setResult((prev) => {
+          const data0 =
+            prev !== null &&
+            prev.path === path &&
+            prev.key === key &&
+            prev.loadable.status === 'loaded' &&
+            sameJson(prev.loadable.data, data)
+              ? prev.loadable.data
+              : data;
+          return {
+            path,
+            key,
+            loadable: { status: 'loaded', data: data0 },
+            readAt,
+          };
         });
       } catch (error) {
         if (cancelled || mine !== latest) return;
