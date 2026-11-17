@@ -100,7 +100,7 @@
 | PC 송출 | 화면 공유 + 마이크 + 탭/시스템 소리, 시작·종료, 마이크 음소거 | P0 |
 | 송출 사전 점검 | 마이크·화면 오디오 레벨 미터 2개, 화면 오디오 없음 경고 + "다시 선택", Chrome/Edge 외 브라우저 경고 (PRE-MORTEM T4) | P0 |
 | 모바일 송출 | 카메라 + 마이크, 전·후면 전환, 시작·종료, Screen Wake Lock으로 화면 꺼짐 방지, 권한 거부 안내 화면 (T5) | P0 |
-| 시청 | 비로그인 시청(LL-HLS: iOS는 네이티브 HLS, 그 외 hls.js), LIVE/ENDED 상태 표시, 상태 5초 폴링으로 종료 시 자동 중단 (T9) | P0 |
+| 시청 | 비로그인 시청(LL-HLS: hls.js 저지연 모드. hls.js를 못 쓰는 iOS 17.0 이하만 네이티브 HLS), LIVE/ENDED 상태 표시, 상태 5초 폴링으로 종료 시 자동 중단 (T9) | P0 |
 | 운영 | 자동 재기동, 다운 감시 알림, 녹화 디스크 상한, DB 일일 덤프 (T6, 7.10) | P0 |
 | 댓글 | 방송별 댓글 작성·목록·수정·삭제, 작성자 권한 검증. 방송이 끝난 뒤에 쓴다. 방송 전·중에는 채팅(작성만, 수정·삭제 없음)을 쓴다(#91) | P1 |
 | 녹화·다시보기 | OME 녹화 기능으로 저장, 목록·상세·재생 | P2 |
@@ -119,7 +119,7 @@
 | 미디어 서버 | OvenMediaEngine v0.21.0 (`ovenmedialabs/ovenmediaengine`, arm64 이미지 있음) | 치지직과 같은 LL-HLS를 기본 지원하고, WebRTC 송출·시청·녹화까지 한 서버로 해결한다 |
 | 백엔드 | NestJS (TypeScript) + Prisma | Guard로 "로그인 확인 → 소유자 확인"을 선언한다. OME Admission Webhook을 받는다 |
 | DB | PostgreSQL | 사용자, 방송 기록, 세션 |
-| 프론트 | React (TypeScript) + hls.js + OvenLiveKit-Web | 주력 스택. 송출은 OvenLiveKit-Web의 WHIP(기본 H.264), 재생은 iOS 네이티브 HLS / 그 외 hls.js 저지연 모드 |
+| 프론트 | React (TypeScript) + hls.js + OvenLiveKit-Web | 주력 스택. 송출은 OvenLiveKit-Web의 WHIP(기본 H.264), 재생은 hls.js 저지연 모드(iOS 17.1+는 `ManagedMediaSource`), hls.js를 못 쓰는 iOS 17.0 이하만 네이티브 HLS |
 | 배포 | VPS 한 대 + Docker Compose + Caddy | 혼자 운영 가능한 최소 구성. Caddy가 TLS를 맡고 웹·API·OME 시그널링·LL-HLS를 한 도메인으로 중계한다 |
 
 ```mermaid
@@ -176,7 +176,8 @@ stateDiagram-v2
 - **좀비 방송 정리 (T8)**: Webhook이 누락되거나 순서가 바뀔 수 있으므로, 30초마다 OME 스트림 목록과 DB의 `LIVE` 방송을 대조해 송출이 없는 방송을 유예 후 `ENDED`로 바꾼다. Webhook 처리는 멱등하게 만든다 (같은 이벤트가 두 번 와도 결과가 같다).
 - **시청자 종료 감지 (T9)**: 시청 화면은 방송 상태를 5초마다 조회하고, hls.js 치명적 오류(네이티브 HLS 경로는 `<video>`의 `error`·`stalled`) 때도 즉시 다시 조회한다. `ENDED`면 재생을 정리하고 "방송 종료"를 표시한다.
 - **목록 노출**: 공개 목록은 `LIVE` → `READY` → `ENDED` 순서다. `READY`는 만든 지 24시간 안인 것만 "방송 준비 중"으로 보여, 시청자가 방송 전부터 목록에서 들어와 기다릴 수 있다. 24시간이 지난 `READY`는 공개 목록에서만 빠지고 소유자의 "내 방송"에는 남는다(자동 종료·삭제 없음). 한 사용자가 이렇게 목록에 올려 둘 수 있는 `READY`는 20개까지다(2026-11-17 사용자 결정으로 10에서 조정). 20개면 방송 생성이 409와 "쓰지 않는 방송을 삭제하라"는 문구로 거부된다. 한 계정이 방송을 반복 생성해 100행 목록(`PUBLIC_LIST_LIMIT`)에서 다른 사람의 `READY`·`ENDED`를 밀어내지 못하게 한다(#212, [STORIES-ready-cap](./features/broadcast-management/STORIES-ready-cap.md)). 팔로우 목록은 `LIVE`만 보인다. `READY` 시청 화면은 "방송 준비 중입니다."를 안내한다(#90).
-- **재생 경로 분기**: `window.MediaSource`가 있고 hls.js가 지원되는 브라우저는 hls.js, 없는 브라우저(iPhone Safari)는 `<video src>` 네이티브 HLS로 보낸다. hls.js는 iOS에서 17.1+에서만 동작하므로 iOS는 네이티브로 보낸다. `canPlayType('application/vnd.apple.mpegurl')`만으로는 나눌 수 없다. 데스크톱 Chrome 156도 `'maybe'`를 돌려주기 때문이다(#10 실측).
+- **재생 경로 분기**: `Hls.isSupported()`가 참인 브라우저(`MediaSource` 또는 iOS 17.1+ Safari의 `ManagedMediaSource`)는 hls.js로 보낸다. 둘 다 없고 `canPlayType('application/vnd.apple.mpegurl')`이 참인 브라우저(iOS 17.0 이하 Safari)만 `<video src>` 네이티브 HLS로 보낸다. 그 밖은 재생할 수 없다고 띄운다. `canPlayType`을 먼저 보면 안 된다. 데스크톱 Chrome 156도 `'maybe'`를 돌려준다(#10 실측).
+  - 2026-11-17 변경(#246): 처음에는 "hls.js는 iOS 17.1+에서만 동작하므로 iOS는 네이티브로 보낸다"였다(#10). 그런데 OME v0.21.0은 bypass 비디오의 LL-HLS chunklist에 `PART-TARGET=0.000000`을 쓰고, iOS 네이티브 HLS는 이 플레이리스트를 거부한다(`CoreMediaErrorDomain -12642`, `<video>` error 4). 같은 스트림을 같은 iOS 26.5 Simulator에서 hls.js + `ManagedMediaSource`로는 재생했다. 그래서 iPhone도 hls.js를 먼저 쓴다. iOS 17.0 이하는 지금도 네이티브라 재생되지 않을 수 있다. OME 쪽 수정은 제출 뒤 과제다. 경위: `docs/features/watch/STORIES-ios-hls.md`.
 
 #### 7.5 인가 규칙
 
@@ -255,7 +256,7 @@ sequenceDiagram
 | PC 화면 + 탭 소리 | Chrome/Edge (Windows, macOS) | Safari, Firefox: 화면 공유 오디오 없음 |
 | PC 화면 + 시스템 소리 | Chrome/Edge (Windows) | macOS: Chrome 141+ · macOS 14.2+에서 지원 여부를 C4에서 직접 확인한 뒤 적는다 |
 | 모바일 송출 | Android Chrome, iOS Safari 16.4+ (화면 꺼짐 방지 포함) | iOS 15.x는 송출만 되고 화면 꺼짐 방지 없음. 화면 꺼짐·백그라운드 전환 시 송출 중단 |
-| 시청 | hls.js 지원 브라우저, iOS Safari(네이티브 HLS) | — |
+| 시청 | hls.js 지원 브라우저(iOS Safari 17.1+ 포함, `ManagedMediaSource`) | iOS 17.0 이하는 네이티브 HLS로 보내지만 OME 플레이리스트(`PART-TARGET=0`)를 거부해 재생되지 않을 수 있다(#246) |
 
 검증 기기: Windows PC, Android, MacBook(M3, macOS 26 / Chrome 156), **빌린 iPhone(D6에 1회, Wi-Fi 끄고 송출·시청)**. README에는 실제로 확인한 iOS 버전만 지원으로 적는다. 손에 없는 환경을 지원한다고 쓰지 않는다.
 

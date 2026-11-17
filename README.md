@@ -6,7 +6,7 @@
 
 - 서비스: https://lime-live.duckdns.org
 - 테스트 계정: 홈이나 로그인 화면의 "테스트 계정으로 로그인"에서 "스트리머 A" 또는 "사용자 B"를 누른다. 비밀번호를 입력하지 않는다.
-- 권장 환경: PC Chrome + 휴대폰 1대. Edge, Windows, 휴대폰 브라우저 앱(Android Chrome, iOS Safari)은 미검증이다. 확인한 환경은 [지원 환경](#지원-환경)에 있다.
+- 권장 환경: PC Chrome + 휴대폰 1대. Edge, Windows, 휴대폰 브라우저 앱(Android Chrome, 실기기 iOS Safari)은 미검증이다. iOS Safari 시청은 iOS Simulator(iOS 26.5)에서만 확인했다. 확인한 환경은 [지원 환경](#지원-환경)에 있다.
 
 확인 순서 (필수 1~8 약 10분, 선택 9 약 5분). 각 줄 끝의 링크가 자세한 절차다.
 
@@ -59,7 +59,7 @@
 | 항목 | 확인 | 구현과 자동 테스트 |
 |---|---|---|
 | 방송 정보 등록·조회·수정·삭제 | 1, 3 | 제목·설명·카테고리를 등록하고, 소유자는 상세 화면의 "수정"·"삭제"를 쓴다. `apps/api/test/broadcasts.e2e.spec.ts` |
-| 목록·상세, PC와 모바일 방송을 다른 기기에서 시청 | 2, 7 | 목록 탭은 전체·LIVE·방송 준비 중·방송 종료·다시보기다. 시청은 LL-HLS(iOS는 네이티브 HLS, 그 밖은 hls.js)다 |
+| 목록·상세, PC와 모바일 방송을 다른 기기에서 시청 | 2, 7 | 목록 탭은 전체·LIVE·방송 준비 중·방송 종료·다시보기다. 시청은 LL-HLS를 hls.js로 재생한다(iOS 17.1+ Safari 포함, hls.js를 못 쓰는 iOS 17.0 이하만 네이티브 HLS) |
 | 방송 중·종료 상태 관리, 종료 시 송출 중단 | 4 | [방송 상태 관리와 예외 처리](#방송-상태-관리와-예외-처리) |
 | 영구 저장, 서버 재시작 뒤 조회 | 6 | PostgreSQL에 저장한다. 6번의 "끝난 방송 예시"는 배포 때 시드로 넣은 방송이다. 운영 서버를 재부팅한 뒤에도 목록이 남는 것을 확인했다([OPERATIONS.md](docs/OPERATIONS.md)). 로컬에서는 아래 절차로 확인한다 |
 
@@ -168,7 +168,9 @@ stateDiagram-v2
 | Screen Wake Lock | macOS, Chrome 156 headless (Playwright, Pixel 7 에뮬레이션) | 권한(`screen-wake-lock`)을 주면 잠금을 얻는다. 주지 않으면 `NotAllowedError`로 거절되고 "화면 꺼짐 방지를 켜지 못했습니다."가 뜬다 |
 | 모바일 송출, 송출 중 전·후면 전환, 1분 화면 유지 | Chrome 156 headless (Playwright, Pixel 7 에뮬레이션, 가짜 카메라) + 로컬 OME | 송출·전환·해상도 변경 후 hls.js 재생 유지·Wake Lock 유지 확인 (`e2e-stack/mobilePublish.spec.ts`) |
 | 같은 기능을 실제 휴대폰에서 (같은 Wi-Fi, 로컬 HTTPS) | Galaxy S22, Slack 앱 안 웹뷰(Android System WebView). Android 버전은 기록하지 않았다 | 2026-11-10 확인. 카메라 송출, PC 시청, 송출 중 전·후면 전환(시청 화면이 약 2~3초 뒤 바뀌고 재생이 이어짐), 1분 방치 뒤에도 송출 유지, 종료(시청 화면이 약 1초 만에 "방송이 끝났습니다."). 방송은 LIVE 93초 뒤 ENDED. mkcert 인증서를 설치하지 않고 경고 화면에서 넘어간 상태로 카메라가 열렸다 |
-| 같은 기능을 휴대폰 브라우저 앱에서 | Android Chrome 앱, iOS Safari | 미검증. 위 절차로 확인한 뒤 적는다 |
+| 비로그인 LIVE 시청 (hls.js + `ManagedMediaSource`) | **iOS Simulator** iOS 26.5, iPhone 17 Pro, Safari. 실기기 아님 | 2026-11-17 확인(#246). LIVE 뒤 30초에 열면 2.2초 만에 재생, LIVE 뒤 6초에 열면 8.4~13.6초(3회). 60초 동안 재생 위치 60초 증가. 음소거로 자동 재생되고 "소리 켜기"로 음소거가 풀림. 송출 종료 뒤 약 3초에 "방송이 끝났습니다." 더블탭 전체화면은 자동화로 누를 수 없어 미확인 |
+| iOS 17.0 이하 Safari 시청 | — | 주의: hls.js를 못 써 네이티브 HLS로 보낸다. iOS 네이티브 HLS는 OME 플레이리스트(`PART-TARGET=0`)를 거부해 재생되지 않을 수 있다(#246). 확인하지 않았다 |
+| 같은 기능을 휴대폰 브라우저 앱에서 | Android Chrome 앱, 실기기 iOS Safari | 미검증. 위 절차로 확인한 뒤 적는다 |
 | PC 화면 + 탭 소리 송출 | Windows, Edge | 미검증 |
 
 macOS 시스템 소리를 직접 확인하는 절차: 시스템 설정 → 개인정보 보호 및 보안 → 화면 및 시스템 오디오 녹음에서 Chrome을 허용한다. 송출 화면에서 "화면 공유" → "전체 화면" → "시스템 오디오와 함께 공유"를 켜고 공유한다. 다른 앱(예: 음악 앱)에서 소리를 내고 화면 소리 미터가 움직이는지 본다.

@@ -65,7 +65,8 @@ export function LivePlayer({
     if (path === 'native') {
       const load = () => {
         video.src = src;
-        // iPhone Safari는 소리 있는 영상을 재생 요청 전까지 아무것도 로드하지 않는다.
+        // 이 경로는 hls.js를 못 쓰는 iOS 17.0 이하 Safari뿐이다(#246). iPhone Safari는
+        // 소리 있는 영상을 재생 요청 전까지 아무것도 로드하지 않는다.
         play(video);
       };
       const onError = () => {

@@ -2,14 +2,15 @@ import Hls from 'hls.js';
 
 export type PlaybackPath = 'native' | 'hls.js' | 'unsupported';
 
-// PRD §7.4는 iPhone Safari를 네이티브 HLS로(hls.js는 iOS 17.1+ 필요),
-// 나머지를 hls.js로 보낸다. 이제 canPlayType만으로는 둘을 가를 수 없다.
-// 데스크톱 Chrome도 'maybe'라고 답한다(Chrome 156, 실측). iPhone에
-// 없는 것은 고전 MediaSource라서, 그것을 먼저 본다.
+// PRD §7.4: hls.js를 쓸 수 있으면 hls.js, 없을 때만 네이티브 HLS로 보낸다.
+// Hls.isSupported()는 MediaSource와 ManagedMediaSource(iOS 17.1+)를 함께 본다.
+// iPhone도 hls.js로 보내는 이유는 OME가 bypass 비디오의 LL-HLS chunklist에
+// PART-TARGET=0을 쓰고, iOS 네이티브 HLS가 그 플레이리스트를 거부해서다
+// (CoreMediaErrorDomain -12642, #246). 둘 다 없는 iOS 17.0 이하만 네이티브다.
 export function playbackPath(video: HTMLVideoElement): PlaybackPath {
-  if ('MediaSource' in window && Hls.isSupported()) return 'hls.js';
+  if (Hls.isSupported()) return 'hls.js';
   if (video.canPlayType('application/vnd.apple.mpegurl')) return 'native';
-  return Hls.isSupported() ? 'hls.js' : 'unsupported';
+  return 'unsupported';
 }
 
 export function llhlsPath(broadcastId: string): string {
