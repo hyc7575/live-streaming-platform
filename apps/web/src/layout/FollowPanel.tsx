@@ -6,16 +6,21 @@ import { FollowList } from '../follows/FollowList';
 import {
   FOLLOWS_EMPTY,
   FOLLOWS_POLL_MS,
-  followedEntries,
   liveEntries,
   returnHere,
+  useFollowedEntries,
+  type FollowedStreamer,
 } from '../follows/follows';
 import { useFollows } from '../follows/follows-context';
+import { useDisplayedBroadcasts } from '../live-display';
 import { usePolledApi } from '../use-api';
 import styles from './FollowPanel.module.css';
 
 // 비로그인 방문자는 같은 자리에서 LIVE 방송 몇 개를 본다.
 const ANONYMOUS_LIVE_LIMIT = 5;
+
+const NO_FOLLOWS: FollowedStreamer[] = [];
+const NO_BROADCASTS: Broadcast[] = [];
 
 function Panel({
   heading,
@@ -34,6 +39,9 @@ function Panel({
 
 function FollowedPanel() {
   const { follows } = useFollows();
+  const entries = useFollowedEntries(
+    follows?.status === 'loaded' ? follows.data : NO_FOLLOWS,
+  );
   return (
     <Panel heading="팔로우한 스트리머">
       {follows?.status === 'failed' && (
@@ -43,7 +51,7 @@ function FollowedPanel() {
         (follows.data.length === 0 ? (
           <p className={styles.note}>{FOLLOWS_EMPTY}</p>
         ) : (
-          <FollowList entries={followedEntries(follows.data)} collapsible />
+          <FollowList entries={entries} collapsible />
         ))}
     </Panel>
   );
@@ -57,17 +65,21 @@ function LivePanel({ offerLogin }: { offerLogin: boolean }) {
     '/broadcasts?status=LIVE',
     FOLLOWS_POLL_MS,
   );
+  // 막 LIVE가 된 방송(#249)은 지연이 끝날 때까지 이 목록에 넣지 않는다.
+  const live = useDisplayedBroadcasts(
+    data.status === 'loaded' ? data.data : NO_BROADCASTS,
+  ).filter((b) => b.status === 'LIVE');
   return (
     <Panel heading="LIVE 중인 방송">
       {data.status === 'failed' && (
         <p className={styles.note}>목록을 불러오지 못했습니다.</p>
       )}
       {data.status === 'loaded' &&
-        (data.data.length === 0 ? (
+        (live.length === 0 ? (
           <p className={styles.note}>LIVE 중인 방송이 없습니다.</p>
         ) : (
           <FollowList
-            entries={liveEntries(data.data.slice(0, ANONYMOUS_LIVE_LIMIT))}
+            entries={liveEntries(live.slice(0, ANONYMOUS_LIVE_LIMIT))}
             collapsible
           />
         ))}

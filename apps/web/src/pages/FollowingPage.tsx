@@ -1,13 +1,22 @@
 import { FollowList } from '../follows/FollowList';
-import { FOLLOWS_EMPTY, followedEntries } from '../follows/follows';
+import {
+  FOLLOWS_EMPTY,
+  useFollowedEntries,
+  type FollowedStreamer,
+} from '../follows/follows';
 import { useFollows } from '../follows/follows-context';
 import { useDocumentTitle } from '../use-document-title';
 import styles from './ListPage.module.css';
+
+const NO_FOLLOWS: FollowedStreamer[] = [];
 
 // 왼쪽 패널을 보일 수 없는 좁은 화면에서 쓰는 패널 목록.
 export function FollowingPage() {
   useDocumentTitle('팔로잉');
   const { follows } = useFollows();
+  const entries = useFollowedEntries(
+    follows?.status === 'loaded' ? follows.data : NO_FOLLOWS,
+  );
   return (
     <section>
       <div className={styles.heading}>
@@ -20,7 +29,7 @@ export function FollowingPage() {
         (follows.data.length === 0 ? (
           <p className={styles.empty}>{FOLLOWS_EMPTY}</p>
         ) : (
-          <FollowList entries={followedEntries(follows.data)} />
+          <FollowList entries={entries} />
         ))}
     </section>
   );
