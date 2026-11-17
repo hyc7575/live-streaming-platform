@@ -160,6 +160,7 @@ describe('donation chat lines', () => {
     // 승인이 토스를 기다리는 동안 스트리머가 방송을 지운다. 후원 줄 쓰기가
     // 방송 행을 참조하므로 삭제와 서로 기다리면 안 된다. 승인은 기록되고,
     // 삭제는 후원 줄과 함께 끝나며, 후원 행은 방송 없이 남는다(#114).
+    // 잠금 순서 자체는 donations.e2e의 'locks the broadcast row …'가 본다.
     it('settles a broadcast deletion that overlaps a slow approval', async () => {
       const payment = await ordered(4000, '겹침');
       toss.delayMs = 1500;

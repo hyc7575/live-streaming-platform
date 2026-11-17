@@ -77,18 +77,14 @@ describe('donations', () => {
     return { paymentKey: `pay_${orderId}`, orderId, amount };
   };
 
-  // 이 DB에서 행 잠금을 기다리는 연결이 생길 때까지 기다린다.
-  const untilSomeoneWaitsForALock = async () => {
-    for (let tries = 0; tries < 100; tries += 1) {
-      const [row] = await prisma.$queryRaw<{ waiting: number }[]>(
-        Prisma.sql`
-          SELECT count(*)::int AS waiting FROM pg_stat_activity
-          WHERE datname = current_database() AND wait_event_type = 'Lock'`,
-      );
-      if (row && row.waiting > 0) return;
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    throw new Error('No connection waited for a lock within 5 seconds');
+  // 이 DB에서 행 잠금을 기다리는 연결 수.
+  const lockWaiters = async () => {
+    const [row] = await prisma.$queryRaw<{ waiting: number }[]>(
+      Prisma.sql`
+        SELECT count(*)::int AS waiting FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+    );
+    return row?.waiting ?? 0;
   };
 
   const setStatus = (status: BroadcastStatus) =>
@@ -503,40 +499,49 @@ describe('donations', () => {
       expect(toss.calls).toHaveLength(1);
     });
 
-    // 사전 부검 T1(#207): 확정은 방송 행을 먼저 잠그고 후원 행을 잠근다.
-    // 삭제는 방송 행을 잠근 뒤 후원 행을 기다린다(SetNull). 확정이 순서를
-    // 뒤집으면 둘이 서로 기다리고, Postgres가 한쪽을 40P01로 끊어 500이 된다.
-    // 이 테스트는 Toss를 기다리는 동안 삭제를 겹치므로, 방송 행 잠금이
-    // Toss 승인 뒤로 밀리거나 빠지면 실패한다. 두 잠금 사이(Toss 전)의 짧은
-    // 틈은 붙잡을 곳이 없어 잡지 못한다.
-    it('makes a delete wait for a confirm holding Toss, then unlinks the paid donation', async () => {
-      const payment = await ordered(4000, '마지막 후원');
-      const held = toss.hold();
-      const confirming = confirm(donor.agent, payment).then((res) => res);
-      await held.reached;
+    // 사전 부검 T1(#207): 확정은 방송 행을 후원 행보다 먼저 잠근다. 방송
+    // 삭제는 방송 행을 잠근 뒤 후원 행을 기다리므로(SetNull), 순서가 뒤집히면
+    // 둘이 서로 기다려 40P01로 끊긴다. 겹친 삭제의 끝 상태는
+    // donation-chat-line.e2e의 'settles a broadcast deletion …'이 본다.
+    // 여기서는 순서 자체를 본다. 테스트가 후원 행을 쥔 채 확정을 보내면,
+    // 확정은 방송 행을 이미 잡고 후원 행에서 기다려야 한다.
+    it('locks the broadcast row before the order row while confirming', async () => {
+      const payment = await ordered(4000);
+      let unlock!: () => void;
+      const unlocked = new Promise<void>((resolve) => (unlock = resolve));
+      let orderLocked!: () => void;
+      const locked = new Promise<void>((resolve) => (orderLocked = resolve));
+      const holding = prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw(Prisma.sql`
+            SELECT id FROM "Donation"
+            WHERE "orderId" = ${payment.orderId}
+            FOR UPDATE`);
+          orderLocked();
+          await unlocked;
+        },
+        { timeout: 10_000 },
+      );
+      try {
+        await Promise.race([locked, holding]);
+        // supertest는 then을 불러야 요청을 보낸다.
+        const confirming = confirm(donor.agent, payment).then((res) => res);
+        await expect.poll(lockWaiters, { timeout: 2000 }).toBeGreaterThan(0);
 
-      let removedEarly = false;
-      const removing = streamer.agent
-        .delete(`/api/broadcasts/${broadcastId}`)
-        .then((res) => {
-          removedEarly = true;
-          return res;
-        });
-      await untilSomeoneWaitsForALock();
-      expect(removedEarly).toBe(false);
+        // 확정이 방송 행을 KEY SHARE로 쥐고 있으면 FOR UPDATE는 건너뛴다.
+        const free = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+          SELECT id FROM "Broadcast"
+          WHERE id = ${broadcastId}::uuid
+          FOR UPDATE SKIP LOCKED`);
+        expect(free, 'confirm must hold the broadcast row first').toEqual([]);
 
-      held.release();
-      const [confirmed, removed] = await Promise.all([confirming, removing]);
-      expect(confirmed.status, JSON.stringify(confirmed.body)).toBe(200);
-      expect(confirmed.body).toMatchObject({ amount: 4000, broadcastId });
-      expect(removed.status, JSON.stringify(removed.body)).toBe(204);
-      expect(toss.calls).toHaveLength(1);
-      expect(
-        await prisma.donation.findUniqueOrThrow({
-          where: { orderId: payment.orderId },
-        }),
-      ).toMatchObject({ status: 'PAID', amount: 4000, broadcastId: null });
-      expect(await prisma.broadcast.count()).toBe(0);
+        unlock();
+        const confirmed = await confirming;
+        expect(confirmed.status, JSON.stringify(confirmed.body)).toBe(200);
+      } finally {
+        unlock();
+        await holding;
+      }
     });
   });
 
