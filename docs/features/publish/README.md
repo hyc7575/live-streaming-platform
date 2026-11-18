@@ -32,6 +32,7 @@ PC 화면 송출, 모바일 카메라 송출, OBS 송출, 송출 사전 점검. 
 | #76 | #84 | 송출 연결 실패를 알리고 송출 중 이탈 전에 확인 |
 | #89 | #103 | OBS로 송출 (WHIP URL 발급, OBS 토큰 12시간) |
 | #102 | #104 | LL-HLS 세그먼트를 4초로 줄여 첫 화면 대기를 줄인다 |
+| #216 | (이 PR) | 내장 TURN이 내부로 중계하지 않음을 확인하고, 운영 compose에서 ome를 DB 네트워크와 분리 |
 
 ## 코드
 
@@ -40,9 +41,12 @@ PC 화면 송출, 모바일 카메라 송출, OBS 송출, 송출 사전 점검. 
 - web: `apps/web/src/pages/PublishPage.tsx`, `ObsPanel.tsx`, `captureSources.ts`
 - web: `apps/web/src/components/PcPreflight.tsx`, `PermissionGuide.tsx`
 - web: `apps/web/src/capture/`, `publish/`
+- 배포: `deploy/compose.yaml`의 `data`·`media` 네트워크, 검사 `scripts/check-compose-networks.mjs`
+- TURN 중계 실험: `scripts/turn-relay-check/`
 
 ## 확인
 
 - 시나리오: [SCENARIOS.md](./SCENARIOS.md) (기기별 체크리스트)
+- 내장 TURN 중계 범위·네트워크 분리: [STORIES.md](./STORIES.md), [SCENARIOS-turn-relay.md](./SCENARIOS-turn-relay.md) (#216)
 - 인수 시나리오: `PRD.md` §8.3 2, 3, 6, 8, 9, 10, 11, 12, 13
 - 수동 확인 절차: [`docs/VERIFICATION.md`](../../VERIFICATION.md)의 3·4·5절, "PC 화면 캡처·믹싱", "송출 사전 점검", "PC 화면 송출", "모바일 송출", "추가 송출 방법: OBS"

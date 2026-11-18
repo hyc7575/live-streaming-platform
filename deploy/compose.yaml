@@ -12,6 +12,7 @@ services:
     image: postgres:18-alpine
     restart: unless-stopped
     logging: *logging
+    networks: [data]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-lsp}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD를 deploy/.env에 넣으세요}
@@ -29,6 +30,7 @@ services:
     image: postgres:18-alpine
     restart: unless-stopped
     logging: *logging
+    networks: [data]
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +56,8 @@ services:
       dockerfile: deploy/api.Dockerfile
     restart: unless-stopped
     logging: *logging
+    # DB와 OME 양쪽에 닿아야 하는 서비스는 api뿐이다.
+    networks: [data, media]
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,6 +105,9 @@ services:
     image: ovenmedialabs/ovenmediaengine:v0.21.0
     restart: unless-stopped
     logging: *logging
+    # ome는 ICE·TURN 포트를 인터넷에 연다. 뚫려도 postgres에 바로 닿지 않게 data 네트워크에 두지 않는다(#216).
+    # admission(api:3000), 관리 API(api → 8081), Caddy 중계(3333)는 media 네트워크로 이어진다.
+    networks: [media]
     # OME는 ICE 후보에 자기가 듣는 포트 번호를 그대로 적어 브라우저에 알린다.
     # 그래서 ICE·TURN 포트는 호스트와 컨테이너를 같은 번호로 묶는다.
     environment:
@@ -129,6 +136,7 @@ services:
       dockerfile: deploy/web.Dockerfile
     restart: unless-stopped
     logging: *logging
+    networks: [media]
     depends_on:
       api:
         condition: service_healthy
@@ -146,6 +154,11 @@ services:
       - caddy-config:/config
       - ${RECORDINGS_DIR:-./recordings}:/recordings:ro
       - ${THUMBNAILS_DIR:-./thumbnails}:/thumbnails:ro
+
+# 같은 네트워크의 서비스끼리만 이름으로 닿는다. 검사: scripts/check-compose-networks.mjs
+networks:
+  data:
+  media:
 
 volumes:
   postgres-data:
