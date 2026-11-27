@@ -7,7 +7,7 @@
 **브라우저만으로 PC 화면과 휴대폰 카메라를 송출하고, 누구나 로그인 없이 보는 실시간 방송 플랫폼**
 
 설치 없이 브라우저에서 방송을 시작하고(WebRTC), 시청자는 저지연 HLS(LL-HLS)로 봅니다.<br>
-1인 개발 · 공모전 제출작 (2026-11-19 제출)
+1인 개발 · 약 60시간 · 공모전 제출작 (2026-11-19 제출)
 
 [![CI](https://github.com/hyc7575/live-streaming-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/hyc7575/live-streaming-platform/actions/workflows/ci.yml) [![API test](https://github.com/hyc7575/live-streaming-platform/actions/workflows/api-test.yml/badge.svg)](https://github.com/hyc7575/live-streaming-platform/actions/workflows/api-test.yml) ![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black) ![NestJS 12](https://img.shields.io/badge/NestJS-12-E0234E?logo=nestjs&logoColor=white) ![TypeScript 6](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white) ![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white) ![OvenMediaEngine](https://img.shields.io/badge/OvenMediaEngine-0.21-FF6F00) ![Node 24](https://img.shields.io/badge/Node-24-5FA04E?logo=nodedotjs&logoColor=white)
 
